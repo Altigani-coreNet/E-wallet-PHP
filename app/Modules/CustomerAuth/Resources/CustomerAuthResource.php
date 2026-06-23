@@ -19,6 +19,7 @@ class CustomerAuthResource extends JsonResource
             'phone' => $customer->phone,
             'birthDate' => $customer->birth_date?->toIso8601String(),
             'gender' => $customer->gender,
+            'profileImage' => $customer->getProfileImageApi(),
             'address' => $customer->address,
             'countryId' => $customer->country_id,
             'merchantCountryId' => $customer->merchant_country_id,

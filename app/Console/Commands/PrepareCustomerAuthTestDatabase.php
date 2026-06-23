@@ -64,6 +64,7 @@ class PrepareCustomerAuthTestDatabase extends Command
                 'balance',
                 'birth_date',
                 'gender',
+                'profile_image',
                 'profile_completed',
                 'phone',
             ],

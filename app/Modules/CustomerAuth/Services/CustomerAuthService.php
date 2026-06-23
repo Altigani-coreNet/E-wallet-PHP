@@ -2,17 +2,26 @@
 
 namespace App\Modules\CustomerAuth\Services;
 
+use App\Mail\CustomerWelcomeMail;
 use App\Models\City;
 use App\Models\Country;
 use App\Models\Customer;
 use App\Modules\CustomerAuth\Resources\CustomerAuthResource;
 use App\Modules\CustomerAuth\Support\CustomerJwtService;
 use App\Modules\CustomerAuth\Support\OtpTokenCipher;
+use App\Traits\HasFiles;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
 
 class CustomerAuthService
 {
+    use HasFiles;
+
     private const DEFAULT_COUNTRY_DIAL_CODE = '249';
+
+    private const PROFILE_IMAGE_DIR = 'customer_profile_images';
 
     public function __construct(
         private readonly CustomerOtpService $otpService,
@@ -139,7 +148,7 @@ class CustomerAuthService
         ];
     }
 
-    public function completeProfile(Customer $customer, array $data): array
+    public function completeProfile(Customer $customer, array $data, Request $request): array
     {
         $dialCode = $this->normalizeDialCode($data['country_code'] ?? self::DEFAULT_COUNTRY_DIAL_CODE);
         $country = Country::query()
@@ -165,7 +174,7 @@ class CustomerAuthService
             );
         }
 
-        $customer->update([
+        $updateData = [
             'name' => $data['firstName'],
             'email' => $data['email'],
             'birth_date' => $data['birthDate'],
@@ -173,14 +182,97 @@ class CustomerAuthService
             'city_id' => $data['cityId'],
             'country_id' => $country->id,
             'profile_completed' => true,
-        ]);
+        ];
+
+        if ($request->hasFile('picture')) {
+            $updateData['profile_image'] = $this->storeProfilePicture($request, $customer);
+        }
+
+        $customer->update($updateData);
 
         $customer->load(['country', 'city']);
+
+        $this->sendWelcomeEmail(
+            $data['email'],
+            $data['firstName'],
+            $customer->phone,
+        );
 
         return [
             'profile_completed' => true,
             'customer' => CustomerAuthResource::make($customer->fresh(['country', 'city']))->resolve(),
         ];
+    }
+
+    public function updateProfile(Customer $customer, array $data, Request $request): array
+    {
+        $dialCode = $this->normalizeDialCode($data['country_code'] ?? self::DEFAULT_COUNTRY_DIAL_CODE);
+        $country = Country::query()
+            ->where('dial_code', $dialCode)
+            ->where('status', true)
+            ->whereNull('deleted_at')
+            ->first();
+
+        if (! $country) {
+            throw new \Symfony\Component\HttpKernel\Exception\BadRequestHttpException(
+                'Invalid country code'
+            );
+        }
+
+        $this->assertCityBelongsToCountry($data['cityId'], $country->id);
+
+        $updateData = [
+            'name' => $data['firstName'],
+            'birth_date' => $data['birthDate'],
+            'gender' => $data['gender'],
+            'city_id' => $data['cityId'],
+            'country_id' => $country->id,
+        ];
+
+        if ($request->hasFile('picture')) {
+            $updateData['profile_image'] = $this->storeProfilePicture($request, $customer);
+        }
+
+        $customer->update($updateData);
+        $customer->load(['country', 'city']);
+
+        return [
+            'profile_completed' => (bool) $customer->profile_completed,
+            'customer' => CustomerAuthResource::make($customer->fresh(['country', 'city']))->resolve(),
+        ];
+    }
+
+    private function storeProfilePicture(Request $request, Customer $customer): ?string
+    {
+        if (! $request->hasFile('picture')) {
+            return null;
+        }
+
+        if ($customer->profile_image) {
+            $oldImagePath = public_path($customer->profile_image);
+            if (file_exists($oldImagePath)) {
+                unlink($oldImagePath);
+            }
+        }
+
+        $directory = public_path(self::PROFILE_IMAGE_DIR);
+        if (! is_dir($directory)) {
+            mkdir($directory, 0755, true);
+        }
+
+        return $this->uploadImageAndGetFileName($request, 'picture', self::PROFILE_IMAGE_DIR);
+    }
+
+    private function sendWelcomeEmail(string $email, string $customerName, string $phone): void
+    {
+        try {
+            Mail::to($email)->send(new CustomerWelcomeMail($customerName, $email, $phone));
+        } catch (\Throwable $exception) {
+            Log::error('Customer welcome email failed', [
+                'email' => $email,
+                'error' => $exception->getMessage(),
+            ]);
+        }
     }
 
     private function normalizeDialCode(string $dialCode): string

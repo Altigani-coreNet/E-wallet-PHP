@@ -13,6 +13,7 @@
         </testsuite>
         <testsuite name="CustomerAuth">
             <file>tests/Feature/CustomerAuthApiTest.php</file>
+            <file>tests/Feature/CustomerServicesCatalogApiTest.php</file>
             <file>tests/Unit/CustomerAuthResourceTest.php</file>
         </testsuite>
     </testsuites>

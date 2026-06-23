@@ -857,8 +857,15 @@ Route::prefix('v1/customer')->group(function () {
     Route::middleware('customer.jwt')->group(function () {
         Route::get('profile', [\App\Modules\CustomerAuth\Controllers\CustomerAuthController::class, 'profile']);
         Route::patch('profile/complete', [\App\Modules\CustomerAuth\Controllers\CustomerAuthController::class, 'completeProfile']);
+        Route::patch('profile/update', [\App\Modules\CustomerAuth\Controllers\CustomerAuthController::class, 'updateProfile']);
         Route::post('auth/logout', [\App\Modules\CustomerAuth\Controllers\CustomerAuthController::class, 'logout']);
         Route::get('banners', [\App\Modules\CustomerAuth\Controllers\CustomerBannerController::class, 'index']);
+        // One-shot customer catalog for client-side navigation:
+        // services -> products -> forms (with fields)
+        Route::get('services/catalog', [\App\Http\Controllers\Api\CustomerHomeCategoryController::class, 'catalog']);
+        Route::get('services/home', [\App\Http\Controllers\Api\CustomerHomeCategoryController::class, 'homeServices']);
+        Route::get('services/{id}', [\App\Http\Controllers\Api\CustomerHomeCategoryController::class, 'serviceDetails']);
+        Route::get('partners/{id}', [\App\Http\Controllers\Api\CustomerPartnerPublicController::class, 'show']);
         Route::prefix('notifications')->group(function () {
             Route::get('/', [\App\Modules\CustomerAuth\Controllers\CustomerNotificationController::class, 'index']);
             Route::get('/unread-count', [\App\Modules\CustomerAuth\Controllers\CustomerNotificationController::class, 'unreadCount']);

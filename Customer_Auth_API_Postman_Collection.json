@@ -2,13 +2,18 @@
     "info": {
         "_postman_id": "customer-auth-api-2026",
         "name": "Customer Auth API",
-        "description": "End-customer authentication, onboarding, banners, and notifications for Fast Pay SoftPOS (`/api/v1/customer`). Dev OTP mock: set `OTP_MOCK_CODE=111111`. Refresh-token accepts valid JWT or tokens expired within `JWT_REFRESH_GRACE` (default 7d).",
+        "description": "End-customer authentication, onboarding, banners, services catalog, and notifications for Fast Pay SoftPOS (`/api/v1/customer`). Dev OTP mock: set `OTP_MOCK_CODE=111111`. Refresh-token accepts valid JWT or tokens expired within `JWT_REFRESH_GRACE` (default 7d).",
         "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
     },
     "variable": [
         {
             "key": "base_url",
             "value": "http://localhost:8001",
+            "type": "string"
+        },
+        {
+            "key": "dev_url",
+            "value": "http://193.123.83.134:91",
             "type": "string"
         },
         {
@@ -58,6 +63,16 @@
         },
         {
             "key": "notification_id",
+            "value": "",
+            "type": "string"
+        },
+        {
+            "key": "service_id",
+            "value": "",
+            "type": "string"
+        },
+        {
+            "key": "partner_id",
             "value": "",
             "type": "string"
         }
@@ -1002,11 +1017,6 @@
                                 "type": "text"
                             },
                             {
-                                "key": "Content-Type",
-                                "value": "application/json",
-                                "type": "text"
-                            },
-                            {
                                 "key": "Authorization",
                                 "value": "Bearer {{customer_jwt}}",
                                 "type": "text"
@@ -1026,14 +1036,47 @@
                             ]
                         },
                         "body": {
-                            "mode": "raw",
-                            "raw": "{\n    \"firstName\": \"Ahmed\",\n    \"email\": \"{{customer_email}}\",\n    \"birthDate\": \"1990-05-15\",\n    \"gender\": \"male\",\n    \"cityId\": \"{{city_id}}\",\n    \"country_code\": \"249\"\n}",
-                            "options": {
-                                "raw": {
-                                    "language": "json"
+                            "mode": "formdata",
+                            "formdata": [
+                                {
+                                    "key": "firstName",
+                                    "value": "Ahmed",
+                                    "type": "text"
+                                },
+                                {
+                                    "key": "email",
+                                    "value": "{{customer_email}}",
+                                    "type": "text"
+                                },
+                                {
+                                    "key": "birthDate",
+                                    "value": "1990-05-15",
+                                    "type": "text"
+                                },
+                                {
+                                    "key": "gender",
+                                    "value": "male",
+                                    "type": "text"
+                                },
+                                {
+                                    "key": "cityId",
+                                    "value": "{{city_id}}",
+                                    "type": "text"
+                                },
+                                {
+                                    "key": "country_code",
+                                    "value": "249",
+                                    "type": "text"
+                                },
+                                {
+                                    "key": "picture",
+                                    "type": "file",
+                                    "src": [],
+                                    "description": "Optional"
                                 }
-                            }
-                        }
+                            ]
+                        },
+                        "description": "Multipart form-data. Profile picture (`picture` file field) is optional. Sends welcome email on success. Use `{{dev_url}}` instead of `{{base_url}}` for the dev server."
                     },
                     "response": [
                         {
@@ -1061,6 +1104,102 @@
                                 }
                             ],
                             "body": "{\n    \"success\": false,\n    \"message\": \"Email is already in use\",\n    \"errors\": null,\n    \"data\": null\n}"
+                        }
+                    ]
+                },
+                {
+                    "name": "Update Profile",
+                    "request": {
+                        "method": "PATCH",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json",
+                                "type": "text"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{customer_jwt}}",
+                                "type": "text"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/v1/customer/profile/update",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "v1",
+                                "customer",
+                                "profile",
+                                "update"
+                            ]
+                        },
+                        "body": {
+                            "mode": "formdata",
+                            "formdata": [
+                                {
+                                    "key": "firstName",
+                                    "value": "Ahmed",
+                                    "type": "text"
+                                },
+                                {
+                                    "key": "birthDate",
+                                    "value": "1990-05-15",
+                                    "type": "text"
+                                },
+                                {
+                                    "key": "gender",
+                                    "value": "male",
+                                    "type": "text"
+                                },
+                                {
+                                    "key": "cityId",
+                                    "value": "{{city_id}}",
+                                    "type": "text"
+                                },
+                                {
+                                    "key": "country_code",
+                                    "value": "249",
+                                    "type": "text"
+                                },
+                                {
+                                    "key": "picture",
+                                    "type": "file",
+                                    "src": [],
+                                    "description": "Optional — omit to keep existing picture"
+                                }
+                            ]
+                        },
+                        "description": "Update profile data only (no email or phone). Does not send welcome email. Picture is optional. Use `{{dev_url}}` instead of `{{base_url}}` for the dev server."
+                    },
+                    "response": [
+                        {
+                            "name": "Success",
+                            "status": "OK",
+                            "code": 200,
+                            "_postman_previewlanguage": "json",
+                            "header": [
+                                {
+                                    "key": "Content-Type",
+                                    "value": "application/json"
+                                }
+                            ],
+                            "body": "{\n    \"success\": true,\n    \"message\": \"Profile updated successfully\",\n    \"data\": {\n        \"profile_completed\": true,\n        \"customer\": {\n            \"id\": 1,\n            \"name\": \"Ahmed\",\n            \"email\": \"ahmed@example.com\",\n            \"phone\": \"+249912345678\",\n            \"birthDate\": \"1990-05-15T00:00:00+00:00\",\n            \"gender\": \"male\",\n            \"profileImage\": \"http://193.123.83.134:91/customer_profile_images/1710000000.jpg\",\n            \"address\": null,\n            \"countryId\": \"00000000-0000-4000-8000-000000000001\",\n            \"merchantCountryId\": null,\n            \"cityId\": \"10000000-0000-4000-8000-000000000001\",\n            \"state\": null,\n            \"zip\": null,\n            \"merchantId\": null,\n            \"profileCompleted\": true,\n            \"balance\": \"0.00\",\n            \"country\": {\n                \"id\": \"00000000-0000-4000-8000-000000000001\",\n                \"name\": \"Sudan\",\n                \"dialCode\": \"249\"\n            },\n            \"city\": {\n                \"id\": \"10000000-0000-4000-8000-000000000001\",\n                \"name\": \"Khartoum\"\n            },\n            \"createdAt\": \"2026-06-23T10:00:00+00:00\",\n            \"updatedAt\": \"2026-06-23T10:30:00+00:00\"\n        }\n    }\n}"
+                        },
+                        {
+                            "name": "Error",
+                            "status": "Unauthorized",
+                            "code": 401,
+                            "_postman_previewlanguage": "json",
+                            "header": [
+                                {
+                                    "key": "Content-Type",
+                                    "value": "application/json"
+                                }
+                            ],
+                            "body": "{\n    \"success\": false,\n    \"message\": \"Unauthorized\",\n    \"errors\": null,\n    \"data\": null\n}"
                         }
                     ]
                 }
@@ -1130,6 +1269,288 @@
                                 }
                             ],
                             "body": "{\n    \"success\": false,\n    \"message\": \"Unauthorized\",\n    \"errors\": null,\n    \"data\": null\n}"
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "Services Catalog",
+            "item": [
+                {
+                    "name": "Services Catalog (Full)",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json",
+                                "type": "text"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json",
+                                "type": "text"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{customer_jwt}}",
+                                "type": "text"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/v1/customer/services/catalog",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "v1",
+                                "customer",
+                                "services",
+                                "catalog"
+                            ],
+                            "query": [
+                                {
+                                    "key": "country_id",
+                                    "value": "",
+                                    "disabled": true
+                                },
+                                {
+                                    "key": "service_type",
+                                    "value": "digital",
+                                    "disabled": true
+                                },
+                                {
+                                    "key": "partner_id",
+                                    "value": "",
+                                    "disabled": true
+                                }
+                            ]
+                        },
+                        "description": "Full customer catalog: categories -> services -> products -> product_forms -> fields. Same payload shape as merchant `/api/v1/merchant/services/catalog`."
+                    },
+                    "response": [
+                        {
+                            "name": "Success",
+                            "status": "OK",
+                            "code": 200,
+                            "_postman_previewlanguage": "json",
+                            "header": [
+                                {
+                                    "key": "Content-Type",
+                                    "value": "application/json"
+                                }
+                            ],
+                            "body": "{\n    \"status\": true,\n    \"data\": {\n        \"categories\": [\n            {\n                \"id\": \"550e8400-e29b-41d4-a716-446655440000\",\n                \"name_en\": \"Utilities\",\n                \"name_ar\": \"Utilities\",\n                \"code\": \"UTIL\",\n                \"category_image\": \"https://example.com/storage/settings.png\",\n                \"services\": [\n                    {\n                        \"id\": \"660e8400-e29b-41d4-a716-446655440001\",\n                        \"service_name\": \"Electricity Bill\",\n                        \"service_type\": \"digital\",\n                        \"products\": []\n                    }\n                ]\n            }\n        ]\n    }\n}"
+                        }
+                    ],
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "if (pm.response.code === 200) {",
+                                    "    const json = pm.response.json();",
+                                    "    const categories = json.data && json.data.categories;",
+                                    "    if (Array.isArray(categories) && categories.length > 0) {",
+                                    "        const services = categories[0].services;",
+                                    "        if (Array.isArray(services) && services.length > 0 && services[0].id) {",
+                                    "            pm.collectionVariables.set('service_id', services[0].id);",
+                                    "        }",
+                                    "    }",
+                                    "}"
+                                ]
+                            }
+                        }
+                    ]
+                },
+                {
+                    "name": "Home Services",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json",
+                                "type": "text"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json",
+                                "type": "text"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{customer_jwt}}",
+                                "type": "text"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/v1/customer/services/home?limit=5",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "v1",
+                                "customer",
+                                "services",
+                                "home"
+                            ],
+                            "query": [
+                                {
+                                    "key": "limit",
+                                    "value": "5"
+                                }
+                            ]
+                        },
+                        "description": "Home-screen subset with quick_action. Same payload shape as merchant `/api/v1/merchant/services/home`."
+                    },
+                    "response": [
+                        {
+                            "name": "Success",
+                            "status": "OK",
+                            "code": 200,
+                            "_postman_previewlanguage": "json",
+                            "header": [
+                                {
+                                    "key": "Content-Type",
+                                    "value": "application/json"
+                                }
+                            ],
+                            "body": "{\n    \"status\": true,\n    \"data\": {\n        \"categories\": [],\n        \"quick_action\": null\n    }\n}"
+                        }
+                    ]
+                },
+                {
+                    "name": "Service Details",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json",
+                                "type": "text"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json",
+                                "type": "text"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{customer_jwt}}",
+                                "type": "text"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/v1/customer/services/{{service_id}}",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "v1",
+                                "customer",
+                                "services",
+                                "{{service_id}}"
+                            ]
+                        },
+                        "description": "Single service with products and form fields. Run Services Catalog (Full) first to populate `service_id`."
+                    },
+                    "response": [
+                        {
+                            "name": "Success",
+                            "status": "OK",
+                            "code": 200,
+                            "_postman_previewlanguage": "json",
+                            "header": [
+                                {
+                                    "key": "Content-Type",
+                                    "value": "application/json"
+                                }
+                            ],
+                            "body": "{\n    \"status\": true,\n    \"data\": {\n        \"service\": {\n            \"id\": \"660e8400-e29b-41d4-a716-446655440001\",\n            \"service_name\": \"Electricity Bill\",\n            \"service_type\": \"digital\",\n            \"category\": {},\n            \"products\": []\n        }\n    }\n}"
+                        },
+                        {
+                            "name": "Error",
+                            "status": "Not Found",
+                            "code": 404,
+                            "_postman_previewlanguage": "json",
+                            "header": [
+                                {
+                                    "key": "Content-Type",
+                                    "value": "application/json"
+                                }
+                            ],
+                            "body": "{\n    \"status\": false,\n    \"message\": \"Service not found or not available.\",\n    \"Error_Code\": \"CUSTOMER_SERVICE_NOT_FOUND\"\n}"
+                        }
+                    ]
+                },
+                {
+                    "name": "Partner Profile",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json",
+                                "type": "text"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json",
+                                "type": "text"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{customer_jwt}}",
+                                "type": "text"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/v1/customer/partners/{{partner_id}}",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "v1",
+                                "customer",
+                                "partners",
+                                "{{partner_id}}"
+                            ]
+                        },
+                        "description": "Read-only approved partner snapshot for customer apps."
+                    },
+                    "response": [
+                        {
+                            "name": "Success",
+                            "status": "OK",
+                            "code": 200,
+                            "_postman_previewlanguage": "json",
+                            "header": [
+                                {
+                                    "key": "Content-Type",
+                                    "value": "application/json"
+                                }
+                            ],
+                            "body": "{\n    \"status\": true,\n    \"data\": {\n        \"partner\": {\n            \"id\": \"770e8400-e29b-41d4-a716-446655440002\",\n            \"name\": \"Test Partner\",\n            \"merchant_code\": \"MRC001\",\n            \"status\": \"approved\",\n            \"is_active\": true\n        }\n    }\n}"
+                        },
+                        {
+                            "name": "Error",
+                            "status": "Not Found",
+                            "code": 404,
+                            "_postman_previewlanguage": "json",
+                            "header": [
+                                {
+                                    "key": "Content-Type",
+                                    "value": "application/json"
+                                }
+                            ],
+                            "body": "{\n    \"status\": false,\n    \"message\": \"Partner not found or not available.\",\n    \"Error_Code\": \"CUSTOMER_PARTNER_NOT_FOUND\"\n}"
                         }
                     ]
                 }

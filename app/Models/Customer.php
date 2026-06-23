@@ -20,6 +20,7 @@ class Customer extends Model implements AuthenticatableContract
         'balance',
         'birth_date',
         'gender',
+        'profile_image',
         'address',
         'country_id',
         'city_id',
@@ -59,6 +60,17 @@ class Customer extends Model implements AuthenticatableContract
     public function getCode()
     {
         return 'CSMR' . str_replace('MERCH', '', $this->merchant->merchant_code) . '' . str_pad($this->id, 6, '0', STR_PAD_LEFT);
+    }
+
+    public function getProfileImageApi(): ?string
+    {
+        if (! $this->profile_image) {
+            return null;
+        }
+
+        return function_exists('coreservice_asset')
+            ? coreservice_asset($this->profile_image)
+            : asset($this->profile_image);
     }
 
     public function  scopeWithCountry($query)

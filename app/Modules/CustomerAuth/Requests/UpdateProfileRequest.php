@@ -2,7 +2,7 @@
 
 namespace App\Modules\CustomerAuth\Requests;
 
-class CompleteProfileRequest extends CustomerAuthFormRequest
+class UpdateProfileRequest extends CustomerAuthFormRequest
 {
     public function authorize(): bool
     {
@@ -13,7 +13,6 @@ class CompleteProfileRequest extends CustomerAuthFormRequest
     {
         return [
             'firstName' => ['required', 'string', 'max:255'],
-            'email' => ['required', 'email'],
             'birthDate' => ['required', 'date'],
             'gender' => ['required', 'string', 'in:male,female,other'],
             'cityId' => ['required', 'uuid'],

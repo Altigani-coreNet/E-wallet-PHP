@@ -8,6 +8,7 @@ use App\Modules\CustomerAuth\Requests\CustomerForgotPasswordRequest;
 use App\Modules\CustomerAuth\Requests\CustomerLoginRequest;
 use App\Modules\CustomerAuth\Requests\CustomerRegisterRequest;
 use App\Modules\CustomerAuth\Requests\CustomerResetPasswordRequest;
+use App\Modules\CustomerAuth\Requests\UpdateProfileRequest;
 use App\Modules\CustomerAuth\Services\CustomerAuthService;
 use App\Modules\CustomerAuth\Support\CustomerJwtService;
 use App\Support\SuccessResponse;
@@ -93,9 +94,18 @@ class CustomerAuthController
     {
         /** @var Customer $customer */
         $customer = Auth::guard('customer')->user();
-        $data = $this->authService->completeProfile($customer, $request->validated());
+        $data = $this->authService->completeProfile($customer, $request->validated(), $request);
 
         return SuccessResponse::make($data, 'Profile completed successfully');
+    }
+
+    public function updateProfile(UpdateProfileRequest $request)
+    {
+        /** @var Customer $customer */
+        $customer = Auth::guard('customer')->user();
+        $data = $this->authService->updateProfile($customer, $request->validated(), $request);
+
+        return SuccessResponse::make($data, 'Profile updated successfully');
     }
 
     public function logout()

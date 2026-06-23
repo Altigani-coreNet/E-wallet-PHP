@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Mail\CustomerWelcomeMail;
 use App\Mail\VerificationCode;
 use App\Models\Advertisement;
 use App\Models\City;
@@ -11,6 +12,7 @@ use App\Modules\CustomerAuth\Support\CustomerJwtService;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
+use Illuminate\Http\UploadedFile;
 use Tests\CustomerAuthTestCase;
 
 class CustomerAuthApiTest extends CustomerAuthTestCase
@@ -373,7 +375,72 @@ class CustomerAuthApiTest extends CustomerAuthTestCase
 
     public function test_can_complete_profile(): void
     {
+        Mail::fake();
+
         [$country, $city] = $this->createCountryAndCity();
+
+        $customer = Customer::factory()->create([
+            'phone' => self::TEST_PHONE,
+            'profile_completed' => false,
+        ]);
+
+        $response = $this->withCustomerToken($customer)
+            ->patch('/api/v1/customer/profile/complete', [
+                'firstName' => 'Ahmed',
+                'email' => 'ahmed@example.com',
+                'birthDate' => '1990-05-15',
+                'gender' => 'male',
+                'cityId' => $city->id,
+                'country_code' => '249',
+                'picture' => UploadedFile::fake()->image('avatar.jpg'),
+            ], [
+                'Accept' => 'application/json',
+            ]);
+
+        $response->assertOk()
+            ->assertJson([
+                'success' => true,
+                'message' => 'Profile completed successfully',
+                'data' => [
+                    'profile_completed' => true,
+                    'customer' => [
+                        'name' => 'Ahmed',
+                        'email' => 'ahmed@example.com',
+                        'profileCompleted' => true,
+                        'countryId' => $country->id,
+                        'cityId' => $city->id,
+                    ],
+                ],
+            ])
+            ->assertJsonStructure([
+                'data' => [
+                    'customer' => ['profileImage'],
+                ],
+            ]);
+
+        $this->assertDatabaseHas('customers', [
+            'id' => $customer->id,
+            'name' => 'Ahmed',
+            'email' => 'ahmed@example.com',
+            'profile_completed' => true,
+        ]);
+
+        $customer->refresh();
+        $this->assertNotNull($customer->profile_image);
+        $this->assertFileExists(public_path($customer->profile_image));
+
+        Mail::assertSent(CustomerWelcomeMail::class, function (CustomerWelcomeMail $mail) {
+            return $mail->hasTo('ahmed@example.com')
+                && $mail->customerName === 'Ahmed'
+                && $mail->phone === self::TEST_PHONE;
+        });
+    }
+
+    public function test_can_complete_profile_without_picture(): void
+    {
+        Mail::fake();
+
+        [, $city] = $this->createCountryAndCity();
 
         $customer = Customer::factory()->create([
             'phone' => self::TEST_PHONE,
@@ -391,15 +458,51 @@ class CustomerAuthApiTest extends CustomerAuthTestCase
             ]);
 
         $response->assertOk()
+            ->assertJsonPath('data.profile_completed', true)
+            ->assertJsonPath('data.customer.profileCompleted', true)
+            ->assertJsonPath('data.customer.profileImage', null);
+
+        $customer->refresh();
+        $this->assertNull($customer->profile_image);
+        Mail::assertSent(CustomerWelcomeMail::class);
+    }
+
+    public function test_can_update_profile_without_changing_email_or_phone(): void
+    {
+        Mail::fake();
+
+        [$country, $city] = $this->createCountryAndCity();
+
+        $customer = Customer::factory()->create([
+            'phone' => self::TEST_PHONE,
+            'email' => 'existing@example.com',
+            'name' => 'Old Name',
+            'profile_completed' => true,
+        ]);
+
+        $response = $this->withCustomerToken($customer)
+            ->patch('/api/v1/customer/profile/update', [
+                'firstName' => 'Updated Name',
+                'birthDate' => '1992-03-20',
+                'gender' => 'female',
+                'cityId' => $city->id,
+                'country_code' => '249',
+                'picture' => UploadedFile::fake()->image('new-avatar.jpg'),
+            ], [
+                'Accept' => 'application/json',
+            ]);
+
+        $response->assertOk()
             ->assertJson([
                 'success' => true,
-                'message' => 'Profile completed successfully',
+                'message' => 'Profile updated successfully',
                 'data' => [
                     'profile_completed' => true,
                     'customer' => [
-                        'name' => 'Ahmed',
-                        'email' => 'ahmed@example.com',
-                        'profileCompleted' => true,
+                        'name' => 'Updated Name',
+                        'email' => 'existing@example.com',
+                        'phone' => self::TEST_PHONE,
+                        'gender' => 'female',
                         'countryId' => $country->id,
                         'cityId' => $city->id,
                     ],
@@ -408,10 +511,13 @@ class CustomerAuthApiTest extends CustomerAuthTestCase
 
         $this->assertDatabaseHas('customers', [
             'id' => $customer->id,
-            'name' => 'Ahmed',
-            'email' => 'ahmed@example.com',
-            'profile_completed' => true,
+            'name' => 'Updated Name',
+            'email' => 'existing@example.com',
+            'phone' => self::TEST_PHONE,
+            'gender' => 'female',
         ]);
+
+        Mail::assertNothingSent();
     }
 
     public function test_complete_profile_fails_with_duplicate_email(): void
@@ -426,13 +532,16 @@ class CustomerAuthApiTest extends CustomerAuthTestCase
         ]);
 
         $response = $this->withCustomerToken($customer)
-            ->patchJson('/api/v1/customer/profile/complete', [
+            ->patch('/api/v1/customer/profile/complete', [
                 'firstName' => 'Ahmed',
                 'email' => 'taken@example.com',
                 'birthDate' => '1990-05-15',
                 'gender' => 'male',
                 'cityId' => $city->id,
                 'country_code' => '249',
+                'picture' => UploadedFile::fake()->image('avatar.jpg'),
+            ], [
+                'Accept' => 'application/json',
             ]);
 
         $response->assertStatus(409)
@@ -473,6 +582,9 @@ class CustomerAuthApiTest extends CustomerAuthTestCase
         $this->patchJson('/api/v1/customer/profile/complete')
             ->assertStatus(401);
 
+        $this->patchJson('/api/v1/customer/profile/update')
+            ->assertStatus(401);
+
         $this->postJson('/api/v1/customer/auth/logout')
             ->assertStatus(401);
 
@@ -480,6 +592,15 @@ class CustomerAuthApiTest extends CustomerAuthTestCase
             ->assertStatus(401);
 
         $this->getJson('/api/v1/customer/notifications')
+            ->assertStatus(401);
+
+        $this->getJson('/api/v1/customer/services/catalog')
+            ->assertStatus(401);
+
+        $this->getJson('/api/v1/customer/services/home')
+            ->assertStatus(401);
+
+        $this->getJson('/api/v1/customer/partners/00000000-0000-4000-8000-000000000099')
             ->assertStatus(401);
     }
 
