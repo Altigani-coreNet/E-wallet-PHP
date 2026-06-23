@@ -1,0 +1,36 @@
+[2026-06-23 11:24:31] local.ERROR: Please provide a valid cache path. {"exception":"[object] (InvalidArgumentException(code: 0): Please provide a valid cache path. at C:\\Users\\malti\\ewallet\\SoftPos\\vendor\\laravel\\framework\\src\\Illuminate\\View\\Compilers\\Compiler.php:75)
+[stacktrace]
+#0 C:\\Users\\malti\\ewallet\\SoftPos\\vendor\\laravel\\framework\\src\\Illuminate\\View\\ViewServiceProvider.php(97): Illuminate\\View\\Compilers\\Compiler->__construct(Object(Illuminate\\Filesystem\\Filesystem), false, '', true, 'php', true)
+#1 C:\\Users\\malti\\ewallet\\SoftPos\\vendor\\laravel\\framework\\src\\Illuminate\\Container\\Container.php(1111): Illuminate\\View\\ViewServiceProvider->Illuminate\\View\\{closure}(Object(Illuminate\\Foundation\\Application), Array)
+#2 C:\\Users\\malti\\ewallet\\SoftPos\\vendor\\laravel\\framework\\src\\Illuminate\\Container\\Container.php(933): Illuminate\\Container\\Container->build(Object(Closure))
+#3 C:\\Users\\malti\\ewallet\\SoftPos\\vendor\\laravel\\framework\\src\\Illuminate\\Foundation\\Application.php(1077): Illuminate\\Container\\Container->resolve('blade.compiler', Array, true)
+#4 C:\\Users\\malti\\ewallet\\SoftPos\\vendor\\laravel\\framework\\src\\Illuminate\\Container\\Container.php(864): Illuminate\\Foundation\\Application->resolve('blade.compiler', Array)
+#5 C:\\Users\\malti\\ewallet\\SoftPos\\vendor\\laravel\\framework\\src\\Illuminate\\Foundation\\Application.php(1057): Illuminate\\Container\\Container->make('blade.compiler', Array)
+#6 C:\\Users\\malti\\ewallet\\SoftPos\\vendor\\laravel\\framework\\src\\Illuminate\\Container\\Container.php(1779): Illuminate\\Foundation\\Application->make('blade.compiler')
+#7 C:\\Users\\malti\\ewallet\\SoftPos\\vendor\\laravel\\framework\\src\\Illuminate\\Support\\Facades\\Facade.php(239): Illuminate\\Container\\Container->offsetGet('blade.compiler')
+#8 C:\\Users\\malti\\ewallet\\SoftPos\\vendor\\laravel\\framework\\src\\Illuminate\\Support\\Facades\\Facade.php(210): Illuminate\\Support\\Facades\\Facade::resolveFacadeInstance('blade.compiler')
+#9 C:\\Users\\malti\\ewallet\\SoftPos\\vendor\\laravel\\framework\\src\\Illuminate\\Support\\Facades\\Facade.php(355): Illuminate\\Support\\Facades\\Facade::getFacadeRoot()
+#10 C:\\Users\\malti\\ewallet\\SoftPos\\vendor\\livewire\\livewire\\src\\Mechanisms\\FrontendAssets\\FrontendAssets.php(30): Illuminate\\Support\\Facades\\Facade::__callStatic('directive', Array)
+#11 C:\\Users\\malti\\ewallet\\SoftPos\\vendor\\livewire\\livewire\\src\\LivewireServiceProvider.php(77): Livewire\\Mechanisms\\FrontendAssets\\FrontendAssets->boot()
+#12 C:\\Users\\malti\\ewallet\\SoftPos\\vendor\\livewire\\livewire\\src\\LivewireServiceProvider.php(19): Livewire\\LivewireServiceProvider->bootMechanisms()
+#13 C:\\Users\\malti\\ewallet\\SoftPos\\vendor\\laravel\\framework\\src\\Illuminate\\Container\\BoundMethod.php(36): Livewire\\LivewireServiceProvider->boot()
+#14 C:\\Users\\malti\\ewallet\\SoftPos\\vendor\\laravel\\framework\\src\\Illuminate\\Container\\Util.php(43): Illuminate\\Container\\BoundMethod::Illuminate\\Container\\{closure}()
+#15 C:\\Users\\malti\\ewallet\\SoftPos\\vendor\\laravel\\framework\\src\\Illuminate\\Container\\BoundMethod.php(96): Illuminate\\Container\\Util::unwrapIfClosure(Object(Closure))
+#16 C:\\Users\\malti\\ewallet\\SoftPos\\vendor\\laravel\\framework\\src\\Illuminate\\Container\\BoundMethod.php(35): Illuminate\\Container\\BoundMethod::callBoundMethod(Object(Illuminate\\Foundation\\Application), Array, Object(Closure))
+#17 C:\\Users\\malti\\ewallet\\SoftPos\\vendor\\laravel\\framework\\src\\Illuminate\\Container\\Container.php(797): Illuminate\\Container\\BoundMethod::call(Object(Illuminate\\Foundation\\Application), Array, Array, NULL)
+#18 C:\\Users\\malti\\ewallet\\SoftPos\\vendor\\laravel\\framework\\src\\Illuminate\\Foundation\\Application.php(1150): Illuminate\\Container\\Container->call(Array)
+#19 C:\\Users\\malti\\ewallet\\SoftPos\\vendor\\laravel\\framework\\src\\Illuminate\\Foundation\\Application.php(1131): Illuminate\\Foundation\\Application->bootProvider(Object(Livewire\\LivewireServiceProvider))
+#20 [internal function]: Illuminate\\Foundation\\Application->Illuminate\\Foundation\\{closure}(Object(Livewire\\LivewireServiceProvider), 'Livewire\\\\Livewi...')
+#21 C:\\Users\\malti\\ewallet\\SoftPos\\vendor\\laravel\\framework\\src\\Illuminate\\Foundation\\Application.php(1130): array_walk(Array, Object(Closure))
+#22 C:\\Users\\malti\\ewallet\\SoftPos\\vendor\\laravel\\framework\\src\\Illuminate\\Foundation\\Bootstrap\\BootProviders.php(17): Illuminate\\Foundation\\Application->boot()
+#23 C:\\Users\\malti\\ewallet\\SoftPos\\vendor\\laravel\\framework\\src\\Illuminate\\Foundation\\Application.php(341): Illuminate\\Foundation\\Bootstrap\\BootProviders->bootstrap(Object(Illuminate\\Foundation\\Application))
+#24 C:\\Users\\malti\\ewallet\\SoftPos\\vendor\\laravel\\framework\\src\\Illuminate\\Foundation\\Console\\Kernel.php(473): Illuminate\\Foundation\\Application->bootstrapWith(Array)
+#25 C:\\Users\\malti\\ewallet\\SoftPos\\vendor\\laravel\\framework\\src\\Illuminate\\Foundation\\Console\\Kernel.php(195): Illuminate\\Foundation\\Console\\Kernel->bootstrap()
+#26 C:\\Users\\malti\\ewallet\\SoftPos\\vendor\\laravel\\framework\\src\\Illuminate\\Foundation\\Application.php(1234): Illuminate\\Foundation\\Console\\Kernel->handle(Object(Symfony\\Component\\Console\\Input\\ArgvInput), Object(Symfony\\Component\\Console\\Output\\ConsoleOutput))
+#27 C:\\Users\\malti\\ewallet\\SoftPos\\artisan(16): Illuminate\\Foundation\\Application->handleCommand(Object(Symfony\\Component\\Console\\Input\\ArgvInput))
+#28 {main}
+"} 
+[2026-06-23 11:30:28] testing.INFO: [STUB] Sending SMS OTP to +249912345678: 111111  
+[2026-06-23 11:30:30] testing.INFO: [STUB] Sending SMS OTP to +249912345679: 111111  
+[2026-06-23 11:32:56] testing.INFO: [STUB] Sending SMS OTP to +249912345678: 111111  
+[2026-06-23 11:33:01] testing.INFO: [STUB] Sending SMS OTP to +249912345679: 111111  

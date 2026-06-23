@@ -1,0 +1,1177 @@
+{
+	"info": {
+		"_postman_id": "v3-api-collection-2026",
+		"name": "SoftPos V3 API - API Key Authentication",
+		"description": "Complete API collection for SoftPos V3 endpoints using API Key authentication (X-Public-Key and X-Secret-Key headers). Includes transactions, settlements, and batches management.",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+		"_exporter_id": "softpos-v3"
+	},
+	"auth": {
+		"type": "apikey",
+		"apikey": [
+			{
+				"key": "value",
+				"value": "{{api_public_key}}",
+				"type": "string"
+			},
+			{
+				"key": "key",
+				"value": "X-Public-Key",
+				"type": "string"
+			}
+		]
+	},
+	"variable": [
+		{
+			"key": "base_url",
+			"value": "http://localhost:8001",
+			"type": "string"
+		},
+		{
+			"key": "api_public_key",
+			"value": "pk_test_your_public_key_here",
+			"type": "string"
+		},
+		{
+			"key": "api_secret_key",
+			"value": "sk_test_your_secret_key_here",
+			"type": "string"
+		},
+		{
+			"key": "transaction_id",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "settlement_id",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "batch_id",
+			"value": "",
+			"type": "string"
+		}
+	],
+	"item": [
+		{
+			"name": "Transactions",
+			"item": [
+				{
+					"name": "Create Transaction (POS)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 200 || pm.response.code === 201) {",
+									"    var jsonData = pm.response.json();",
+									"    if (jsonData.data && jsonData.data.id) {",
+									"        pm.collectionVariables.set(\"transaction_id\", jsonData.data.id);",
+									"        console.log(\"Transaction ID saved: \" + jsonData.data.id);",
+									"    }",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "X-Public-Key",
+								"value": "{{api_public_key}}",
+								"type": "text"
+							},
+							{
+								"key": "X-Secret-Key",
+								"value": "{{api_secret_key}}",
+								"type": "text"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							},
+							{
+								"key": "Accept",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"amount\": 100.00,\n    \"currency_id\": 1,\n    \"payment_method\": \"card\",\n    \"terminal_id\": \"terminal-uuid-here\",\n    \"customer_name\": \"John Doe\",\n    \"customer_email\": \"john@example.com\",\n    \"description\": \"Test transaction via API\",\n    \"reference_number\": \"REF-001\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/v3/pos",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"v3",
+								"pos"
+							]
+						},
+						"description": "Create a new POS transaction. This is the main endpoint for storing transactions."
+					},
+					"response": []
+				},
+				{
+					"name": "Create Transaction (Alternative)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "X-Public-Key",
+								"value": "{{api_public_key}}",
+								"type": "text"
+							},
+							{
+								"key": "X-Secret-Key",
+								"value": "{{api_secret_key}}",
+								"type": "text"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"amount\": 50.00,\n    \"currency_id\": 1,\n    \"payment_method\": \"cash\",\n    \"description\": \"Cash payment\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/v3/transactions",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"v3",
+								"transactions"
+							]
+						},
+						"description": "Alternative endpoint to create a transaction."
+					},
+					"response": []
+				},
+				{
+					"name": "List Transactions",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "X-Public-Key",
+								"value": "{{api_public_key}}",
+								"type": "text"
+							},
+							{
+								"key": "X-Secret-Key",
+								"value": "{{api_secret_key}}",
+								"type": "text"
+							},
+							{
+								"key": "Accept",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/v3/transactions?page=1&per_page=15",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"v3",
+								"transactions"
+							],
+							"query": [
+								{
+									"key": "page",
+									"value": "1"
+								},
+								{
+									"key": "per_page",
+									"value": "15"
+								},
+								{
+									"key": "status",
+									"value": "completed",
+									"disabled": true
+								},
+								{
+									"key": "date_from",
+									"value": "2026-01-01",
+									"disabled": true
+								},
+								{
+									"key": "date_to",
+									"value": "2026-01-31",
+									"disabled": true
+								},
+								{
+									"key": "search",
+									"value": "",
+									"disabled": true
+								}
+							]
+						},
+						"description": "Get list of all transactions with pagination and optional filters."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Transaction Summary",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "X-Public-Key",
+								"value": "{{api_public_key}}",
+								"type": "text"
+							},
+							{
+								"key": "X-Secret-Key",
+								"value": "{{api_secret_key}}",
+								"type": "text"
+							},
+							{
+								"key": "Accept",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/v3/transactions/summary",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"v3",
+								"transactions",
+								"summary"
+							]
+						},
+						"description": "Get transaction summary statistics (total, successful, failed, refunded)."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Single Transaction",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "X-Public-Key",
+								"value": "{{api_public_key}}",
+								"type": "text"
+							},
+							{
+								"key": "X-Secret-Key",
+								"value": "{{api_secret_key}}",
+								"type": "text"
+							},
+							{
+								"key": "Accept",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/v3/transactions/{{transaction_id}}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"v3",
+								"transactions",
+								"{{transaction_id}}"
+							]
+						},
+						"description": "Get details of a specific transaction by ID."
+					},
+					"response": []
+				},
+				{
+					"name": "Refund Transaction",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "X-Public-Key",
+								"value": "{{api_public_key}}",
+								"type": "text"
+							},
+							{
+								"key": "X-Secret-Key",
+								"value": "{{api_secret_key}}",
+								"type": "text"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"transaction_id\": \"{{transaction_id}}\",\n    \"reason\": \"Customer requested refund\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/v3/transactions/refund",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"v3",
+								"transactions",
+								"refund"
+							]
+						},
+						"description": "Refund a transaction completely."
+					},
+					"response": []
+				},
+				{
+					"name": "Partial Refund",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "X-Public-Key",
+								"value": "{{api_public_key}}",
+								"type": "text"
+							},
+							{
+								"key": "X-Secret-Key",
+								"value": "{{api_secret_key}}",
+								"type": "text"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"transaction_id\": \"{{transaction_id}}\",\n    \"amount\": 25.00,\n    \"reason\": \"Partial refund for returned item\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/v3/transactions/partial-refund",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"v3",
+								"transactions",
+								"partial-refund"
+							]
+						},
+						"description": "Refund a transaction partially with specified amount."
+					},
+					"response": []
+				},
+				{
+					"name": "Void Transaction",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "X-Public-Key",
+								"value": "{{api_public_key}}",
+								"type": "text"
+							},
+							{
+								"key": "X-Secret-Key",
+								"value": "{{api_secret_key}}",
+								"type": "text"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"transaction_id\": \"{{transaction_id}}\",\n    \"reason\": \"Duplicate transaction\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/v3/transactions/void",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"v3",
+								"transactions",
+								"void"
+							]
+						},
+						"description": "Void a transaction."
+					},
+					"response": []
+				},
+				{
+					"name": "Cancel Transaction",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "X-Public-Key",
+								"value": "{{api_public_key}}",
+								"type": "text"
+							},
+							{
+								"key": "X-Secret-Key",
+								"value": "{{api_secret_key}}",
+								"type": "text"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"transaction_id\": \"{{transaction_id}}\",\n    \"reason\": \"Customer cancelled order\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/v3/transactions/cancel",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"v3",
+								"transactions",
+								"cancel"
+							]
+						},
+						"description": "Cancel a transaction."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Transaction Audit Trail",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "X-Public-Key",
+								"value": "{{api_public_key}}",
+								"type": "text"
+							},
+							{
+								"key": "X-Secret-Key",
+								"value": "{{api_secret_key}}",
+								"type": "text"
+							},
+							{
+								"key": "Accept",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/v3/transactions/{{transaction_id}}/audit-trail",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"v3",
+								"transactions",
+								"{{transaction_id}}",
+								"audit-trail"
+							]
+						},
+						"description": "Get complete audit trail for a transaction."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Transaction History",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "X-Public-Key",
+								"value": "{{api_public_key}}",
+								"type": "text"
+							},
+							{
+								"key": "X-Secret-Key",
+								"value": "{{api_secret_key}}",
+								"type": "text"
+							},
+							{
+								"key": "Accept",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/v3/transactions/{{transaction_id}}/history",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"v3",
+								"transactions",
+								"{{transaction_id}}",
+								"history"
+							]
+						},
+						"description": "Get transaction history and changes."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Refund Details",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "X-Public-Key",
+								"value": "{{api_public_key}}",
+								"type": "text"
+							},
+							{
+								"key": "X-Secret-Key",
+								"value": "{{api_secret_key}}",
+								"type": "text"
+							},
+							{
+								"key": "Accept",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/v3/transactions/{{transaction_id}}/refund-details",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"v3",
+								"transactions",
+								"{{transaction_id}}",
+								"refund-details"
+							]
+						},
+						"description": "Get refund details for a transaction."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Refund History",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "X-Public-Key",
+								"value": "{{api_public_key}}",
+								"type": "text"
+							},
+							{
+								"key": "X-Secret-Key",
+								"value": "{{api_secret_key}}",
+								"type": "text"
+							},
+							{
+								"key": "Accept",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/v3/transactions/{{transaction_id}}/refund-history",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"v3",
+								"transactions",
+								"{{transaction_id}}",
+								"refund-history"
+							]
+						},
+						"description": "Get complete refund history for a transaction."
+					},
+					"response": []
+				},
+				{
+					"name": "List Refunded Transactions",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "X-Public-Key",
+								"value": "{{api_public_key}}",
+								"type": "text"
+							},
+							{
+								"key": "X-Secret-Key",
+								"value": "{{api_secret_key}}",
+								"type": "text"
+							},
+							{
+								"key": "Accept",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/v3/transactions/refunded/list",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"v3",
+								"transactions",
+								"refunded",
+								"list"
+							]
+						},
+						"description": "Get list of all refunded transactions."
+					},
+					"response": []
+				},
+				{
+					"name": "List Voided Transactions",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "X-Public-Key",
+								"value": "{{api_public_key}}",
+								"type": "text"
+							},
+							{
+								"key": "X-Secret-Key",
+								"value": "{{api_secret_key}}",
+								"type": "text"
+							},
+							{
+								"key": "Accept",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/v3/transactions/voided/list",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"v3",
+								"transactions",
+								"voided",
+								"list"
+							]
+						},
+						"description": "Get list of all voided transactions."
+					},
+					"response": []
+				},
+				{
+					"name": "List Cancelled Transactions",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "X-Public-Key",
+								"value": "{{api_public_key}}",
+								"type": "text"
+							},
+							{
+								"key": "X-Secret-Key",
+								"value": "{{api_secret_key}}",
+								"type": "text"
+							},
+							{
+								"key": "Accept",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/v3/transactions/cancelled/list",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"v3",
+								"transactions",
+								"cancelled",
+								"list"
+							]
+						},
+						"description": "Get list of all cancelled transactions."
+					},
+					"response": []
+				}
+			],
+			"description": "Transaction management endpoints - create, list, view, refund, void, and cancel transactions."
+		},
+		{
+			"name": "Settlements",
+			"item": [
+				{
+					"name": "List Settlements",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 200) {",
+									"    var jsonData = pm.response.json();",
+									"    if (jsonData.data && jsonData.data.settlements && jsonData.data.settlements.length > 0) {",
+									"        pm.collectionVariables.set(\"settlement_id\", jsonData.data.settlements[0].id);",
+									"    }",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "X-Public-Key",
+								"value": "{{api_public_key}}",
+								"type": "text"
+							},
+							{
+								"key": "X-Secret-Key",
+								"value": "{{api_secret_key}}",
+								"type": "text"
+							},
+							{
+								"key": "Accept",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/v3/settlements?page=1&per_page=15",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"v3",
+								"settlements"
+							],
+							"query": [
+								{
+									"key": "page",
+									"value": "1"
+								},
+								{
+									"key": "per_page",
+									"value": "15"
+								},
+								{
+									"key": "status",
+									"value": "completed",
+									"disabled": true
+								},
+								{
+									"key": "date_from",
+									"value": "2026-01-01",
+									"disabled": true
+								},
+								{
+									"key": "date_to",
+									"value": "2026-01-31",
+									"disabled": true
+								}
+							]
+						},
+						"description": "Get list of all settlements with pagination and optional filters."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Settlement Summary",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "X-Public-Key",
+								"value": "{{api_public_key}}",
+								"type": "text"
+							},
+							{
+								"key": "X-Secret-Key",
+								"value": "{{api_secret_key}}",
+								"type": "text"
+							},
+							{
+								"key": "Accept",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/v3/settlements/summary",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"v3",
+								"settlements",
+								"summary"
+							]
+						},
+						"description": "Get settlement summary statistics."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Single Settlement",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "X-Public-Key",
+								"value": "{{api_public_key}}",
+								"type": "text"
+							},
+							{
+								"key": "X-Secret-Key",
+								"value": "{{api_secret_key}}",
+								"type": "text"
+							},
+							{
+								"key": "Accept",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/v3/settlements/{{settlement_id}}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"v3",
+								"settlements",
+								"{{settlement_id}}"
+							]
+						},
+						"description": "Get details of a specific settlement by ID."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Settlement Details",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "X-Public-Key",
+								"value": "{{api_public_key}}",
+								"type": "text"
+							},
+							{
+								"key": "X-Secret-Key",
+								"value": "{{api_secret_key}}",
+								"type": "text"
+							},
+							{
+								"key": "Accept",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/v3/settlements/{{settlement_id}}/details",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"v3",
+								"settlements",
+								"{{settlement_id}}",
+								"details"
+							]
+						},
+						"description": "Get detailed information of a settlement."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Settlement Transactions",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "X-Public-Key",
+								"value": "{{api_public_key}}",
+								"type": "text"
+							},
+							{
+								"key": "X-Secret-Key",
+								"value": "{{api_secret_key}}",
+								"type": "text"
+							},
+							{
+								"key": "Accept",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/v3/settlements/{{settlement_id}}/transactions",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"v3",
+								"settlements",
+								"{{settlement_id}}",
+								"transactions"
+							]
+						},
+						"description": "Get all transactions associated with a settlement."
+					},
+					"response": []
+				}
+			],
+			"description": "Settlement management endpoints - list, view settlements and their transactions."
+		},
+		{
+			"name": "Batches",
+			"item": [
+				{
+					"name": "List Batches",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 200) {",
+									"    var jsonData = pm.response.json();",
+									"    if (jsonData.data && jsonData.data.batches && jsonData.data.batches.length > 0) {",
+									"        pm.collectionVariables.set(\"batch_id\", jsonData.data.batches[0].id);",
+									"    }",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "X-Public-Key",
+								"value": "{{api_public_key}}",
+								"type": "text"
+							},
+							{
+								"key": "X-Secret-Key",
+								"value": "{{api_secret_key}}",
+								"type": "text"
+							},
+							{
+								"key": "Accept",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/v3/batches?page=1&per_page=15",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"v3",
+								"batches"
+							],
+							"query": [
+								{
+									"key": "page",
+									"value": "1"
+								},
+								{
+									"key": "per_page",
+									"value": "15"
+								},
+								{
+									"key": "status",
+									"value": "closed",
+									"disabled": true
+								},
+								{
+									"key": "date_from",
+									"value": "2026-01-01",
+									"disabled": true
+								},
+								{
+									"key": "date_to",
+									"value": "2026-01-31",
+									"disabled": true
+								}
+							]
+						},
+						"description": "Get list of all batches with pagination and optional filters."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Batch Summary",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "X-Public-Key",
+								"value": "{{api_public_key}}",
+								"type": "text"
+							},
+							{
+								"key": "X-Secret-Key",
+								"value": "{{api_secret_key}}",
+								"type": "text"
+							},
+							{
+								"key": "Accept",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/v3/batches/summary",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"v3",
+								"batches",
+								"summary"
+							]
+						},
+						"description": "Get batch summary statistics."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Single Batch",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "X-Public-Key",
+								"value": "{{api_public_key}}",
+								"type": "text"
+							},
+							{
+								"key": "X-Secret-Key",
+								"value": "{{api_secret_key}}",
+								"type": "text"
+							},
+							{
+								"key": "Accept",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/v3/batches/{{batch_id}}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"v3",
+								"batches",
+								"{{batch_id}}"
+							]
+						},
+						"description": "Get details of a specific batch by ID."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Batch Details",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "X-Public-Key",
+								"value": "{{api_public_key}}",
+								"type": "text"
+							},
+							{
+								"key": "X-Secret-Key",
+								"value": "{{api_secret_key}}",
+								"type": "text"
+							},
+							{
+								"key": "Accept",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/v3/batches/{{batch_id}}/details",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"v3",
+								"batches",
+								"{{batch_id}}",
+								"details"
+							]
+						},
+						"description": "Get detailed information of a batch."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Batch Transactions",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "X-Public-Key",
+								"value": "{{api_public_key}}",
+								"type": "text"
+							},
+							{
+								"key": "X-Secret-Key",
+								"value": "{{api_secret_key}}",
+								"type": "text"
+							},
+							{
+								"key": "Accept",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/v3/batches/{{batch_id}}/transactions",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"v3",
+								"batches",
+								"{{batch_id}}",
+								"transactions"
+							]
+						},
+						"description": "Get all transactions associated with a batch."
+					},
+					"response": []
+				}
+			],
+			"description": "Batch management endpoints - list, view batches and their transactions."
+		}
+	]
+}
+
