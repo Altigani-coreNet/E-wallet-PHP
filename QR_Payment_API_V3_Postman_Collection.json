@@ -1,0 +1,344 @@
+{
+	"info": {
+		"_postman_id": "qr-payment-v3-api",
+		"name": "QR Payment API V3",
+		"description": "QR Code Payment API for SoftPOS - Process payments via QR code scan with same structure as card payments",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "1. Process QR Payment",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json",
+						"type": "text"
+					},
+					{
+						"key": "X-API-Key",
+						"value": "{{api_key}}",
+						"type": "text",
+						"description": "API Key for authentication"
+					},
+					{
+						"key": "Accept",
+						"value": "application/json",
+						"type": "text"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"transactionDetails\": {\n        \"amount\": 150.00,\n        \"currency\": \"USD\",\n        \"timestamp\": \"2026-01-12T14:30:00Z\",\n        \"transactionType\": \"SALE\"\n    },\n    \"qrData\": {\n        \"qrCode\": \"QR123456789ABCDEF\",\n        \"qrType\": \"DYNAMIC\",\n        \"customerName\": \"John Doe\",\n        \"customerId\": \"CUST12345\",\n        \"phoneNumber\": \"+1234567890\",\n        \"email\": \"john.doe@example.com\",\n        \"walletProvider\": \"PayWallet\"\n    },\n    \"merchantDetails\": {\n        \"merchantId\": \"1\",\n        \"terminalId\": \"1\",\n        \"branchId\": \"1\"\n    },\n    \"additionalData\": {\n        \"description\": \"Payment for order #12345\",\n        \"orderNumber\": \"ORD-12345\",\n        \"notes\": \"Express delivery requested\"\n    }\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "{{base_url}}/api/v3/qr-payment",
+					"host": [
+						"{{base_url}}"
+					],
+					"path": [
+						"api",
+						"v3",
+						"qr-payment"
+					]
+				},
+				"description": "Process a QR code payment transaction. This works similar to POS card payment but the data comes from a scanned QR code."
+			},
+			"response": [
+				{
+					"name": "Success Response",
+					"originalRequest": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"transactionDetails\": {\n        \"amount\": 150.00,\n        \"currency\": \"USD\",\n        \"timestamp\": \"2026-01-12T14:30:00Z\",\n        \"transactionType\": \"SALE\"\n    },\n    \"qrData\": {\n        \"qrCode\": \"QR123456789ABCDEF\",\n        \"qrType\": \"DYNAMIC\",\n        \"customerName\": \"John Doe\",\n        \"customerId\": \"CUST12345\",\n        \"phoneNumber\": \"+1234567890\",\n        \"email\": \"john.doe@example.com\",\n        \"walletProvider\": \"PayWallet\"\n    },\n    \"merchantDetails\": {\n        \"merchantId\": \"1\",\n        \"terminalId\": \"1\",\n        \"branchId\": \"1\"\n    },\n    \"additionalData\": {\n        \"description\": \"Payment for order #12345\",\n        \"orderNumber\": \"ORD-12345\",\n        \"notes\": \"Express delivery\"\n    }\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v3/qr-payment",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v3",
+								"qr-payment"
+							]
+						}
+					},
+					"status": "Created",
+					"code": 201,
+					"_postman_previewlanguage": "json",
+					"header": [
+						{
+							"key": "Content-Type",
+							"value": "application/json"
+						}
+					],
+					"cookie": [],
+					"body": "{\n    \"status\": true,\n    \"data\": {\n        \"message\": \"QR payment processed successfully\",\n        \"transaction\": {\n            \"id\": \"uuid-here\",\n            \"transaction_id\": \"QR-20260112-ABCD1234\",\n            \"amount\": 150.00,\n            \"currency\": \"USD\",\n            \"status\": \"APPROVED\",\n            \"payment_method\": \"qr_code\",\n            \"qr_type\": \"DYNAMIC\",\n            \"customer_name\": \"John Doe\",\n            \"wallet_provider\": \"PayWallet\",\n            \"invoice_no\": \"QR-INV-20260112-ABCD1234\",\n            \"rrn\": \"260112543938\",\n            \"auth_code\": \"123456\",\n            \"trace_no\": \"543938\",\n            \"batch_no\": \"001\",\n            \"created_at\": \"2026-01-12T14:30:00Z\"\n        },\n        \"qr_response\": {\n            \"status\": \"APPROVED\",\n            \"gateway_transaction_id\": \"QRG-ABCDEF1234567890\",\n            \"gateway_response_code\": \"00\",\n            \"gateway_response_message\": \"QR payment approved\",\n            \"wallet_provider\": \"PayWallet\",\n            \"qr_type\": \"DYNAMIC\",\n            \"processed_at\": \"2026-01-12T14:30:00Z\"\n        }\n    }\n}"
+				}
+			]
+		},
+		{
+			"name": "2. Process QR Payment (Alternative Endpoint)",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json",
+						"type": "text"
+					},
+					{
+						"key": "X-API-Key",
+						"value": "{{api_key}}",
+						"type": "text"
+					},
+					{
+						"key": "Accept",
+						"value": "application/json",
+						"type": "text"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"transactionDetails\": {\n        \"amount\": 250.50,\n        \"currency\": \"USD\",\n        \"timestamp\": \"{{$isoTimestamp}}\",\n        \"transactionType\": \"SALE\"\n    },\n    \"qrData\": {\n        \"qrCode\": \"QR987654321ZYXWVU\",\n        \"qrType\": \"STATIC\",\n        \"customerName\": \"Jane Smith\",\n        \"customerId\": \"CUST54321\",\n        \"phoneNumber\": \"+9876543210\",\n        \"email\": \"jane.smith@example.com\",\n        \"walletProvider\": \"MobileWallet\"\n    },\n    \"merchantDetails\": {\n        \"merchantId\": \"1\",\n        \"terminalId\": \"1\"\n    },\n    \"additionalData\": {\n        \"description\": \"Product purchase\",\n        \"orderNumber\": \"ORD-67890\"\n    }\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "{{base_url}}/api/v3/qr-payment/process",
+					"host": [
+						"{{base_url}}"
+					],
+					"path": [
+						"api",
+						"v3",
+						"qr-payment",
+						"process"
+					]
+				},
+				"description": "Alternative endpoint for processing QR payments - /process"
+			},
+			"response": []
+		},
+		{
+			"name": "3. Get All QR Transactions",
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "X-API-Key",
+						"value": "{{api_key}}",
+						"type": "text"
+					},
+					{
+						"key": "Accept",
+						"value": "application/json",
+						"type": "text"
+					}
+				],
+				"url": {
+					"raw": "{{base_url}}/api/v3/qr-payment/transactions?page=1&per_page=10",
+					"host": [
+						"{{base_url}}"
+					],
+					"path": [
+						"api",
+						"v3",
+						"qr-payment",
+						"transactions"
+					],
+					"query": [
+						{
+							"key": "page",
+							"value": "1",
+							"description": "Page number"
+						},
+						{
+							"key": "per_page",
+							"value": "10",
+							"description": "Items per page"
+						},
+						{
+							"key": "status",
+							"value": "APPROVED",
+							"description": "Filter by status (PENDING, APPROVED, DECLINED, FAILED)",
+							"disabled": true
+						},
+						{
+							"key": "qr_type",
+							"value": "DYNAMIC",
+							"description": "Filter by QR type (STATIC, DYNAMIC)",
+							"disabled": true
+						},
+						{
+							"key": "search",
+							"value": "QR-20260112",
+							"description": "Search by transaction_id, qr_code, customer_name, invoice_no",
+							"disabled": true
+						},
+						{
+							"key": "start_date",
+							"value": "2026-01-01",
+							"description": "Filter from date (YYYY-MM-DD)",
+							"disabled": true
+						},
+						{
+							"key": "end_date",
+							"value": "2026-01-31",
+							"description": "Filter to date (YYYY-MM-DD)",
+							"disabled": true
+						}
+					]
+				},
+				"description": "Retrieve all QR code payment transactions with optional filters"
+			},
+			"response": []
+		},
+		{
+			"name": "4. Get QR Transaction by ID",
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "X-API-Key",
+						"value": "{{api_key}}",
+						"type": "text"
+					},
+					{
+						"key": "Accept",
+						"value": "application/json",
+						"type": "text"
+					}
+				],
+				"url": {
+					"raw": "{{base_url}}/api/v3/qr-payment/transactions/:id",
+					"host": [
+						"{{base_url}}"
+					],
+					"path": [
+						"api",
+						"v3",
+						"qr-payment",
+						"transactions",
+						":id"
+					],
+					"variable": [
+						{
+							"key": "id",
+							"value": "1",
+							"description": "Transaction ID"
+						}
+					]
+				},
+				"description": "Get details of a specific QR payment transaction by ID"
+			},
+			"response": []
+		},
+		{
+			"name": "5. QR Payment with Minimal Data",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json",
+						"type": "text"
+					},
+					{
+						"key": "X-API-Key",
+						"value": "{{api_key}}",
+						"type": "text"
+					},
+					{
+						"key": "Accept",
+						"value": "application/json",
+						"type": "text"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"transactionDetails\": {\n        \"amount\": 50.00,\n        \"currency\": \"USD\",\n        \"timestamp\": \"{{$isoTimestamp}}\",\n        \"transactionType\": \"SALE\"\n    },\n    \"qrData\": {\n        \"qrCode\": \"QRMIN123456789\",\n        \"qrType\": \"DYNAMIC\"\n    },\n    \"merchantDetails\": {\n        \"merchantId\": \"1\",\n        \"terminalId\": \"1\"\n    }\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "{{base_url}}/api/v3/qr-payment",
+					"host": [
+						"{{base_url}}"
+					],
+					"path": [
+						"api",
+						"v3",
+						"qr-payment"
+					]
+				},
+				"description": "Process QR payment with only required fields (minimal data)"
+			},
+			"response": []
+		}
+	],
+	"event": [
+		{
+			"listen": "prerequest",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		},
+		{
+			"listen": "test",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		}
+	],
+	"variable": [
+		{
+			"key": "base_url",
+			"value": "http://localhost:8000",
+			"type": "string"
+		},
+		{
+			"key": "api_key",
+			"value": "your-api-key-here",
+			"type": "string"
+		}
+	]
+}
+
+
+
+
+
+
+
+
+
+
+
+

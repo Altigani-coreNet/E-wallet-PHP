@@ -1,0 +1,1823 @@
+openapi: 3.0.2
+info:
+  title: SoftPOS API Documentation
+  description: |-
+    Complete API documentation for the SoftPOS Backend System. The API provides comprehensive endpoints for:
+    - Authentication & User Management
+    - Merchant Management & Registration
+    - Transaction Processing & History
+    - Terminal Management & Device Registration
+    - Dashboard & Analytics
+    - Batch & Settlement Operations
+    - Admin Operations
+    - Twilio Integration
+  version: 1.0.0
+  contact:
+    name: SoftPOS Support Team
+
+servers:
+  - url: /api/softpos
+    description: SoftPOS API Base URL
+
+tags:
+  - name: Authentication
+    description: User authentication and registration endpoints
+  - name: Merchant
+    description: Merchant management and registration
+  - name: Transaction
+    description: Transaction processing and management
+  - name: Terminal
+    description: Terminal management and operations
+  - name: Dashboard
+    description: Dashboard statistics and analytics
+  - name: Admin
+    description: Administrative operations
+  - name: Location
+    description: Country and city management
+  - name: Batch
+    description: Batch processing operations
+  - name: Settlement
+    description: Settlement operations
+  - name: Twilio
+    description: Twilio SMS integration endpoints
+  - name: User Groups
+    description: User group management
+  - name: Terminal Groups
+    description: Terminal group management
+  - name: Currencies
+    description: Currency management and retrieval
+
+paths:
+  /register:
+    post:
+      tags:
+        - Authentication
+      summary: Register new user
+      operationId: register
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserRegistration'
+      responses:
+        '200':
+          description: User registered successfully
+        '422':
+          description: Validation error
+
+  /login:
+    post:
+      tags:
+        - Authentication
+      summary: User login
+      operationId: login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+
+  /logout:
+    post:
+      tags:
+        - Authentication
+      summary: User logout
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Logout successful
+
+  /force-logout:
+    post:
+      tags:
+        - Authentication
+      summary: Force logout user from all devices
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Force logout successful
+
+  /profile:
+    get:
+      tags:
+        - Authentication
+      summary: Get user profile
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: User profile data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserProfile'
+
+  /merchants/register:
+    post:
+      tags:
+        - Merchant
+      summary: Register new merchant
+      operationId: registerMerchant
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - first_name
+                - last_name
+                - email
+                - phone
+                - owner_name
+                - business_name
+                - business_type
+                - business_address
+                - temp_merchant_code
+              properties:
+                first_name:
+                  type: string
+                  maxLength: 255
+                  example: "John"
+                  description: "First name of the merchant"
+                last_name:
+                  type: string
+                  maxLength: 255
+                  example: "Doe"
+                  description: "Last name of the merchant"
+                email:
+                  type: string
+                  format: email
+                  maxLength: 255
+                  example: "john@example.com"
+                  description: "Email address for the merchant account (must be unique)"
+                phone:
+                  type: string
+                  maxLength: 20
+                  example: "+1234567890"
+                  description: "Contact phone number (must be unique)"
+                owner_name:
+                  type: string
+                  maxLength: 255
+                  example: "John Doe"
+                  description: "Name of the business owner"
+                business_name:
+                  type: string
+                  maxLength: 255
+                  example: "My Business Name"
+                  description: "Name of the business"
+                business_type:
+                  type: string
+                  maxLength: 255
+                  example: "retail"
+                  description: "Type of business (e.g., retail, restaurant, service)"
+                business_address:
+                  type: string
+                  maxLength: 500
+                  example: "123 Business St, City, Country"
+                  description: "Complete business address"
+                lat:
+                  type: number
+                  format: float
+                  example: 12.345678
+                  description: "Latitude of business location"
+                long:
+                  type: number
+                  format: float
+                  example: 98.765432
+                  description: "Longitude of business location"
+                temp_merchant_code:
+                  type: string
+                  example: "TEMP_123456"
+                  description: "Temporary merchant code for registration (must start with TEMP_)"
+                company_logo:
+                  type: string
+                  format: binary
+                  description: "Company logo image (JPEG, PNG, JPG, GIF - max 2MB)"
+                trade_license:
+                  type: string
+                  format: binary
+                  description: "Trade license document (PDF, JPEG, PNG, JPG - max 5MB)"
+                tax_certification:
+                  type: string
+                  format: binary
+                  description: "Tax certification document (PDF, JPEG, PNG, JPG - max 5MB)"
+                user_id_document:
+                  type: string
+                  format: binary
+                  description: "User ID document (PDF, JPEG, PNG, JPG - max 5MB)"
+      responses:
+        '201':
+          description: Merchant registered successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "success"
+                  message:
+                    type: string
+                    example: "Merchant registered successfully"
+                  data:
+                    type: object
+                    properties:
+                      merchant:
+                        $ref: '#/components/schemas/MerchantResource'
+                      user:
+                        $ref: '#/components/schemas/UserResource'
+        '422':
+          description: Validation errors
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "The given data was invalid."
+                  errors:
+                    type: object
+                    properties:
+                      first_name:
+                        type: array
+                        items:
+                          type: string
+                          example: "The first name field is required."
+                      last_name:
+                        type: array
+                        items:
+                          type: string
+                          example: "The last name field is required."
+                      email:
+                        type: array
+                        items:
+                          type: string
+                          example: "This email is already registered."
+                      phone:
+                        type: array
+                        items:
+                          type: string
+                          example: "The phone field is required."
+                      business_name:
+                        type: array
+                        items:
+                          type: string
+                          example: "The business name field is required."
+                      owner_name:
+                        type: array
+                        items:
+                          type: string
+                          example: "The owner name field is required."
+                      business_type:
+                        type: array
+                        items:
+                          type: string
+                          example: "Please select a business type."
+                      business_address:
+                        type: array
+                        items:
+                          type: string
+                          example: "The business address field is required."
+                      temp_merchant_code:
+                        type: array
+                        items:
+                          type: string
+                          example: "The temp merchant code field is required."
+                      company_logo:
+                        type: array
+                        items:
+                          type: string
+                          example: "The company logo must be an image file."
+                      trade_license:
+                        type: array
+                        items:
+                          type: string
+                          example: "The trade license must be a PDF, JPEG, PNG, or JPG file."
+                      tax_certification:
+                        type: array
+                        items:
+                          type: string
+                          example: "The tax certification must be a PDF, JPEG, PNG, or JPG file."
+                      user_id_document:
+                        type: array
+                        items:
+                          type: string
+                          example: "The user ID document must be a PDF, JPEG, PNG, or JPG file."
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "error"
+                  message:
+                    type: string
+                    example: "Failed to register merchant"
+                  error:
+                    type: string
+                    example: "Internal server error message"
+
+  /upload-merchant-file:
+    post:
+      tags:
+        - Merchant
+      summary: Upload merchant document
+      operationId: uploadMerchantFile
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - file
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: "Document file to upload (PDF, JPEG, PNG, JPG - max 5MB)"
+                file_type:
+                  type: string
+                  example: "trade_license"
+                  description: "Type of document (trade_license, tax_certification, user_id_document, company_logo)"
+      responses:
+        '200':
+          description: File uploaded successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "success"
+                  message:
+                    type: string
+                    example: "File uploaded successfully"
+                  data:
+                    type: object
+                    properties:
+                      file_id:
+                        type: string
+                        example: "file_123456"
+                      file_name:
+                        type: string
+                        example: "trade_license.pdf"
+                      file_type:
+                        type: string
+                        example: "trade_license"
+                      file_size:
+                        type: integer
+                        example: 1024000
+                      file_url:
+                        type: string
+                        example: "/storage/merchant_files/trade_license.pdf"
+                      uploaded_at:
+                        type: string
+                        format: date-time
+                        example: "2024-01-15T10:30:00Z"
+        '400':
+          description: Bad request - Invalid file or missing required fields
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "error"
+                  message:
+                    type: string
+                    example: "Invalid file or missing required fields"
+                  errors:
+                    type: object
+                    properties:
+                      file:
+                        type: array
+                        items:
+                          type: string
+                          example: "The file field is required."
+                      file_type:
+                        type: array
+                        items:
+                          type: string
+                          example: "The file type field is required."
+        '413':
+          description: File too large
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "error"
+                  message:
+                    type: string
+                    example: "File size exceeds maximum allowed size of 5MB"
+        '422':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "error"
+                  message:
+                    type: string
+                    example: "Invalid file format. Only PDF, JPEG, PNG, JPG files are allowed"
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "error"
+                  message:
+                    type: string
+                    example: "Failed to upload file"
+                  error:
+                    type: string
+                    example: "Internal server error message"
+
+  /merchant-files:
+    get:
+      tags:
+        - Merchant
+      summary: Get merchant files
+      operationId: getMerchantFiles
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: List of merchant files
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "success"
+                  message:
+                    type: string
+                    example: "Merchant files retrieved successfully"
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/MerchantFile'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "error"
+                  message:
+                    type: string
+                    example: "Unauthorized access"
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "error"
+                  message:
+                    type: string
+                    example: "Failed to retrieve merchant files"
+
+  /delete-merchant-file/{fileId}:
+    delete:
+      tags:
+        - Merchant
+      summary: Delete merchant file
+      operationId: deleteMerchantFile
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: fileId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: "ID of the file to delete"
+          example: "file_123456"
+      responses:
+        '200':
+          description: File deleted successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "success"
+                  message:
+                    type: string
+                    example: "File deleted successfully"
+                  data:
+                    type: object
+                    properties:
+                      file_id:
+                        type: string
+                        example: "file_123456"
+                      deleted_at:
+                        type: string
+                        format: date-time
+                        example: "2024-01-15T10:30:00Z"
+        '400':
+          description: Bad request - Invalid file ID
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "error"
+                  message:
+                    type: string
+                    example: "Invalid file ID provided"
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "error"
+                  message:
+                    type: string
+                    example: "Unauthorized access"
+        '404':
+          description: File not found
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "error"
+                  message:
+                    type: string
+                    example: "File not found or already deleted"
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "error"
+                  message:
+                    type: string
+                    example: "Failed to delete file"
+                  error:
+                    type: string
+                    example: "Internal server error message"
+
+  /countries:
+    get:
+      tags:
+        - Location
+      summary: Get list of countries
+      operationId: getCountries
+      responses:
+        '200':
+          description: List of countries
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Country'
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "error"
+                  message:
+                    type: string
+                    example: "Failed to fetch countries"
+
+  /countries/select:
+    get:
+      tags:
+        - Location
+      summary: Get countries for select dropdown
+      operationId: getCountriesSelect
+      responses:
+        '200':
+          description: List of countries formatted for select dropdown
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/SelectOption'
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "error"
+                  message:
+                    type: string
+                    example: "Failed to fetch countries for select"
+
+  /cities:
+    get:
+      tags:
+        - Location
+      summary: Get list of cities
+      operationId: getCities
+      parameters:
+        - name: country_id
+          in: query
+          schema:
+            type: integer
+          description: Filter cities by country ID
+        - name: search
+          in: query
+          schema:
+            type: string
+          description: Search cities by name
+      responses:
+        '200':
+          description: List of cities
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/City'
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "error"
+                  message:
+                    type: string
+                    example: "Failed to fetch cities"
+
+  /cities/select:
+    get:
+      tags:
+        - Location
+      summary: Get cities for select dropdown
+      operationId: getCitiesSelect
+      parameters:
+        - name: country_id
+          in: query
+          schema:
+            type: integer
+          description: Filter cities by country ID
+        - name: search
+          in: query
+          schema:
+            type: string
+          description: Search cities by name
+      responses:
+        '200':
+          description: List of cities formatted for select dropdown
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/SelectOption'
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "error"
+                  message:
+                    type: string
+                    example: "Failed to fetch cities for select"
+
+  /business-types:
+    get:
+      tags:
+        - Location
+      summary: Get list of business types
+      operationId: getBusinessTypes
+      responses:
+        '200':
+          description: List of business types
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/BusinessType'
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "error"
+                  message:
+                    type: string
+                    example: "Failed to fetch business types"
+
+  /business-types/select:
+    get:
+      tags:
+        - Location
+      summary: Get business types for select dropdown
+      operationId: getBusinessTypesSelect
+      responses:
+        '200':
+          description: List of business types formatted for select dropdown
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/SelectOption'
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "error"
+                  message:
+                    type: string
+                    example: "Failed to fetch business types for select"
+
+  /contract-terms:
+    get:
+      tags:
+        - Merchant
+      summary: Get contract terms
+      operationId: getContractTerms
+      responses:
+        '200':
+          description: Contract terms retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContractTerms'
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "error"
+                  message:
+                    type: string
+                    example: "Failed to fetch contract terms"
+
+  /transactions:
+    get:
+      tags:
+        - Transaction
+      summary: Get list of transactions
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+        - name: per_page
+          in: query
+          schema:
+            type: integer
+        - name: date_range
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: List of transactions
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Transaction'
+
+    post:
+      tags:
+        - Transaction
+      summary: Create new transaction
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TransactionRequest'
+      responses:
+        '200':
+          description: Transaction created successfully
+
+  /transactions/refund:
+    post:
+      tags:
+        - Transaction
+      summary: Refund transaction
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RefundRequest'
+      responses:
+        '200':
+          description: Refund processed successfully
+
+  /transactions/void:
+    post:
+      tags:
+        - Transaction
+      summary: Void transaction
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VoidRequest'
+      responses:
+        '200':
+          description: Transaction voided successfully
+
+  /terminals/register-device:
+    post:
+      tags:
+        - Terminal
+      summary: Register or retrieve terminal
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TerminalRegistration'
+      responses:
+        '200':
+          description: Terminal registered/retrieved successfully
+
+  /terminals/link-terminal:
+    post:
+      tags:
+        - Terminal
+      summary: Link terminal to merchant
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TerminalLinkRequest'
+      responses:
+        '200':
+          description: Terminal linked successfully
+
+  /dashboard/statistics:
+    get:
+      tags:
+        - Dashboard
+      summary: Get dashboard statistics
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Dashboard statistics
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DashboardStatistics'
+
+  /dashboard/chart/daily:
+    get:
+      tags:
+        - Dashboard
+      summary: Get daily transaction chart
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Daily transaction chart data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChartData'
+
+  /dashboard/chart/weekly:
+    get:
+      tags:
+        - Dashboard
+      summary: Get weekly transaction chart
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Weekly transaction chart data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChartData'
+
+  /dashboard/chart/monthly:
+    get:
+      tags:
+        - Dashboard
+      summary: Get monthly transaction chart
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Monthly transaction chart data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChartData'
+
+  /twilio/send-sms:
+    post:
+      tags:
+        - Twilio
+      summary: Send SMS using Twilio
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SMSRequest'
+      responses:
+        '200':
+          description: SMS sent successfully
+
+  /batches:
+    get:
+      tags:
+        - Batch
+      summary: Get list of batches
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: List of batches
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Batch'
+
+  /settlements:
+    get:
+      tags:
+        - Settlement
+      summary: Get list of settlements
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: List of settlements
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Settlement'
+
+  /currencies:
+    get:
+      tags:
+        - Currencies
+      summary: Get all currencies
+      operationId: getCurrencies
+      parameters:
+        - name: search
+          in: query
+          schema:
+            type: string
+          description: Search currencies by country, name, or currency code
+      responses:
+        '200':
+          description: Currencies retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: "Currencies retrieved successfully"
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Currency'
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: false
+                  message:
+                    type: string
+                    example: "Failed to retrieve currencies"
+                  error:
+                    type: string
+                    example: "Internal server error message"
+
+  /currencies/select:
+    get:
+      tags:
+        - Currencies
+      summary: Get currencies for select dropdown
+      operationId: getCurrenciesSelect
+      responses:
+        '200':
+          description: Currencies retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: "Currencies retrieved successfully"
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Currency'
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: false
+                  message:
+                    type: string
+                    example: "Failed to retrieve currencies"
+                  error:
+                    type: string
+                    example: "Internal server error message"
+
+  /currencies/popular:
+    get:
+      tags:
+        - Currencies
+      summary: Get popular currencies
+      operationId: getPopularCurrencies
+      responses:
+        '200':
+          description: Popular currencies retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: "Popular currencies retrieved successfully"
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Currency'
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: false
+                  message:
+                    type: string
+                    example: "Failed to retrieve popular currencies"
+                  error:
+                    type: string
+                    example: "Internal server error message"
+
+  /currencies/by-code/{code}:
+    get:
+      tags:
+        - Currencies
+      summary: Get currency by code
+      operationId: getCurrencyByCode
+      parameters:
+        - name: code
+          in: path
+          required: true
+          schema:
+            type: string
+          description: ISO currency code (e.g., USD, EUR)
+          example: "USD"
+      responses:
+        '200':
+          description: Currency retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: "Currency retrieved successfully"
+                  data:
+                    $ref: '#/components/schemas/Currency'
+        '404':
+          description: Currency not found
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: false
+                  message:
+                    type: string
+                    example: "Currency not found"
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: false
+                  message:
+                    type: string
+                    example: "Failed to retrieve currency"
+                  error:
+                    type: string
+                    example: "Internal server error message"
+
+components:
+  schemas:
+    UserRegistration:
+      type: object
+      properties:
+        name:
+          type: string
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          format: password
+        phone:
+          type: string
+      required:
+        - name
+        - email
+        - password
+
+    LoginRequest:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          format: password
+      required:
+        - email
+        - password
+
+    LoginResponse:
+      type: object
+      properties:
+        token:
+          type: string
+        user:
+          $ref: '#/components/schemas/UserProfile'
+
+    UserProfile:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        email:
+          type: string
+        phone:
+          type: string
+        role:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+
+    MerchantRegistration:
+      type: object
+      properties:
+        first_name:
+          type: string
+          maxLength: 255
+          example: "John"
+          description: "First name of the merchant"
+        last_name:
+          type: string
+          maxLength: 255
+          example: "Doe"
+          description: "Last name of the merchant"
+        email:
+          type: string
+          format: email
+          maxLength: 255
+          example: "john@example.com"
+          description: "Email address for the merchant account (must be unique)"
+        phone:
+          type: string
+          maxLength: 20
+          example: "+1234567890"
+          description: "Contact phone number (must be unique)"
+        owner_name:
+          type: string
+          maxLength: 255
+          example: "John Doe"
+          description: "Name of the business owner"
+        business_name:
+          type: string
+          maxLength: 255
+          example: "My Business Name"
+          description: "Name of the business"
+        business_type:
+          type: string
+          maxLength: 255
+          example: "retail"
+          description: "Type of business (e.g., retail, restaurant, service)"
+        business_address:
+          type: string
+          maxLength: 500
+          example: "123 Business St, City, Country"
+          description: "Complete business address"
+        lat:
+          type: number
+          format: float
+          example: 12.345678
+          description: "Latitude of business location"
+        long:
+          type: number
+          format: float
+          example: 98.765432
+          description: "Longitude of business location"
+        temp_merchant_code:
+          type: string
+          example: "TEMP_123456"
+          description: "Temporary merchant code for registration (must start with TEMP_)"
+        company_logo:
+          type: string
+          format: binary
+          description: "Company logo image (JPEG, PNG, JPG, GIF - max 2MB)"
+        trade_license:
+          type: string
+          format: binary
+          description: "Trade license document (PDF, JPEG, PNG, JPG - max 5MB)"
+        tax_certification:
+          type: string
+          format: binary
+          description: "Tax certification document (PDF, JPEG, PNG, JPG - max 5MB)"
+        user_id_document:
+          type: string
+          format: binary
+          description: "User ID document (PDF, JPEG, PNG, JPG - max 5MB)"
+      required:
+        - first_name
+        - last_name
+        - email
+        - phone
+        - owner_name
+        - business_name
+        - business_type
+        - business_address
+        - temp_merchant_code
+
+    Transaction:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        amount:
+          type: number
+          format: float
+        currency:
+          type: string
+        status:
+          type: string
+          enum: [pending, completed, failed, refunded, voided]
+        created_at:
+          type: string
+          format: date-time
+        merchant_id:
+          type: string
+        terminal_id:
+          type: string
+        transaction_type:
+          type: string
+        reference_number:
+          type: string
+
+    TransactionRequest:
+      type: object
+      properties:
+        amount:
+          type: number
+          format: float
+        currency:
+          type: string
+        terminal_id:
+          type: string
+        transaction_type:
+          type: string
+      required:
+        - amount
+        - currency
+        - terminal_id
+
+    RefundRequest:
+      type: object
+      properties:
+        transaction_id:
+          type: string
+        amount:
+          type: number
+          format: float
+        reason:
+          type: string
+      required:
+        - transaction_id
+        - amount
+
+    VoidRequest:
+      type: object
+      properties:
+        transaction_id:
+          type: string
+        reason:
+          type: string
+      required:
+        - transaction_id
+
+    TerminalRegistration:
+      type: object
+      properties:
+        device_id:
+          type: string
+        model:
+          type: string
+        manufacturer:
+          type: string
+        os_version:
+          type: string
+      required:
+        - device_id
+
+    TerminalLinkRequest:
+      type: object
+      properties:
+        terminal_id:
+          type: string
+        merchant_id:
+          type: string
+      required:
+        - terminal_id
+        - merchant_id
+
+    DashboardStatistics:
+      type: object
+      properties:
+        total_transactions:
+          type: integer
+        total_amount:
+          type: number
+          format: float
+        successful_transactions:
+          type: integer
+        failed_transactions:
+          type: integer
+        daily_chart:
+          $ref: '#/components/schemas/ChartData'
+        weekly_chart:
+          $ref: '#/components/schemas/ChartData'
+        monthly_chart:
+          $ref: '#/components/schemas/ChartData'
+
+    ChartData:
+      type: object
+      properties:
+        labels:
+          type: array
+          items:
+            type: string
+        datasets:
+          type: array
+          items:
+            type: object
+            properties:
+              label:
+                type: string
+              data:
+                type: array
+                items:
+                  type: number
+
+    SMSRequest:
+      type: object
+      properties:
+        phone_number:
+          type: string
+        message:
+          type: string
+      required:
+        - phone_number
+        - message
+
+    Batch:
+      type: object
+      properties:
+        id:
+          type: string
+        status:
+          type: string
+        total_amount:
+          type: number
+          format: float
+        transaction_count:
+          type: integer
+        created_at:
+          type: string
+          format: date-time
+        closed_at:
+          type: string
+          format: date-time
+
+    Settlement:
+      type: object
+      properties:
+        id:
+          type: string
+        status:
+          type: string
+        total_amount:
+          type: number
+          format: float
+        settlement_date:
+          type: string
+          format: date-time
+        merchant_id:
+          type: string
+        batch_ids:
+          type: array
+          items:
+            type: string
+
+    MerchantFile:
+      type: object
+      properties:
+        id:
+          type: string
+          example: "file_123456"
+          description: "Unique identifier for the file"
+        file_name:
+          type: string
+          example: "trade_license.pdf"
+          description: "Original name of the uploaded file"
+        file_type:
+          type: string
+          example: "trade_license"
+          description: "Type of document (trade_license, tax_certification, user_id_document, company_logo)"
+        file_size:
+          type: integer
+          example: 1024000
+          description: "File size in bytes"
+        file_url:
+          type: string
+          example: "/storage/merchant_files/trade_license.pdf"
+          description: "URL path to access the file"
+        mime_type:
+          type: string
+          example: "application/pdf"
+          description: "MIME type of the file"
+        merchant_id:
+          type: integer
+          example: 1
+          description: "ID of the merchant who uploaded the file"
+        uploaded_at:
+          type: string
+          format: date-time
+          example: "2024-01-15T10:30:00Z"
+          description: "Timestamp when the file was uploaded"
+        updated_at:
+          type: string
+          format: date-time
+          example: "2024-01-15T10:30:00Z"
+          description: "Timestamp when the file record was last updated"
+
+    Country:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 1
+        name:
+          type: string
+          example: "United States"
+        code:
+          type: string
+          example: "US"
+        phone_code:
+          type: string
+          example: "+1"
+        currency:
+          type: string
+          example: "USD"
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    City:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 1
+        name:
+          type: string
+          example: "New York"
+        country_id:
+          type: integer
+          example: 1
+        country:
+          $ref: '#/components/schemas/Country'
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    BusinessType:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 1
+        name:
+          type: string
+          example: "Retail"
+        description:
+          type: string
+          example: "Retail business operations"
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    SelectOption:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 1
+        text:
+          type: string
+          example: "United States"
+        value:
+          type: integer
+          example: 1
+
+    ContractTerms:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 1
+        title:
+          type: string
+          example: "Terms and Conditions"
+        content:
+          type: string
+          example: "These are the terms and conditions..."
+        version:
+          type: string
+          example: "1.0"
+        effective_date:
+          type: string
+          format: date
+          example: "2024-01-01"
+        is_active:
+          type: boolean
+          example: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    MerchantResource:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 1
+        business_name:
+          type: string
+          example: "My Business Name"
+        business_type:
+          type: string
+          example: "retail"
+        owner_name:
+          type: string
+          example: "John Doe"
+        business_address:
+          type: string
+          example: "123 Business St, City, Country"
+        lat:
+          type: number
+          format: float
+          example: 12.345678
+        long:
+          type: number
+          format: float
+          example: 98.765432
+        status:
+          type: string
+          example: "pending"
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    UserResource:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 1
+        first_name:
+          type: string
+          example: "John"
+        last_name:
+          type: string
+          example: "Doe"
+        email:
+          type: string
+          format: email
+          example: "john@example.com"
+        phone:
+          type: string
+          example: "+1234567890"
+        role:
+          type: string
+          example: "merchant"
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    Currency:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 1
+          description: "Unique identifier for the currency"
+        country:
+          type: string
+          example: "United States"
+          description: "Country name where the currency is used"
+        name:
+          type: string
+          example: "US Dollar"
+          description: "Full name of the currency"
+        symbol:
+          type: string
+          example: "$"
+          description: "Currency symbol"
+        currency_code:
+          type: string
+          example: "USD"
+          description: "ISO 4217 currency code"
+        created_at:
+          type: string
+          format: date-time
+          example: "2024-01-15T10:30:00Z"
+          description: "Timestamp when the currency was created"
+        updated_at:
+          type: string
+          format: date-time
+          example: "2024-01-15T10:30:00Z"
+          description: "Timestamp when the currency was last updated"
+
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
