@@ -78,6 +78,7 @@ return [
     'jwt' => [
         'secret' => env('JWT_SECRET', 'change-me-to-a-long-random-secret'),
         'expires_in' => env('JWT_EXPIRES_IN', '7d'),
+        'refresh_grace' => env('JWT_REFRESH_GRACE', env('JWT_EXPIRES_IN', '7d')),
     ],
 
     'otp' => [

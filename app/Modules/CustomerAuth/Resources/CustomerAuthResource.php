@@ -7,11 +7,6 @@ use Illuminate\Http\Resources\Json\JsonResource;
 
 class CustomerAuthResource extends JsonResource
 {
-    public static function make(Customer $customer): self
-    {
-        return new self($customer);
-    }
-
     public function toArray($request): array
     {
         /** @var Customer $customer */

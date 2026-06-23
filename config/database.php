@@ -42,6 +42,20 @@ return [
             'synchronous' => null,
         ],
 
+        'customer_auth_testing' => [
+            'driver' => 'sqlite',
+            'url' => env('CUSTOMER_AUTH_TEST_DB_URL'),
+            'database' => env(
+                'CUSTOMER_AUTH_TEST_DB_DATABASE',
+                database_path('testing/customer_auth.sqlite'),
+            ),
+            'prefix' => '',
+            'foreign_key_constraints' => true,
+            'busy_timeout' => null,
+            'journal_mode' => null,
+            'synchronous' => null,
+        ],
+
         'mysql' => [
             'driver' => 'mysql',
             'url' => env('DB_URL'),

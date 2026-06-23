@@ -11,6 +11,10 @@
         <testsuite name="Feature">
             <directory>tests/Feature</directory>
         </testsuite>
+        <testsuite name="CustomerAuth">
+            <file>tests/Feature/CustomerAuthApiTest.php</file>
+            <file>tests/Unit/CustomerAuthResourceTest.php</file>
+        </testsuite>
     </testsuites>
     <source>
         <include>
@@ -19,11 +23,13 @@
     </source>
     <php>
         <env name="APP_ENV" value="testing"/>
+        <env name="APP_KEY" value="base64:2fl+K9kMaulFbF2jxmJhHLa8VX8w/XWf6bY/9j2j7xs="/>
         <env name="APP_MAINTENANCE_DRIVER" value="file"/>
         <env name="BCRYPT_ROUNDS" value="4"/>
         <env name="CACHE_STORE" value="array"/>
-        <env name="DB_CONNECTION" value="sqlite"/>
-        <env name="DB_DATABASE" value=":memory:"/>
+        <env name="DB_CONNECTION" value="customer_auth_testing"/>
+        <env name="JWT_SECRET" value="testing-customer-auth-jwt-secret"/>
+        <env name="OTP_MOCK_CODE" value="111111"/>
         <env name="MAIL_MAILER" value="array"/>
         <env name="PULSE_ENABLED" value="false"/>
         <env name="QUEUE_CONNECTION" value="sync"/>

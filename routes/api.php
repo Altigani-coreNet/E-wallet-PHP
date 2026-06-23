@@ -850,6 +850,7 @@ Route::prefix('v1/customer')->group(function () {
 
     Route::post('auth/register', [\App\Modules\CustomerAuth\Controllers\CustomerAuthController::class, 'register']);
     Route::post('auth/login', [\App\Modules\CustomerAuth\Controllers\CustomerAuthController::class, 'login']);
+    Route::post('auth/refresh-token', [\App\Modules\CustomerAuth\Controllers\CustomerAuthController::class, 'refreshToken']);
     Route::post('password/forgot', [\App\Modules\CustomerAuth\Controllers\CustomerAuthController::class, 'forgotPassword']);
     Route::post('password/reset', [\App\Modules\CustomerAuth\Controllers\CustomerAuthController::class, 'resetPassword']);
 

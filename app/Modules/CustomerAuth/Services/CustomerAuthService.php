@@ -122,6 +122,13 @@ class CustomerAuthService
         return ['message' => 'Logged out successfully'];
     }
 
+    public function refreshToken(Customer $customer): array
+    {
+        $customer->load(['country', 'city']);
+
+        return $this->buildAuthResponse($customer);
+    }
+
     public function profile(Customer $customer): array
     {
         $customer->load(['country', 'city']);

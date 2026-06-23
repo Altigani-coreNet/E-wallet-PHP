@@ -17,6 +17,8 @@
 /public/ads_images/*
 /storage/*.key
 !/public/flags/
+/database/testing/*.sqlite
+/database/testing/*.sqlite-journal
 /vendor
 .env
 .env.backup

@@ -2,7 +2,7 @@
     "info": {
         "_postman_id": "customer-auth-api-2026",
         "name": "Customer Auth API",
-        "description": "End-customer authentication, onboarding, banners, and notifications for Fast Pay SoftPOS (`/api/v1/customer`). Dev OTP mock: set `OTP_MOCK_CODE=111111`. Refresh-token route is documented as a placeholder pending backend implementation.",
+        "description": "End-customer authentication, onboarding, banners, and notifications for Fast Pay SoftPOS (`/api/v1/customer`). Dev OTP mock: set `OTP_MOCK_CODE=111111`. Refresh-token accepts valid JWT or tokens expired within `JWT_REFRESH_GRACE` (default 7d).",
         "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
     },
     "variable": [
@@ -778,7 +778,7 @@
                     ]
                 },
                 {
-                    "name": "Refresh Token (placeholder)",
+                    "name": "Refresh Token",
                     "request": {
                         "method": "POST",
                         "header": [
@@ -811,11 +811,11 @@
                                 "refresh-token"
                             ]
                         },
-                        "description": "PLACEHOLDER — route not yet implemented in api.php. Will accept valid or recently expired JWT once added."
+                        "description": "Issues a new JWT using a valid customer token or one expired within JWT_REFRESH_GRACE (default 7d, same as JWT_EXPIRES_IN). No request body."
                     },
                     "response": [
                         {
-                            "name": "Success (expected)",
+                            "name": "Success",
                             "status": "OK",
                             "code": 200,
                             "_postman_previewlanguage": "json",
@@ -828,9 +828,9 @@
                             "body": "{\n    \"success\": true,\n    \"message\": \"Token refreshed successfully\",\n    \"data\": {\n        \"token\": \"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.example\",\n        \"token_type\": \"Bearer\",\n        \"profile_completed\": true,\n        \"customer\": {\n            \"id\": 1,\n            \"name\": \"Ahmed\",\n            \"email\": \"ahmed@example.com\",\n            \"phone\": \"+249912345678\",\n            \"birthDate\": \"1990-05-15T00:00:00+00:00\",\n            \"gender\": \"male\",\n            \"address\": null,\n            \"countryId\": \"00000000-0000-4000-8000-000000000001\",\n            \"merchantCountryId\": null,\n            \"cityId\": \"10000000-0000-4000-8000-000000000001\",\n            \"state\": null,\n            \"zip\": null,\n            \"merchantId\": null,\n            \"profileCompleted\": true,\n            \"balance\": \"0.00\",\n            \"country\": {\n                \"id\": \"00000000-0000-4000-8000-000000000001\",\n                \"name\": \"Sudan\",\n                \"dialCode\": \"249\"\n            },\n            \"city\": {\n                \"id\": \"10000000-0000-4000-8000-000000000001\",\n                \"name\": \"Khartoum\"\n            },\n            \"createdAt\": \"2026-06-23T10:00:00+00:00\",\n            \"updatedAt\": \"2026-06-23T10:30:00+00:00\"\n        }\n    }\n}"
                         },
                         {
-                            "name": "Error (current)",
-                            "status": "Not Found",
-                            "code": 404,
+                            "name": "Error",
+                            "status": "Unauthorized",
+                            "code": 401,
                             "_postman_previewlanguage": "json",
                             "header": [
                                 {
@@ -838,7 +838,7 @@
                                     "value": "application/json"
                                 }
                             ],
-                            "body": "{\n    \"message\": \"The route api/v1/customer/auth/refresh-token could not be found.\"\n}"
+                            "body": "{\n    \"success\": false,\n    \"message\": \"Unauthorized\",\n    \"errors\": null,\n    \"data\": null\n}"
                         }
                     ],
                     "event": [

@@ -82,6 +82,10 @@
         "test": [
             "@php artisan config:clear --ansi",
             "@php artisan test"
+        ],
+        "test:customer-auth": [
+            "@php artisan test:prepare-customer-auth-db --env=testing --fresh --inspect",
+            "@php artisan test --testsuite=CustomerAuth"
         ]
     },
     "extra": {
