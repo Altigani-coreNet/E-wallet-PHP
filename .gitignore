@@ -34,6 +34,7 @@ yarn-error.log
 /storage/settings.json
 /storage/*
 /public/*
+!/public/index.php
 !/public/seeder/
 !/public/seeder/**
 !/storage/logs/
