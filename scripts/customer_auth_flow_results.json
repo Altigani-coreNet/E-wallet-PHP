@@ -1,0 +1,118 @@
+{
+    "countries": {
+        "code": 500,
+        "body": {
+            "message": "Server Error"
+        },
+        "raw": "\n{\n    \"message\": \"Server Error\"\n}"
+    },
+    "cities": {
+        "code": 500,
+        "body": {
+            "message": "Server Error"
+        },
+        "raw": "\n{\n    \"message\": \"Server Error\"\n}"
+    },
+    "otp_sms": {
+        "code": 500,
+        "body": {
+            "message": "Server Error"
+        },
+        "raw": "\n{\n    \"message\": \"Server Error\"\n}"
+    },
+    "otp_verify": {
+        "code": 422,
+        "body": {
+            "success": false,
+            "message": "The token field is required.",
+            "errors": {
+                "token": [
+                    "The token field is required."
+                ]
+            },
+            "data": null
+        },
+        "raw": "\n{\"success\":false,\"message\":\"The token field is required.\",\"errors\":{\"token\":[\"The token field is required.\"]},\"data\":null}"
+    },
+    "register": {
+        "code": 422,
+        "body": {
+            "success": false,
+            "message": "The otp token field is required.",
+            "errors": {
+                "otp_token": [
+                    "The otp token field is required."
+                ]
+            },
+            "data": null
+        },
+        "raw": "\n{\"success\":false,\"message\":\"The otp token field is required.\",\"errors\":{\"otp_token\":[\"The otp token field is required.\"]},\"data\":null}"
+    },
+    "login": {
+        "code": 500,
+        "body": {
+            "message": "Server Error"
+        },
+        "raw": "\n{\n    \"message\": \"Server Error\"\n}"
+    },
+    "profile": {
+        "code": 401,
+        "body": {
+            "success": false,
+            "message": "Unauthorized",
+            "errors": null,
+            "data": null
+        },
+        "raw": "\n{\"success\":false,\"message\":\"Unauthorized\",\"errors\":null,\"data\":null}"
+    },
+    "complete_profile": {
+        "code": 401,
+        "body": {
+            "success": false,
+            "message": "Unauthorized",
+            "errors": null,
+            "data": null
+        },
+        "raw": "\n{\"success\":false,\"message\":\"Unauthorized\",\"errors\":null,\"data\":null}"
+    },
+    "banners": {
+        "code": 401,
+        "body": {
+            "success": false,
+            "message": "Unauthorized",
+            "errors": null,
+            "data": null
+        },
+        "raw": "\n{\"success\":false,\"message\":\"Unauthorized\",\"errors\":null,\"data\":null}"
+    },
+    "notifications": {
+        "code": 401,
+        "body": {
+            "success": false,
+            "message": "Unauthorized",
+            "errors": null,
+            "data": null
+        },
+        "raw": "\n{\"success\":false,\"message\":\"Unauthorized\",\"errors\":null,\"data\":null}"
+    },
+    "unread_count": {
+        "code": 401,
+        "body": {
+            "success": false,
+            "message": "Unauthorized",
+            "errors": null,
+            "data": null
+        },
+        "raw": "\n{\"success\":false,\"message\":\"Unauthorized\",\"errors\":null,\"data\":null}"
+    },
+    "logout": {
+        "code": 401,
+        "body": {
+            "success": false,
+            "message": "Unauthorized",
+            "errors": null,
+            "data": null
+        },
+        "raw": "\n{\"success\":false,\"message\":\"Unauthorized\",\"errors\":null,\"data\":null}"
+    }
+}

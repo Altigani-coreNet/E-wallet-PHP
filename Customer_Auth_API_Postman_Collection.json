@@ -1,0 +1,1452 @@
+{
+    "info": {
+        "_postman_id": "customer-auth-api-2026",
+        "name": "Customer Auth API",
+        "description": "End-customer authentication, onboarding, banners, and notifications for Fast Pay SoftPOS (`/api/v1/customer`). Dev OTP mock: set `OTP_MOCK_CODE=111111`. Refresh-token route is documented as a placeholder pending backend implementation.",
+        "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+    },
+    "variable": [
+        {
+            "key": "base_url",
+            "value": "http://localhost:8001",
+            "type": "string"
+        },
+        {
+            "key": "customer_phone",
+            "value": "+249912345678",
+            "type": "string"
+        },
+        {
+            "key": "customer_email",
+            "value": "customer@example.com",
+            "type": "string"
+        },
+        {
+            "key": "customer_password",
+            "value": "SecurePass1!",
+            "type": "string"
+        },
+        {
+            "key": "otp_code",
+            "value": "111111",
+            "type": "string"
+        },
+        {
+            "key": "otp_token_raw",
+            "value": "",
+            "type": "string"
+        },
+        {
+            "key": "otp_token_encrypted",
+            "value": "",
+            "type": "string"
+        },
+        {
+            "key": "customer_jwt",
+            "value": "",
+            "type": "string"
+        },
+        {
+            "key": "country_dial_code",
+            "value": "249",
+            "type": "string"
+        },
+        {
+            "key": "city_id",
+            "value": "10000000-0000-4000-8000-000000000001",
+            "type": "string"
+        },
+        {
+            "key": "notification_id",
+            "value": "",
+            "type": "string"
+        }
+    ],
+    "item": [
+        {
+            "name": "Onboarding",
+            "item": [
+                {
+                    "name": "List Countries",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json",
+                                "type": "text"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json",
+                                "type": "text"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/v1/countries",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "v1",
+                                "countries"
+                            ]
+                        },
+                        "description": "Public list of active countries for profile completion."
+                    },
+                    "response": [
+                        {
+                            "name": "Success",
+                            "status": "OK",
+                            "code": 200,
+                            "_postman_previewlanguage": "json",
+                            "header": [
+                                {
+                                    "key": "Content-Type",
+                                    "value": "application/json"
+                                }
+                            ],
+                            "body": "{\n    \"success\": true,\n    \"message\": \"Countries retrieved successfully\",\n    \"data\": [\n        {\n            \"id\": \"00000000-0000-4000-8000-000000000001\",\n            \"shortName\": \"SD\",\n            \"code\": \"SD\",\n            \"dialCode\": \"249\",\n            \"name\": \"Sudan\"\n        }\n    ]\n}"
+                        }
+                    ]
+                },
+                {
+                    "name": "List Cities by Dial Code",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json",
+                                "type": "text"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json",
+                                "type": "text"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/v1/countries/{{country_dial_code}}/cities",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "v1",
+                                "countries",
+                                "{{country_dial_code}}",
+                                "cities"
+                            ]
+                        },
+                        "description": "Cities for a country dial code (e.g. 249)."
+                    },
+                    "response": [
+                        {
+                            "name": "Success",
+                            "status": "OK",
+                            "code": 200,
+                            "_postman_previewlanguage": "json",
+                            "header": [
+                                {
+                                    "key": "Content-Type",
+                                    "value": "application/json"
+                                }
+                            ],
+                            "body": "{\n    \"success\": true,\n    \"message\": \"Cities retrieved successfully\",\n    \"data\": [\n        {\n            \"id\": \"10000000-0000-4000-8000-000000000001\",\n            \"name\": \"Khartoum\",\n            \"countryId\": \"00000000-0000-4000-8000-000000000001\"\n        }\n    ]\n}"
+                        },
+                        {
+                            "name": "Error",
+                            "status": "Not Found",
+                            "code": 404,
+                            "_postman_previewlanguage": "json",
+                            "header": [
+                                {
+                                    "key": "Content-Type",
+                                    "value": "application/json"
+                                }
+                            ],
+                            "body": "{\n    \"success\": false,\n    \"message\": \"Country not found\",\n    \"errors\": null,\n    \"data\": null\n}"
+                        }
+                    ],
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "if (pm.response.code === 200) {",
+                                    "    const json = pm.response.json();",
+                                    "    if (Array.isArray(json.data) && json.data.length > 0 && json.data[0].id) {",
+                                    "        pm.collectionVariables.set('city_id', json.data[0].id);",
+                                    "    }",
+                                    "}"
+                                ]
+                            }
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "OTP",
+            "item": [
+                {
+                    "name": "Send SMS OTP",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json",
+                                "type": "text"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json",
+                                "type": "text"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/v1/customer/otp/sms",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "v1",
+                                "customer",
+                                "otp",
+                                "sms"
+                            ]
+                        },
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"phone\": \"{{customer_phone}}\"\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        },
+                        "description": "Sends OTP via SMS. Dev: check Laravel logs for code when SMS is stubbed."
+                    },
+                    "response": [
+                        {
+                            "name": "Success",
+                            "status": "Created",
+                            "code": 201,
+                            "_postman_previewlanguage": "json",
+                            "header": [
+                                {
+                                    "key": "Content-Type",
+                                    "value": "application/json"
+                                }
+                            ],
+                            "body": "{\n    \"success\": true,\n    \"message\": \"OTP sent via SMS\",\n    \"data\": {\n        \"token\": \"raw-otp-token-64-chars-example\"\n    }\n}"
+                        },
+                        {
+                            "name": "Error",
+                            "status": "Unprocessable Entity",
+                            "code": 422,
+                            "_postman_previewlanguage": "json",
+                            "header": [
+                                {
+                                    "key": "Content-Type",
+                                    "value": "application/json"
+                                }
+                            ],
+                            "body": "{\n    \"success\": false,\n    \"message\": \"phone must be a valid E.164 number\",\n    \"errors\": {\n        \"phone\": [\n            \"phone must be a valid E.164 number\"\n        ]\n    },\n    \"data\": null\n}"
+                        }
+                    ],
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "if (pm.response.code === 201) {",
+                                    "    const json = pm.response.json();",
+                                    "    if (json.data && json.data.token) {",
+                                    "        pm.collectionVariables.set('otp_token_raw', json.data.token);",
+                                    "    }",
+                                    "}"
+                                ]
+                            }
+                        }
+                    ]
+                },
+                {
+                    "name": "Send Email OTP",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json",
+                                "type": "text"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json",
+                                "type": "text"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/v1/customer/otp/email",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "v1",
+                                "customer",
+                                "otp",
+                                "email"
+                            ]
+                        },
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"email\": \"{{customer_email}}\"\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        }
+                    },
+                    "response": [
+                        {
+                            "name": "Success",
+                            "status": "Created",
+                            "code": 201,
+                            "_postman_previewlanguage": "json",
+                            "header": [
+                                {
+                                    "key": "Content-Type",
+                                    "value": "application/json"
+                                }
+                            ],
+                            "body": "{\n    \"success\": true,\n    \"message\": \"OTP sent to email\",\n    \"data\": {\n        \"token\": \"raw-otp-token-64-chars-example\"\n    }\n}"
+                        },
+                        {
+                            "name": "Error",
+                            "status": "Unprocessable Entity",
+                            "code": 422,
+                            "_postman_previewlanguage": "json",
+                            "header": [
+                                {
+                                    "key": "Content-Type",
+                                    "value": "application/json"
+                                }
+                            ],
+                            "body": "{\n    \"success\": false,\n    \"message\": \"The email field must be a valid email address.\",\n    \"errors\": {\n        \"email\": [\n            \"The email field must be a valid email address.\"\n        ]\n    },\n    \"data\": null\n}"
+                        }
+                    ],
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "if (pm.response.code === 201) {",
+                                    "    const json = pm.response.json();",
+                                    "    if (json.data && json.data.token) {",
+                                    "        pm.collectionVariables.set('otp_token_raw', json.data.token);",
+                                    "    }",
+                                    "}"
+                                ]
+                            }
+                        }
+                    ]
+                },
+                {
+                    "name": "Verify OTP",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json",
+                                "type": "text"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json",
+                                "type": "text"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/v1/customer/otp/verify",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "v1",
+                                "customer",
+                                "otp",
+                                "verify"
+                            ]
+                        },
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"token\": \"{{otp_token_raw}}\",\n    \"code\": {{otp_code}}\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        },
+                        "description": "Use OTP_MOCK_CODE (default 111111) in dev."
+                    },
+                    "response": [
+                        {
+                            "name": "Success",
+                            "status": "Created",
+                            "code": 201,
+                            "_postman_previewlanguage": "json",
+                            "header": [
+                                {
+                                    "key": "Content-Type",
+                                    "value": "application/json"
+                                }
+                            ],
+                            "body": "{\n    \"success\": true,\n    \"message\": \"OTP verified successfully\",\n    \"data\": {\n        \"verified\": true,\n        \"has_account\": false,\n        \"otp_token\": \"encrypted-otp-token-string\"\n    }\n}"
+                        },
+                        {
+                            "name": "Error",
+                            "status": "Bad Request",
+                            "code": 400,
+                            "_postman_previewlanguage": "json",
+                            "header": [
+                                {
+                                    "key": "Content-Type",
+                                    "value": "application/json"
+                                }
+                            ],
+                            "body": "{\n    \"success\": false,\n    \"message\": \"Invalid or expired OTP code\",\n    \"errors\": null,\n    \"data\": null\n}"
+                        }
+                    ],
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "if (pm.response.code === 201) {",
+                                    "    const json = pm.response.json();",
+                                    "    if (json.data && json.data.otp_token) {",
+                                    "        pm.collectionVariables.set('otp_token_encrypted', json.data.otp_token);",
+                                    "    }",
+                                    "}"
+                                ]
+                            }
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "Auth",
+            "item": [
+                {
+                    "name": "Register",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json",
+                                "type": "text"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json",
+                                "type": "text"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/v1/customer/auth/register",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "v1",
+                                "customer",
+                                "auth",
+                                "register"
+                            ]
+                        },
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"phone\": \"{{customer_phone}}\",\n    \"password\": \"{{customer_password}}\",\n    \"password_confirmation\": \"{{customer_password}}\",\n    \"otp_token\": \"{{otp_token_encrypted}}\"\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        },
+                        "description": "Run Send SMS OTP → Verify OTP first."
+                    },
+                    "response": [
+                        {
+                            "name": "Success",
+                            "status": "Created",
+                            "code": 201,
+                            "_postman_previewlanguage": "json",
+                            "header": [
+                                {
+                                    "key": "Content-Type",
+                                    "value": "application/json"
+                                }
+                            ],
+                            "body": "{\n    \"success\": true,\n    \"message\": \"Registration successful\",\n    \"data\": {\n        \"token\": \"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.example\",\n        \"token_type\": \"Bearer\",\n        \"profile_completed\": true,\n        \"customer\": {\n            \"id\": 1,\n            \"name\": \"Ahmed\",\n            \"email\": \"ahmed@example.com\",\n            \"phone\": \"+249912345678\",\n            \"birthDate\": \"1990-05-15T00:00:00+00:00\",\n            \"gender\": \"male\",\n            \"address\": null,\n            \"countryId\": \"00000000-0000-4000-8000-000000000001\",\n            \"merchantCountryId\": null,\n            \"cityId\": \"10000000-0000-4000-8000-000000000001\",\n            \"state\": null,\n            \"zip\": null,\n            \"merchantId\": null,\n            \"profileCompleted\": true,\n            \"balance\": \"0.00\",\n            \"country\": {\n                \"id\": \"00000000-0000-4000-8000-000000000001\",\n                \"name\": \"Sudan\",\n                \"dialCode\": \"249\"\n            },\n            \"city\": {\n                \"id\": \"10000000-0000-4000-8000-000000000001\",\n                \"name\": \"Khartoum\"\n            },\n            \"createdAt\": \"2026-06-23T10:00:00+00:00\",\n            \"updatedAt\": \"2026-06-23T10:30:00+00:00\"\n        }\n    }\n}"
+                        },
+                        {
+                            "name": "Error",
+                            "status": "Conflict",
+                            "code": 409,
+                            "_postman_previewlanguage": "json",
+                            "header": [
+                                {
+                                    "key": "Content-Type",
+                                    "value": "application/json"
+                                }
+                            ],
+                            "body": "{\n    \"success\": false,\n    \"message\": \"A customer with this phone already exists\",\n    \"errors\": null,\n    \"data\": null\n}"
+                        }
+                    ],
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "if (pm.response.code === 200 || pm.response.code === 201) {",
+                                    "    const json = pm.response.json();",
+                                    "    if (json.data && json.data.token) {",
+                                    "        pm.collectionVariables.set('customer_jwt', json.data.token);",
+                                    "    }",
+                                    "}"
+                                ]
+                            }
+                        }
+                    ]
+                },
+                {
+                    "name": "Login",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json",
+                                "type": "text"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json",
+                                "type": "text"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/v1/customer/auth/login",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "v1",
+                                "customer",
+                                "auth",
+                                "login"
+                            ]
+                        },
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"phone\": \"{{customer_phone}}\",\n    \"password\": \"{{customer_password}}\"\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        }
+                    },
+                    "response": [
+                        {
+                            "name": "Success",
+                            "status": "OK",
+                            "code": 200,
+                            "_postman_previewlanguage": "json",
+                            "header": [
+                                {
+                                    "key": "Content-Type",
+                                    "value": "application/json"
+                                }
+                            ],
+                            "body": "{\n    \"success\": true,\n    \"message\": \"Login successful\",\n    \"data\": {\n        \"token\": \"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.example\",\n        \"token_type\": \"Bearer\",\n        \"profile_completed\": true,\n        \"customer\": {\n            \"id\": 1,\n            \"name\": \"Ahmed\",\n            \"email\": \"ahmed@example.com\",\n            \"phone\": \"+249912345678\",\n            \"birthDate\": \"1990-05-15T00:00:00+00:00\",\n            \"gender\": \"male\",\n            \"address\": null,\n            \"countryId\": \"00000000-0000-4000-8000-000000000001\",\n            \"merchantCountryId\": null,\n            \"cityId\": \"10000000-0000-4000-8000-000000000001\",\n            \"state\": null,\n            \"zip\": null,\n            \"merchantId\": null,\n            \"profileCompleted\": true,\n            \"balance\": \"0.00\",\n            \"country\": {\n                \"id\": \"00000000-0000-4000-8000-000000000001\",\n                \"name\": \"Sudan\",\n                \"dialCode\": \"249\"\n            },\n            \"city\": {\n                \"id\": \"10000000-0000-4000-8000-000000000001\",\n                \"name\": \"Khartoum\"\n            },\n            \"createdAt\": \"2026-06-23T10:00:00+00:00\",\n            \"updatedAt\": \"2026-06-23T10:30:00+00:00\"\n        }\n    }\n}"
+                        },
+                        {
+                            "name": "Error",
+                            "status": "Unauthorized",
+                            "code": 401,
+                            "_postman_previewlanguage": "json",
+                            "header": [
+                                {
+                                    "key": "Content-Type",
+                                    "value": "application/json"
+                                }
+                            ],
+                            "body": "{\n    \"success\": false,\n    \"message\": \"Invalid credentials\",\n    \"errors\": null,\n    \"data\": null\n}"
+                        }
+                    ],
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "if (pm.response.code === 200 || pm.response.code === 201) {",
+                                    "    const json = pm.response.json();",
+                                    "    if (json.data && json.data.token) {",
+                                    "        pm.collectionVariables.set('customer_jwt', json.data.token);",
+                                    "    }",
+                                    "}"
+                                ]
+                            }
+                        }
+                    ]
+                },
+                {
+                    "name": "Forgot Password",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json",
+                                "type": "text"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json",
+                                "type": "text"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/v1/customer/password/forgot",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "v1",
+                                "customer",
+                                "password",
+                                "forgot"
+                            ]
+                        },
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"phone\": \"{{customer_phone}}\"\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        },
+                        "description": "Always returns OTP token without revealing if account exists."
+                    },
+                    "response": [
+                        {
+                            "name": "Success",
+                            "status": "Created",
+                            "code": 201,
+                            "_postman_previewlanguage": "json",
+                            "header": [
+                                {
+                                    "key": "Content-Type",
+                                    "value": "application/json"
+                                }
+                            ],
+                            "body": "{\n    \"success\": true,\n    \"message\": \"If an account exists, an OTP has been sent via SMS\",\n    \"data\": {\n        \"token\": \"raw-otp-token-64-chars-example\"\n    }\n}"
+                        }
+                    ],
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "if (pm.response.code === 201) {",
+                                    "    const json = pm.response.json();",
+                                    "    if (json.data && json.data.token) {",
+                                    "        pm.collectionVariables.set('otp_token_raw', json.data.token);",
+                                    "    }",
+                                    "}"
+                                ]
+                            }
+                        }
+                    ]
+                },
+                {
+                    "name": "Reset Password",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json",
+                                "type": "text"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json",
+                                "type": "text"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/v1/customer/password/reset",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "v1",
+                                "customer",
+                                "password",
+                                "reset"
+                            ]
+                        },
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"phone\": \"{{customer_phone}}\",\n    \"password\": \"NewSecurePass1!\",\n    \"password_confirmation\": \"NewSecurePass1!\",\n    \"otp_token\": \"{{otp_token_encrypted}}\"\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        },
+                        "description": "Run Forgot Password → Verify OTP first."
+                    },
+                    "response": [
+                        {
+                            "name": "Success",
+                            "status": "OK",
+                            "code": 200,
+                            "_postman_previewlanguage": "json",
+                            "header": [
+                                {
+                                    "key": "Content-Type",
+                                    "value": "application/json"
+                                }
+                            ],
+                            "body": "{\n    \"success\": true,\n    \"message\": \"Password reset successfully\",\n    \"data\": {\n        \"token\": \"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.example\",\n        \"token_type\": \"Bearer\",\n        \"profile_completed\": true,\n        \"customer\": {\n            \"id\": 1,\n            \"name\": \"Ahmed\",\n            \"email\": \"ahmed@example.com\",\n            \"phone\": \"+249912345678\",\n            \"birthDate\": \"1990-05-15T00:00:00+00:00\",\n            \"gender\": \"male\",\n            \"address\": null,\n            \"countryId\": \"00000000-0000-4000-8000-000000000001\",\n            \"merchantCountryId\": null,\n            \"cityId\": \"10000000-0000-4000-8000-000000000001\",\n            \"state\": null,\n            \"zip\": null,\n            \"merchantId\": null,\n            \"profileCompleted\": true,\n            \"balance\": \"0.00\",\n            \"country\": {\n                \"id\": \"00000000-0000-4000-8000-000000000001\",\n                \"name\": \"Sudan\",\n                \"dialCode\": \"249\"\n            },\n            \"city\": {\n                \"id\": \"10000000-0000-4000-8000-000000000001\",\n                \"name\": \"Khartoum\"\n            },\n            \"createdAt\": \"2026-06-23T10:00:00+00:00\",\n            \"updatedAt\": \"2026-06-23T10:30:00+00:00\"\n        }\n    }\n}"
+                        },
+                        {
+                            "name": "Error",
+                            "status": "Bad Request",
+                            "code": 400,
+                            "_postman_previewlanguage": "json",
+                            "header": [
+                                {
+                                    "key": "Content-Type",
+                                    "value": "application/json"
+                                }
+                            ],
+                            "body": "{\n    \"success\": false,\n    \"message\": \"Phone not verified or OTP expired\",\n    \"errors\": null,\n    \"data\": null\n}"
+                        }
+                    ],
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "if (pm.response.code === 200 || pm.response.code === 201) {",
+                                    "    const json = pm.response.json();",
+                                    "    if (json.data && json.data.token) {",
+                                    "        pm.collectionVariables.set('customer_jwt', json.data.token);",
+                                    "    }",
+                                    "}"
+                                ]
+                            }
+                        }
+                    ]
+                },
+                {
+                    "name": "Refresh Token (placeholder)",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json",
+                                "type": "text"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json",
+                                "type": "text"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{customer_jwt}}",
+                                "type": "text"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/v1/customer/auth/refresh-token",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "v1",
+                                "customer",
+                                "auth",
+                                "refresh-token"
+                            ]
+                        },
+                        "description": "PLACEHOLDER — route not yet implemented in api.php. Will accept valid or recently expired JWT once added."
+                    },
+                    "response": [
+                        {
+                            "name": "Success (expected)",
+                            "status": "OK",
+                            "code": 200,
+                            "_postman_previewlanguage": "json",
+                            "header": [
+                                {
+                                    "key": "Content-Type",
+                                    "value": "application/json"
+                                }
+                            ],
+                            "body": "{\n    \"success\": true,\n    \"message\": \"Token refreshed successfully\",\n    \"data\": {\n        \"token\": \"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.example\",\n        \"token_type\": \"Bearer\",\n        \"profile_completed\": true,\n        \"customer\": {\n            \"id\": 1,\n            \"name\": \"Ahmed\",\n            \"email\": \"ahmed@example.com\",\n            \"phone\": \"+249912345678\",\n            \"birthDate\": \"1990-05-15T00:00:00+00:00\",\n            \"gender\": \"male\",\n            \"address\": null,\n            \"countryId\": \"00000000-0000-4000-8000-000000000001\",\n            \"merchantCountryId\": null,\n            \"cityId\": \"10000000-0000-4000-8000-000000000001\",\n            \"state\": null,\n            \"zip\": null,\n            \"merchantId\": null,\n            \"profileCompleted\": true,\n            \"balance\": \"0.00\",\n            \"country\": {\n                \"id\": \"00000000-0000-4000-8000-000000000001\",\n                \"name\": \"Sudan\",\n                \"dialCode\": \"249\"\n            },\n            \"city\": {\n                \"id\": \"10000000-0000-4000-8000-000000000001\",\n                \"name\": \"Khartoum\"\n            },\n            \"createdAt\": \"2026-06-23T10:00:00+00:00\",\n            \"updatedAt\": \"2026-06-23T10:30:00+00:00\"\n        }\n    }\n}"
+                        },
+                        {
+                            "name": "Error (current)",
+                            "status": "Not Found",
+                            "code": 404,
+                            "_postman_previewlanguage": "json",
+                            "header": [
+                                {
+                                    "key": "Content-Type",
+                                    "value": "application/json"
+                                }
+                            ],
+                            "body": "{\n    \"message\": \"The route api/v1/customer/auth/refresh-token could not be found.\"\n}"
+                        }
+                    ],
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "if (pm.response.code === 200 || pm.response.code === 201) {",
+                                    "    const json = pm.response.json();",
+                                    "    if (json.data && json.data.token) {",
+                                    "        pm.collectionVariables.set('customer_jwt', json.data.token);",
+                                    "    }",
+                                    "}"
+                                ]
+                            }
+                        }
+                    ]
+                },
+                {
+                    "name": "Logout",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json",
+                                "type": "text"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json",
+                                "type": "text"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{customer_jwt}}",
+                                "type": "text"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/v1/customer/auth/logout",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "v1",
+                                "customer",
+                                "auth",
+                                "logout"
+                            ]
+                        },
+                        "description": "Stateless JWT — client should discard token after logout."
+                    },
+                    "response": [
+                        {
+                            "name": "Success",
+                            "status": "OK",
+                            "code": 200,
+                            "_postman_previewlanguage": "json",
+                            "header": [
+                                {
+                                    "key": "Content-Type",
+                                    "value": "application/json"
+                                }
+                            ],
+                            "body": "{\n    \"success\": true,\n    \"message\": \"Logged out successfully\",\n    \"data\": {\n        \"message\": \"Logged out successfully\"\n    }\n}"
+                        },
+                        {
+                            "name": "Error",
+                            "status": "Unauthorized",
+                            "code": 401,
+                            "_postman_previewlanguage": "json",
+                            "header": [
+                                {
+                                    "key": "Content-Type",
+                                    "value": "application/json"
+                                }
+                            ],
+                            "body": "{\n    \"success\": false,\n    \"message\": \"Unauthorized\",\n    \"errors\": null,\n    \"data\": null\n}"
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "Profile",
+            "item": [
+                {
+                    "name": "Get Profile",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json",
+                                "type": "text"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json",
+                                "type": "text"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{customer_jwt}}",
+                                "type": "text"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/v1/customer/profile",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "v1",
+                                "customer",
+                                "profile"
+                            ]
+                        }
+                    },
+                    "response": [
+                        {
+                            "name": "Success",
+                            "status": "OK",
+                            "code": 200,
+                            "_postman_previewlanguage": "json",
+                            "header": [
+                                {
+                                    "key": "Content-Type",
+                                    "value": "application/json"
+                                }
+                            ],
+                            "body": "{\n    \"success\": true,\n    \"message\": \"Success\",\n    \"data\": {\n        \"profile_completed\": true,\n        \"customer\": {\n            \"id\": 1,\n            \"name\": \"Ahmed\",\n            \"email\": \"ahmed@example.com\",\n            \"phone\": \"+249912345678\",\n            \"birthDate\": \"1990-05-15T00:00:00+00:00\",\n            \"gender\": \"male\",\n            \"address\": null,\n            \"countryId\": \"00000000-0000-4000-8000-000000000001\",\n            \"merchantCountryId\": null,\n            \"cityId\": \"10000000-0000-4000-8000-000000000001\",\n            \"state\": null,\n            \"zip\": null,\n            \"merchantId\": null,\n            \"profileCompleted\": true,\n            \"balance\": \"0.00\",\n            \"country\": {\n                \"id\": \"00000000-0000-4000-8000-000000000001\",\n                \"name\": \"Sudan\",\n                \"dialCode\": \"249\"\n            },\n            \"city\": {\n                \"id\": \"10000000-0000-4000-8000-000000000001\",\n                \"name\": \"Khartoum\"\n            },\n            \"createdAt\": \"2026-06-23T10:00:00+00:00\",\n            \"updatedAt\": \"2026-06-23T10:30:00+00:00\"\n        }\n    }\n}"
+                        },
+                        {
+                            "name": "Error",
+                            "status": "Unauthorized",
+                            "code": 401,
+                            "_postman_previewlanguage": "json",
+                            "header": [
+                                {
+                                    "key": "Content-Type",
+                                    "value": "application/json"
+                                }
+                            ],
+                            "body": "{\n    \"success\": false,\n    \"message\": \"Unauthorized\",\n    \"errors\": null,\n    \"data\": null\n}"
+                        }
+                    ]
+                },
+                {
+                    "name": "Complete Profile",
+                    "request": {
+                        "method": "PATCH",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json",
+                                "type": "text"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json",
+                                "type": "text"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{customer_jwt}}",
+                                "type": "text"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/v1/customer/profile/complete",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "v1",
+                                "customer",
+                                "profile",
+                                "complete"
+                            ]
+                        },
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"firstName\": \"Ahmed\",\n    \"email\": \"{{customer_email}}\",\n    \"birthDate\": \"1990-05-15\",\n    \"gender\": \"male\",\n    \"cityId\": \"{{city_id}}\",\n    \"country_code\": \"249\"\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        }
+                    },
+                    "response": [
+                        {
+                            "name": "Success",
+                            "status": "OK",
+                            "code": 200,
+                            "_postman_previewlanguage": "json",
+                            "header": [
+                                {
+                                    "key": "Content-Type",
+                                    "value": "application/json"
+                                }
+                            ],
+                            "body": "{\n    \"success\": true,\n    \"message\": \"Profile completed successfully\",\n    \"data\": {\n        \"profile_completed\": true,\n        \"customer\": {\n            \"id\": 1,\n            \"name\": \"Ahmed\",\n            \"email\": \"ahmed@example.com\",\n            \"phone\": \"+249912345678\",\n            \"birthDate\": \"1990-05-15T00:00:00+00:00\",\n            \"gender\": \"male\",\n            \"address\": null,\n            \"countryId\": \"00000000-0000-4000-8000-000000000001\",\n            \"merchantCountryId\": null,\n            \"cityId\": \"10000000-0000-4000-8000-000000000001\",\n            \"state\": null,\n            \"zip\": null,\n            \"merchantId\": null,\n            \"profileCompleted\": true,\n            \"balance\": \"0.00\",\n            \"country\": {\n                \"id\": \"00000000-0000-4000-8000-000000000001\",\n                \"name\": \"Sudan\",\n                \"dialCode\": \"249\"\n            },\n            \"city\": {\n                \"id\": \"10000000-0000-4000-8000-000000000001\",\n                \"name\": \"Khartoum\"\n            },\n            \"createdAt\": \"2026-06-23T10:00:00+00:00\",\n            \"updatedAt\": \"2026-06-23T10:30:00+00:00\"\n        }\n    }\n}"
+                        },
+                        {
+                            "name": "Error",
+                            "status": "Conflict",
+                            "code": 409,
+                            "_postman_previewlanguage": "json",
+                            "header": [
+                                {
+                                    "key": "Content-Type",
+                                    "value": "application/json"
+                                }
+                            ],
+                            "body": "{\n    \"success\": false,\n    \"message\": \"Email is already in use\",\n    \"errors\": null,\n    \"data\": null\n}"
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "Banners",
+            "item": [
+                {
+                    "name": "List Banners",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json",
+                                "type": "text"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json",
+                                "type": "text"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{customer_jwt}}",
+                                "type": "text"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/v1/customer/banners",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "v1",
+                                "customer",
+                                "banners"
+                            ]
+                        },
+                        "description": "Active advertisements for the customer country (reuses merchant-user advertisement listing logic)."
+                    },
+                    "response": [
+                        {
+                            "name": "Success",
+                            "status": "OK",
+                            "code": 200,
+                            "_postman_previewlanguage": "json",
+                            "header": [
+                                {
+                                    "key": "Content-Type",
+                                    "value": "application/json"
+                                }
+                            ],
+                            "body": "{\n    \"success\": true,\n    \"message\": \"Success\",\n    \"data\": [\n        {\n            \"id\": 1,\n            \"name\": \"Summer Promo\",\n            \"image_url\": \"https://example.com/storage/banners/promo.jpg\",\n            \"country_id\": \"00000000-0000-4000-8000-000000000001\"\n        }\n    ]\n}"
+                        },
+                        {
+                            "name": "Error",
+                            "status": "Unauthorized",
+                            "code": 401,
+                            "_postman_previewlanguage": "json",
+                            "header": [
+                                {
+                                    "key": "Content-Type",
+                                    "value": "application/json"
+                                }
+                            ],
+                            "body": "{\n    \"success\": false,\n    \"message\": \"Unauthorized\",\n    \"errors\": null,\n    \"data\": null\n}"
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "Notifications",
+            "item": [
+                {
+                    "name": "List Notifications",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json",
+                                "type": "text"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json",
+                                "type": "text"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{customer_jwt}}",
+                                "type": "text"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/v1/customer/notifications?page=1&per_page=6",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "v1",
+                                "customer",
+                                "notifications"
+                            ],
+                            "query": [
+                                {
+                                    "key": "page",
+                                    "value": "1"
+                                },
+                                {
+                                    "key": "per_page",
+                                    "value": "6"
+                                }
+                            ]
+                        }
+                    },
+                    "response": [
+                        {
+                            "name": "Success",
+                            "status": "OK",
+                            "code": 200,
+                            "_postman_previewlanguage": "json",
+                            "header": [
+                                {
+                                    "key": "Content-Type",
+                                    "value": "application/json"
+                                }
+                            ],
+                            "body": "{\n    \"success\": true,\n    \"message\": \"Success\",\n    \"data\": {\n        \"data\": [\n            {\n                \"id\": \"550e8400-e29b-41d4-a716-446655440000\",\n                \"code\": \"NTF-ABC12345\",\n                \"title\": \"Welcome\",\n                \"description\": \"Your account is ready\",\n                \"link_id\": null,\n                \"topic\": \"general\",\n                \"target_type\": \"public\",\n                \"merchant_id\": null,\n                \"image\": null,\n                \"is_admin\": false,\n                \"is_read\": false,\n                \"read_at\": null,\n                \"sent_at\": \"2026-06-23T10:00:00+00:00\",\n                \"created_at\": \"2026-06-23T10:00:00+00:00\"\n            }\n        ],\n        \"current_page\": 1,\n        \"per_page\": 6,\n        \"total\": 1,\n        \"last_page\": 1\n    }\n}"
+                        }
+                    ],
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "if (pm.response.code === 200) {",
+                                    "    const json = pm.response.json();",
+                                    "    const items = json.data && json.data.data;",
+                                    "    if (Array.isArray(items) && items.length > 0 && items[0].id) {",
+                                    "        pm.collectionVariables.set('notification_id', items[0].id);",
+                                    "    }",
+                                    "}"
+                                ]
+                            }
+                        }
+                    ]
+                },
+                {
+                    "name": "Unread Count",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json",
+                                "type": "text"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json",
+                                "type": "text"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{customer_jwt}}",
+                                "type": "text"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/v1/customer/notifications/unread-count",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "v1",
+                                "customer",
+                                "notifications",
+                                "unread-count"
+                            ]
+                        }
+                    },
+                    "response": [
+                        {
+                            "name": "Success",
+                            "status": "OK",
+                            "code": 200,
+                            "_postman_previewlanguage": "json",
+                            "header": [
+                                {
+                                    "key": "Content-Type",
+                                    "value": "application/json"
+                                }
+                            ],
+                            "body": "{\n    \"success\": true,\n    \"message\": \"Success\",\n    \"data\": 3\n}"
+                        }
+                    ]
+                },
+                {
+                    "name": "Mark All Read",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json",
+                                "type": "text"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json",
+                                "type": "text"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{customer_jwt}}",
+                                "type": "text"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/v1/customer/notifications/mark-all-read",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "v1",
+                                "customer",
+                                "notifications",
+                                "mark-all-read"
+                            ]
+                        }
+                    },
+                    "response": [
+                        {
+                            "name": "Success",
+                            "status": "OK",
+                            "code": 200,
+                            "_postman_previewlanguage": "json",
+                            "header": [
+                                {
+                                    "key": "Content-Type",
+                                    "value": "application/json"
+                                }
+                            ],
+                            "body": "{\n    \"success\": true,\n    \"message\": \"Success\",\n    \"data\": {\n        \"message\": \"Notifications marked as read\",\n        \"marked_count\": 3\n    }\n}"
+                        }
+                    ]
+                },
+                {
+                    "name": "Mark As Read",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json",
+                                "type": "text"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json",
+                                "type": "text"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{customer_jwt}}",
+                                "type": "text"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/v1/customer/notifications/{{notification_id}}/mark-as-read",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "v1",
+                                "customer",
+                                "notifications",
+                                "{{notification_id}}",
+                                "mark-as-read"
+                            ]
+                        }
+                    },
+                    "response": [
+                        {
+                            "name": "Success",
+                            "status": "OK",
+                            "code": 200,
+                            "_postman_previewlanguage": "json",
+                            "header": [
+                                {
+                                    "key": "Content-Type",
+                                    "value": "application/json"
+                                }
+                            ],
+                            "body": "{\n    \"success\": true,\n    \"message\": \"Success\",\n    \"data\": {\n        \"message\": \"Notification marked as read\"\n    }\n}"
+                        },
+                        {
+                            "name": "Error",
+                            "status": "Not Found",
+                            "code": 404,
+                            "_postman_previewlanguage": "json",
+                            "header": [
+                                {
+                                    "key": "Content-Type",
+                                    "value": "application/json"
+                                }
+                            ],
+                            "body": "{\n    \"success\": false,\n    \"message\": \"Notification not found\",\n    \"errors\": null,\n    \"data\": null\n}"
+                        }
+                    ]
+                },
+                {
+                    "name": "Delete Notification",
+                    "request": {
+                        "method": "DELETE",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json",
+                                "type": "text"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json",
+                                "type": "text"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{customer_jwt}}",
+                                "type": "text"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/v1/customer/notifications/{{notification_id}}",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "v1",
+                                "customer",
+                                "notifications",
+                                "{{notification_id}}"
+                            ]
+                        }
+                    },
+                    "response": [
+                        {
+                            "name": "Success",
+                            "status": "OK",
+                            "code": 200,
+                            "_postman_previewlanguage": "json",
+                            "header": [
+                                {
+                                    "key": "Content-Type",
+                                    "value": "application/json"
+                                }
+                            ],
+                            "body": "{\n    \"success\": true,\n    \"message\": \"Success\",\n    \"data\": {\n        \"message\": \"Notification deleted successfully\"\n    }\n}"
+                        },
+                        {
+                            "name": "Error",
+                            "status": "Not Found",
+                            "code": 404,
+                            "_postman_previewlanguage": "json",
+                            "header": [
+                                {
+                                    "key": "Content-Type",
+                                    "value": "application/json"
+                                }
+                            ],
+                            "body": "{\n    \"success\": false,\n    \"message\": \"Notification not found\",\n    \"errors\": null,\n    \"data\": null\n}"
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}

@@ -857,5 +857,13 @@ Route::prefix('v1/customer')->group(function () {
         Route::get('profile', [\App\Modules\CustomerAuth\Controllers\CustomerAuthController::class, 'profile']);
         Route::patch('profile/complete', [\App\Modules\CustomerAuth\Controllers\CustomerAuthController::class, 'completeProfile']);
         Route::post('auth/logout', [\App\Modules\CustomerAuth\Controllers\CustomerAuthController::class, 'logout']);
+        Route::get('banners', [\App\Modules\CustomerAuth\Controllers\CustomerBannerController::class, 'index']);
+        Route::prefix('notifications')->group(function () {
+            Route::get('/', [\App\Modules\CustomerAuth\Controllers\CustomerNotificationController::class, 'index']);
+            Route::get('/unread-count', [\App\Modules\CustomerAuth\Controllers\CustomerNotificationController::class, 'unreadCount']);
+            Route::post('/mark-all-read', [\App\Modules\CustomerAuth\Controllers\CustomerNotificationController::class, 'markAllAsRead']);
+            Route::post('/{id}/mark-as-read', [\App\Modules\CustomerAuth\Controllers\CustomerNotificationController::class, 'markAsRead']);
+            Route::delete('/{id}', [\App\Modules\CustomerAuth\Controllers\CustomerNotificationController::class, 'destroy']);
+        });
     });
 });

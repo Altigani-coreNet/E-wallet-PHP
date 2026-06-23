@@ -15,10 +15,10 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
         then: function () {
             Route::middleware('api')
-                ->prefix('') // Empty prefix instead of default '/api'
+                ->prefix('api') // Empty prefix instead of default '/api'
                 ->group(base_path('routes/api.php'));
             Route::middleware('api')
-                ->prefix('') // Empty prefix instead of default '/api'
+                ->prefix('api') // Empty prefix instead of default '/api'
                 ->group(base_path('routes/admin_api.php'));
         },
     )
