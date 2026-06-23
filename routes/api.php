@@ -834,6 +834,12 @@ Route::prefix('products')->group(function () {
 
 });
 
+// End-customer onboarding geo (NestJS v2/countries parity)
+Route::prefix('v1')->group(function () {
+    Route::get('countries', [\App\Modules\CustomerAuth\Controllers\CustomerOnboardingController::class, 'listCountries']);
+    Route::get('countries/{dialCode}/cities', [\App\Modules\CustomerAuth\Controllers\CustomerOnboardingController::class, 'listCities']);
+});
+
 // End-customer registration (NestJS AuthenticationService parity)
 Route::prefix('v1/customer')->group(function () {
     Route::prefix('otp')->group(function () {
@@ -843,9 +849,13 @@ Route::prefix('v1/customer')->group(function () {
     });
 
     Route::post('auth/register', [\App\Modules\CustomerAuth\Controllers\CustomerAuthController::class, 'register']);
+    Route::post('auth/login', [\App\Modules\CustomerAuth\Controllers\CustomerAuthController::class, 'login']);
+    Route::post('password/forgot', [\App\Modules\CustomerAuth\Controllers\CustomerAuthController::class, 'forgotPassword']);
+    Route::post('password/reset', [\App\Modules\CustomerAuth\Controllers\CustomerAuthController::class, 'resetPassword']);
 
     Route::middleware('customer.jwt')->group(function () {
         Route::get('profile', [\App\Modules\CustomerAuth\Controllers\CustomerAuthController::class, 'profile']);
         Route::patch('profile/complete', [\App\Modules\CustomerAuth\Controllers\CustomerAuthController::class, 'completeProfile']);
+        Route::post('auth/logout', [\App\Modules\CustomerAuth\Controllers\CustomerAuthController::class, 'logout']);
     });
 });

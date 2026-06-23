@@ -62,7 +62,7 @@ return Application::configure(basePath: dirname(__DIR__))
     })
     ->withExceptions(function (Exceptions $exceptions) {
         $exceptions->render(function (\Symfony\Component\HttpKernel\Exception\HttpException $e, $request) {
-            if ($request->is('v1/customer/*')) {
+            if ($request->is('v1/customer/*') || $request->is('v1/countries') || $request->is('v1/countries/*')) {
                 return \App\Support\SuccessResponse::error(
                     $e->getMessage() ?: 'Error',
                     $e->getStatusCode()

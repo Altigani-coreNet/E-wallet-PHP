@@ -54,18 +54,72 @@ class CustomerAuthService
         $this->otpService->consumeOtpById($otp->id);
 
         $customer->load(['country', 'city']);
-        $auth = $this->jwtService->createToken(
-            $customer->id,
-            $customer->email ?? $customer->phone,
-            'customer',
-        );
 
-        return [
-            'token' => $auth['token'],
-            'token_type' => $auth['tokenType'],
-            'profile_completed' => $customer->profile_completed,
-            'customer' => CustomerAuthResource::make($customer)->resolve(),
-        ];
+        return $this->buildAuthResponse($customer);
+    }
+
+    public function login(array $data): array
+    {
+        $customer = Customer::query()->where('phone', $data['phone'])->first();
+
+        if (! $customer || ! $customer->password || ! Hash::check($data['password'], $customer->password)) {
+            throw new \Symfony\Component\HttpKernel\Exception\UnauthorizedHttpException(
+                'Bearer',
+                'Invalid credentials'
+            );
+        }
+
+        $customer->load(['country', 'city']);
+
+        return $this->buildAuthResponse($customer);
+    }
+
+    public function forgotPassword(string $phone): array
+    {
+        // Always issue an OTP token — do not reveal whether the account exists.
+        return $this->otpService->generateAndSendSmsOtp($phone);
+    }
+
+    public function resetPassword(array $data): array
+    {
+        if ($data['password'] !== $data['password_confirmation']) {
+            throw new \Symfony\Component\HttpKernel\Exception\BadRequestHttpException(
+                'Password confirmation does not match'
+            );
+        }
+
+        try {
+            $rawOtpToken = OtpTokenCipher::decrypt($data['otp_token']);
+        } catch (\Throwable) {
+            throw new \Symfony\Component\HttpKernel\Exception\BadRequestHttpException(
+                'Invalid OTP token'
+            );
+        }
+
+        $otp = $this->otpService->findVerifiedSmsOtp($rawOtpToken, $data['phone']);
+
+        $customer = Customer::query()->where('phone', $data['phone'])->first();
+
+        if (! $customer) {
+            throw new \Symfony\Component\HttpKernel\Exception\BadRequestHttpException(
+                'No customer account found for this phone number'
+            );
+        }
+
+        $customer->update([
+            'password' => Hash::make($data['password']),
+        ]);
+
+        $this->otpService->consumeOtpById($otp->id);
+
+        $customer->load(['country', 'city']);
+
+        return $this->buildAuthResponse($customer->fresh(['country', 'city']));
+    }
+
+    public function logout(): array
+    {
+        return ['message' => 'Logged out successfully'];
     }
 
     public function profile(Customer $customer): array
@@ -148,5 +202,21 @@ class CustomerAuthService
         }
 
         return $city;
+    }
+
+    private function buildAuthResponse(Customer $customer): array
+    {
+        $auth = $this->jwtService->createToken(
+            $customer->id,
+            $customer->email ?: $customer->phone,
+            'customer',
+        );
+
+        return [
+            'token' => $auth['token'],
+            'token_type' => $auth['tokenType'],
+            'profile_completed' => (bool) $customer->profile_completed,
+            'customer' => CustomerAuthResource::make($customer)->resolve(),
+        ];
     }
 }
