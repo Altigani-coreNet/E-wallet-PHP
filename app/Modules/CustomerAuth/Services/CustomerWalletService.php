@@ -4,12 +4,20 @@ namespace App\Modules\CustomerAuth\Services;
 
 use App\Models\Customer;
 use App\Models\Wallet;
+use App\Models\WalletIdempotencyKey;
 use App\Models\WalletTransaction;
 use App\Services\WalletService;
+use Closure;
+use Illuminate\Database\QueryException;
+use Illuminate\Support\Facades\DB;
 use InvalidArgumentException;
 
 class CustomerWalletService
 {
+    public const SCOPE_TRANSFER_BY_WALLET_ID = 'wallet.transfer.by_wallet_id';
+
+    public const SCOPE_TRANSFER_BY_PHONE = 'wallet.transfer.by_phone';
+
     public function __construct(private readonly WalletService $walletService)
     {
     }
@@ -22,7 +30,7 @@ class CustomerWalletService
 
         $lastTransaction = WalletTransaction::query()
             ->where('wallet_id', $wallet->id)
-            ->latest()
+            ->latest('id')
             ->first();
 
         return [
@@ -31,47 +39,143 @@ class CustomerWalletService
         ];
     }
 
-    public function transferByWalletId(Customer $sender, string $recipientWalletId, float $amount, ?string $description = null): array
-    {
-        $this->assertCustomerCanUseWallet($sender);
+    public function transferByWalletId(
+        Customer $sender,
+        string $recipientWalletId,
+        float $amount,
+        ?string $description = null,
+        ?string $idempotencyKey = null
+    ): array {
+        return $this->withIdempotency(
+            $sender,
+            self::SCOPE_TRANSFER_BY_WALLET_ID,
+            $idempotencyKey,
+            function () use ($sender, $recipientWalletId, $amount, $description) {
+                $this->assertCustomerCanUseWallet($sender);
 
-        $fromWallet = $this->resolveActiveWalletForCustomer($sender);
+                $fromWallet = $this->resolveActiveWalletForCustomer($sender);
 
-        $toWallet = Wallet::query()
-            ->with('customer')
-            ->where('wallet_id', $recipientWalletId)
-            ->first();
+                $toWallet = Wallet::query()
+                    ->with('customer')
+                    ->where('wallet_id', $recipientWalletId)
+                    ->first();
 
-        if (! $toWallet) {
-            throw new InvalidArgumentException('Recipient wallet was not found.');
-        }
+                if (! $toWallet) {
+                    throw new InvalidArgumentException('Recipient wallet was not found.');
+                }
 
-        return $this->executeTransfer($sender, $fromWallet, $toWallet, $amount, $description);
+                return $this->executeTransfer($sender, $fromWallet, $toWallet, $amount, $description);
+            }
+        );
     }
 
-    public function transferByPhone(Customer $sender, string $recipientPhone, float $amount, ?string $description = null): array
-    {
-        $this->assertCustomerCanUseWallet($sender);
+    public function transferByPhone(
+        Customer $sender,
+        string $recipientPhone,
+        float $amount,
+        ?string $description = null,
+        ?string $idempotencyKey = null
+    ): array {
+        return $this->withIdempotency(
+            $sender,
+            self::SCOPE_TRANSFER_BY_PHONE,
+            $idempotencyKey,
+            function () use ($sender, $recipientPhone, $amount, $description) {
+                $this->assertCustomerCanUseWallet($sender);
 
-        $fromWallet = $this->resolveActiveWalletForCustomer($sender);
+                $fromWallet = $this->resolveActiveWalletForCustomer($sender);
 
-        $recipient = Customer::query()
-            ->where('phone', $recipientPhone)
+                $recipient = Customer::query()
+                    ->where('phone', $recipientPhone)
+                    ->first();
+
+                if (! $recipient) {
+                    throw new InvalidArgumentException('No customer was found with this phone number.');
+                }
+
+                $toWallet = $this->walletService->walletForCustomer($recipient);
+
+                if (! $toWallet) {
+                    throw new InvalidArgumentException('Recipient does not have a wallet.');
+                }
+
+                $toWallet->load('customer');
+
+                return $this->executeTransfer($sender, $fromWallet, $toWallet, $amount, $description);
+            }
+        );
+    }
+
+    private function withIdempotency(
+        Customer $customer,
+        string $scope,
+        ?string $idempotencyKey,
+        Closure $callback
+    ): array {
+        if ($idempotencyKey === null || $idempotencyKey === '') {
+            return $callback();
+        }
+
+        $existing = WalletIdempotencyKey::query()
+            ->where('customer_id', $customer->id)
+            ->where('scope', $scope)
+            ->where('idempotency_key', $idempotencyKey)
             ->first();
 
-        if (! $recipient) {
-            throw new InvalidArgumentException('No customer was found with this phone number.');
+        if ($existing) {
+            return $existing->response;
         }
 
-        $toWallet = $this->walletService->walletForCustomer($recipient);
+        try {
+            return DB::transaction(function () use ($customer, $scope, $idempotencyKey, $callback) {
+                $existing = WalletIdempotencyKey::query()
+                    ->where('customer_id', $customer->id)
+                    ->where('scope', $scope)
+                    ->where('idempotency_key', $idempotencyKey)
+                    ->lockForUpdate()
+                    ->first();
 
-        if (! $toWallet) {
-            throw new InvalidArgumentException('Recipient does not have a wallet.');
+                if ($existing) {
+                    return $existing->response;
+                }
+
+                $response = $callback();
+
+                WalletIdempotencyKey::create([
+                    'customer_id' => $customer->id,
+                    'scope' => $scope,
+                    'idempotency_key' => $idempotencyKey,
+                    'status' => WalletIdempotencyKey::STATUS_COMPLETED,
+                    'response_code' => 200,
+                    'response' => $response,
+                ]);
+
+                return $response;
+            });
+        } catch (QueryException $exception) {
+            if (! $this->isUniqueConstraintViolation($exception)) {
+                throw $exception;
+            }
+
+            $existing = WalletIdempotencyKey::query()
+                ->where('customer_id', $customer->id)
+                ->where('scope', $scope)
+                ->where('idempotency_key', $idempotencyKey)
+                ->first();
+
+            if ($existing) {
+                return $existing->response;
+            }
+
+            throw $exception;
         }
+    }
 
-        $toWallet->load('customer');
+    private function isUniqueConstraintViolation(QueryException $exception): bool
+    {
+        $sqlState = $exception->errorInfo[0] ?? null;
 
-        return $this->executeTransfer($sender, $fromWallet, $toWallet, $amount, $description);
+        return in_array($sqlState, ['23000', '23505'], true);
     }
 
     private function executeTransfer(
@@ -113,7 +217,7 @@ class CustomerWalletService
             ->where('wallet_id', $fromWallet->id)
             ->where('type', 'transfer')
             ->where('direction', 'debit')
-            ->latest()
+            ->latest('id')
             ->first();
 
         return [

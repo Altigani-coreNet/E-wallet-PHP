@@ -875,6 +875,9 @@ Route::prefix('v1/customer')->group(function () {
         Route::patch('profile/complete', [\App\Modules\CustomerAuth\Controllers\CustomerAuthController::class, 'completeProfile']);
         Route::patch('profile/update', [\App\Modules\CustomerAuth\Controllers\CustomerAuthController::class, 'updateProfile']);
         Route::post('auth/logout', [\App\Modules\CustomerAuth\Controllers\CustomerAuthController::class, 'logout']);
+        Route::get('wallet/dashboard', [\App\Modules\CustomerAuth\Controllers\CustomerWalletController::class, 'dashboard']);
+        Route::post('wallet/transfer/by-wallet-id', [\App\Modules\CustomerAuth\Controllers\CustomerWalletController::class, 'transferByWalletId']);
+        Route::post('wallet/transfer/by-phone', [\App\Modules\CustomerAuth\Controllers\CustomerWalletController::class, 'transferByPhone']);
         Route::get('banners', [\App\Modules\CustomerAuth\Controllers\CustomerBannerController::class, 'index']);
         // One-shot customer catalog for client-side navigation:
         // services -> products -> forms (with fields)

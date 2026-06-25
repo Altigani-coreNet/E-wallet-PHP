@@ -28,7 +28,7 @@ if (!function_exists('coreservice_asset')) {
         if(config('app.url') == 'http://localhost:8000' || config('app.url') == 'http://localhost'){
             $baseUrl = 'http://localhost:8000';
         }else{
-            $baseUrl = rtrim(config('app.url') . '/api/softpos' , '/');
+            $baseUrl = rtrim(config('app.url')  , '/');
         }
 
         // $baseUrl = rtrim( . '/api/softpos' , '/');

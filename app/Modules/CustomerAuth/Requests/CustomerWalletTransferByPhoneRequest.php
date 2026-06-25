@@ -2,7 +2,7 @@
 
 namespace App\Modules\CustomerAuth\Requests;
 
-class CustomerWalletTransferByWalletIdRequest extends CustomerAuthFormRequest
+class CustomerWalletTransferByPhoneRequest extends CustomerAuthFormRequest
 {
     public function authorize(): bool
     {
@@ -12,7 +12,7 @@ class CustomerWalletTransferByWalletIdRequest extends CustomerAuthFormRequest
     public function rules(): array
     {
         return [
-            'recipient_wallet_id' => ['required', 'string', 'max:255'],
+            'recipient_phone' => ['required', 'string', 'max:32'],
             'amount' => ['required', 'numeric', 'min:0.01'],
             'description' => ['nullable', 'string', 'max:255'],
             'idempotency_key' => ['nullable', 'string', 'max:255'],
