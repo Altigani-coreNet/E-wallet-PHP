@@ -217,6 +217,7 @@ class CustomerAuthService
         $dialCode = $this->normalizeDialCode($data['country_code'] ?? self::DEFAULT_COUNTRY_DIAL_CODE);
         $country = Country::query()
             ->where('dial_code', $dialCode)
+            ->orWhere('code', $dialCode)
             ->where('status', true)
             ->whereNull('deleted_at')
             ->first();
