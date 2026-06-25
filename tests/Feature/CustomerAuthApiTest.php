@@ -615,7 +615,7 @@ class CustomerAuthApiTest extends CustomerAuthTestCase
             ])
             ->assertJsonStructure([
                 'data' => [
-                    '*' => ['id', 'shortName', 'code', 'dialCode', 'name'],
+                    '*' => ['id', 'shortName', 'code', 'name'],
                 ],
             ]);
     }
@@ -759,8 +759,7 @@ class CustomerAuthApiTest extends CustomerAuthTestCase
             'id' => (string) Str::uuid(),
             'name' => ['en' => 'Sudan'],
             'short_name' => 'SD',
-            'code' => 'SD',
-            'dial_code' => '249',
+            'code' => '249',
             'status' => true,
         ]);
 

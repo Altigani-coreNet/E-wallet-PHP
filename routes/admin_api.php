@@ -512,6 +512,7 @@ Route::prefix('v2/admin')->middleware([
         Route::post('/', [AdminNotificationController::class, 'store']);
         Route::get('/lookups/merchants/select', [AdminNotificationController::class, 'merchantsSelect']);
         Route::get('/lookups/users', [AdminNotificationController::class, 'usersByMerchant']);
+        Route::get('/lookups/customers/select', [AdminNotificationController::class, 'customersSelect']);
         Route::post('/{id}/resend', [AdminNotificationController::class, 'resend']);
         Route::get('/{id}', [AdminNotificationController::class, 'show']);
         Route::put('/{id}', [AdminNotificationController::class, 'update']);

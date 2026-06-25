@@ -19,7 +19,7 @@ class CustomerAuthService
 {
     use HasFiles;
 
-    private const DEFAULT_COUNTRY_DIAL_CODE = '249';
+    private const DEFAULT_COUNTRY_CODE = '249';
 
     private const PROFILE_IMAGE_DIR = 'customer_profile_images';
 
@@ -158,9 +158,9 @@ class CustomerAuthService
 
     public function completeProfile(Customer $customer, array $data, Request $request): array
     {
-        $dialCode = $this->normalizeDialCode($data['country_code'] ?? self::DEFAULT_COUNTRY_DIAL_CODE);
+        $code = $this->normalizeCode($data['country_code'] ?? self::DEFAULT_COUNTRY_CODE);
         $country = Country::query()
-            ->where('dial_code', $dialCode)
+            ->where('code', $code)
             ->where('status', true)
             ->whereNull('deleted_at')
             ->first();
@@ -214,10 +214,9 @@ class CustomerAuthService
 
     public function updateProfile(Customer $customer, array $data, Request $request): array
     {
-        $dialCode = $this->normalizeDialCode($data['country_code'] ?? self::DEFAULT_COUNTRY_DIAL_CODE);
+        $code = $this->normalizeCode($data['country_code'] ?? self::DEFAULT_COUNTRY_CODE);
         $country = Country::query()
-            ->where('dial_code', $dialCode)
-            ->orWhere('code', $dialCode)
+            ->where('code', $code)
             ->where('status', true)
             ->whereNull('deleted_at')
             ->first();
@@ -284,9 +283,9 @@ class CustomerAuthService
         }
     }
 
-    private function normalizeDialCode(string $dialCode): string
+    private function normalizeCode(string $code): string
     {
-        return ltrim(trim($dialCode), '+');
+        return ltrim(trim($code), '+');
     }
 
     private function assertCityBelongsToCountry(string $cityId, string $countryId): City

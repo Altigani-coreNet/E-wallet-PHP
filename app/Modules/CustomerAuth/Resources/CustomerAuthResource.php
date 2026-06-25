@@ -33,7 +33,7 @@ class CustomerAuthResource extends JsonResource
                 ? [
                     'id' => $customer->country->id,
                     'name' => $this->localizedName($customer->country),
-                    'dialCode' => $customer->country->dial_code,
+                    'code' => $customer->country->code,
                 ]
                 : null,
             'city' => $customer->relationLoaded('city') && $customer->city

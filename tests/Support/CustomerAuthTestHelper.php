@@ -39,8 +39,7 @@ trait CustomerAuthTestHelper
             'id' => $countryId,
             'name' => ['en' => 'Sudan', 'ar' => 'Sudan'],
             'short_name' => 'SD',
-            'code' => 'SD',
-            'dial_code' => '249',
+            'code' => '249',
             'status' => true,
         ]);
 

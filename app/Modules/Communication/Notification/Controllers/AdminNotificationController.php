@@ -7,6 +7,7 @@ use App\Events\PublicNotificationEvent;
 use App\Events\UserNotificationEvent;
 use App\Http\Controllers\Controller;
 use App\Models\Admin;
+use App\Models\Customer;
 use App\Models\Merchant;
 use App\Models\User;
 use App\Notifications\TestUserNotification;
@@ -117,7 +118,12 @@ class AdminNotificationController extends Controller
             'topic' => $item->topic ?? ($meta['topic'] ?? ($data['topic'] ?? null)),
             'target_type' => $item->target_type ?? ($meta['target_type'] ?? ($data['target_type'] ?? null)),
             'merchant_id' => $item->merchant_id ?? ($meta['merchant_id'] ?? ($data['merchant_id'] ?? null)),
-            'user_id' => $item->user_id ?? $item->notifiable_id,
+            'user_id' => $item->target_type === 'user'
+                ? ($item->user_id ?? $item->notifiable_id)
+                : null,
+            'customer_id' => $item->target_type === 'customer'
+                ? (string) ($meta['customer_id'] ?? $item->notifiable_id)
+                : null,
             'title' => $item->title ?? ($data['title'] ?? null),
             'description' => $item->description ?? ($data['body'] ?? null),
             'image' => $item->image ?? ($meta['image'] ?? null),
@@ -162,6 +168,7 @@ class AdminNotificationController extends Controller
                             'topic' => $data['topic'],
                             'target_type' => $data['target_type'],
                             'merchant_id' => $data['merchant_id'] ?? null,
+                            'customer_id' => $data['customer_id'] ?? null,
                             'notification_group_id' => $groupId,
                             'notification_code' => $notificationCode,
                             'source' => 'admin_management',
@@ -272,7 +279,7 @@ class AdminNotificationController extends Controller
         $meta = is_array($data['meta'] ?? null) ? $data['meta'] : [];
         $targetType = $item->target_type ?? ($meta['target_type'] ?? ($data['target_type'] ?? null));
 
-        if (!$targetType || !in_array($targetType, ['public', 'merchant', 'user'], true)) {
+        if (!$targetType || !in_array($targetType, ['public', 'merchant', 'user', 'customer'], true)) {
             return $this->ErrorMessage('Invalid notification target type', 422);
         }
 
@@ -281,6 +288,9 @@ class AdminNotificationController extends Controller
             'target_type' => $item->target_type ?? $targetType,
             'merchant_id' => $item->merchant_id ?? ($meta['merchant_id'] ?? ($data['merchant_id'] ?? null)),
             'user_id' => $targetType === 'user' ? (string) $item->notifiable_id : null,
+            'customer_id' => $targetType === 'customer'
+                ? (string) ($meta['customer_id'] ?? $item->notifiable_id)
+                : null,
             'title' => $item->title ?? ($data['title'] ?? ''),
             'description' => $item->description ?? ($data['body'] ?? ''),
         ];
@@ -374,13 +384,49 @@ class AdminNotificationController extends Controller
         return $this->SuccessMessage($users);
     }
 
+    public function customersSelect(Request $request): JsonResponse
+    {
+        $query = Customer::query()
+            ->select('id', 'name', 'email', 'phone')
+            ->where('status', '!=', Customer::STATUS_DELETED);
+
+        if ($request->filled('search')) {
+            $search = $request->string('search');
+            $query->where(function ($q) use ($search) {
+                $q->where('name', 'like', "%{$search}%")
+                    ->orWhere('email', 'like', "%{$search}%")
+                    ->orWhere('phone', 'like', "%{$search}%");
+            });
+        }
+
+        $items = $query->limit(100)->get()->map(function (Customer $customer) {
+            $label = $customer->name;
+            if ($customer->email) {
+                $label .= " ({$customer->email})";
+            } elseif ($customer->phone) {
+                $label .= " ({$customer->phone})";
+            }
+
+            return [
+                'id' => $customer->id,
+                'text' => $label,
+                'name' => $customer->name,
+                'email' => $customer->email,
+                'phone' => $customer->phone,
+            ];
+        });
+
+        return $this->SuccessMessage($items);
+    }
+
     protected function validatePayload(Request $request): array
     {
         $data = $request->validate([
             'topic' => ['required', 'string', 'in:payments,service_updates,logs,alert'],
-            'target_type' => ['required', 'string', 'in:public,merchant,user'],
+            'target_type' => ['required', 'string', 'in:public,merchant,user,customer'],
             'merchant_id' => ['nullable', 'exists:merchants,id'],
             'user_id' => ['nullable', 'exists:users,id'],
+            'customer_id' => ['nullable', 'exists:customers,id'],
             'title' => ['required', 'string', 'max:255'],
             'description' => ['required', 'string'],
             'image' => ['nullable', 'image', 'max:5120'],
@@ -406,14 +452,28 @@ class AdminNotificationController extends Controller
                     'message' => 'user_id is required for user target',
                 ], 422));
             }
+            $data['customer_id'] = null;
         }
 
         if ($data['target_type'] === 'public') {
             $data['merchant_id'] = null;
             $data['user_id'] = null;
+            $data['customer_id'] = null;
         }
 
         if ($data['target_type'] === 'merchant') {
+            $data['user_id'] = null;
+            $data['customer_id'] = null;
+        }
+
+        if ($data['target_type'] === 'customer') {
+            if (empty($data['customer_id'])) {
+                abort(response()->json([
+                    'status' => false,
+                    'message' => 'customer_id is required for customer target',
+                ], 422));
+            }
+            $data['merchant_id'] = null;
             $data['user_id'] = null;
         }
 
@@ -448,6 +508,10 @@ class AdminNotificationController extends Controller
             return Merchant::query()->where('id', $payload['merchant_id'])->get();
         }
 
+        if ($payload['target_type'] === 'customer') {
+            return Customer::query()->where('id', $payload['customer_id'])->get();
+        }
+
         return User::query()->where('id', $payload['user_id'])->get();
     }
 
@@ -467,6 +531,10 @@ class AdminNotificationController extends Controller
                 $meta,
             ));
 
+            return;
+        }
+
+        if ($payload['target_type'] === 'customer') {
             return;
         }
 

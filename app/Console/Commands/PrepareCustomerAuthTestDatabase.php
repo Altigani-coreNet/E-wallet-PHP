@@ -77,7 +77,7 @@ class PrepareCustomerAuthTestDatabase extends Command
                 'expires_at',
             ],
             'countries' => [
-                'dial_code',
+                'code',
             ],
             'cities' => [
                 'country_id',

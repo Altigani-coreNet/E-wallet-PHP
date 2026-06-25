@@ -24,7 +24,6 @@ class CustomerOnboardingService
                 'id' => $country->id,
                 'shortName' => $country->short_name,
                 'code' => $country->code,
-                'dialCode' => $country->dial_code,
                 'name' => $this->localizedName($country),
             ]);
     }
@@ -34,8 +33,7 @@ class CustomerOnboardingService
         $normalized = ltrim(trim($dialCode), '+');
 
         $country = Country::query()
-            ->where('dial_code', $normalized)
-            ->orWhere('code', $normalized)
+            ->where('code', $normalized)
             ->where('status', true)
             ->whereNull('deleted_at')
             ->first();
