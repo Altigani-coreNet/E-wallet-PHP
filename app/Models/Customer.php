@@ -79,6 +79,7 @@ class Customer extends Model implements AuthenticatableContract
         'balance',
         'birth_date',
         'gender',
+        'national_id',
         'profile_image',
         'address',
         'country_id',

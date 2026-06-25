@@ -21,6 +21,7 @@ class AdminCustomerResource extends JsonResource
             'name' => $customer->name,
             'email' => $customer->email,
             'phone' => $customer->phone,
+            'national_id' => $customer->national_id,
             'address' => $customer->address,
             'country_id' => $customer->country_id,
             'city_id' => $customer->city_id,

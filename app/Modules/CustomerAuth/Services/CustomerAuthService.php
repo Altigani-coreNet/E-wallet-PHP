@@ -184,6 +184,7 @@ class CustomerAuthService
 
         $updateData = [
             'name' => $data['firstName'],
+            'national_id' => $data['nationalId'],
             'email' => $data['email'],
             'birth_date' => $data['birthDate'],
             'gender' => $data['gender'],

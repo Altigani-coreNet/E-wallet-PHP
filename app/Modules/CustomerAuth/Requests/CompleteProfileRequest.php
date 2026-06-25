@@ -2,6 +2,8 @@
 
 namespace App\Modules\CustomerAuth\Requests;
 
+use Illuminate\Validation\Rule;
+
 class CompleteProfileRequest extends CustomerAuthFormRequest
 {
     public function authorize(): bool
@@ -13,6 +15,7 @@ class CompleteProfileRequest extends CustomerAuthFormRequest
     {
         return [
             'firstName' => ['required', 'string', 'max:255'],
+            'nationalId' => ['required', 'string', 'max:50', Rule::unique('customers', 'national_id')],
             'email' => ['required', 'email'],
             'birthDate' => ['required', 'date'],
             'gender' => ['required', 'string', 'in:male,female,other'],

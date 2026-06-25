@@ -21,6 +21,8 @@ class CustomerAuthApiTest extends CustomerAuthTestCase
 
     private const TEST_PHONE = '+249912345678';
 
+    private const TEST_NATIONAL_ID = 'NID-123456789';
+
     public function test_can_send_sms_otp(): void
     {
         $response = $this->postJson('/api/v1/customer/otp/sms', [
@@ -388,6 +390,7 @@ class CustomerAuthApiTest extends CustomerAuthTestCase
         $response = $this->withCustomerToken($customer)
             ->post('/api/v1/customer/profile/complete', [
                 'firstName' => 'Ahmed',
+                'nationalId' => self::TEST_NATIONAL_ID,
                 'email' => 'ahmed@example.com',
                 'birthDate' => '1990-05-15',
                 'gender' => 'male',
@@ -407,6 +410,7 @@ class CustomerAuthApiTest extends CustomerAuthTestCase
                     'customer' => [
                         'name' => 'Ahmed',
                         'email' => 'ahmed@example.com',
+                        'nationalId' => self::TEST_NATIONAL_ID,
                         'profileCompleted' => true,
                         'countryId' => $country->id,
                         'cityId' => $city->id,
@@ -423,6 +427,7 @@ class CustomerAuthApiTest extends CustomerAuthTestCase
             'id' => $customer->id,
             'name' => 'Ahmed',
             'email' => 'ahmed@example.com',
+            'national_id' => self::TEST_NATIONAL_ID,
             'profile_completed' => true,
         ]);
 
@@ -451,6 +456,7 @@ class CustomerAuthApiTest extends CustomerAuthTestCase
         $response = $this->withCustomerToken($customer)
             ->postJson('/api/v1/customer/profile/complete', [
                 'firstName' => 'Ahmed',
+                'nationalId' => 'NID-NO-PICTURE-001',
                 'email' => 'ahmed@example.com',
                 'birthDate' => '1990-05-15',
                 'gender' => 'male',
@@ -478,12 +484,14 @@ class CustomerAuthApiTest extends CustomerAuthTestCase
             'phone' => self::TEST_PHONE,
             'email' => 'existing@example.com',
             'name' => 'Old Name',
+            'national_id' => self::TEST_NATIONAL_ID,
             'profile_completed' => true,
         ]);
 
         $response = $this->withCustomerToken($customer)
             ->postJson('/api/v1/customer/profile/update', [
                 'firstName' => 'Updated Name',
+                'nationalId' => 'NID-SHOULD-NOT-CHANGE',
                 'birthDate' => '1992-03-20',
                 'gender' => 'female',
                 'cityId' => $city->id,
@@ -500,6 +508,7 @@ class CustomerAuthApiTest extends CustomerAuthTestCase
                         'name' => 'Updated Name',
                         'email' => 'existing@example.com',
                         'phone' => self::TEST_PHONE,
+                        'nationalId' => self::TEST_NATIONAL_ID,
                         'gender' => 'female',
                         'countryId' => $country->id,
                         'cityId' => $city->id,
@@ -512,6 +521,7 @@ class CustomerAuthApiTest extends CustomerAuthTestCase
             'name' => 'Updated Name',
             'email' => 'existing@example.com',
             'phone' => self::TEST_PHONE,
+            'national_id' => self::TEST_NATIONAL_ID,
             'gender' => 'female',
         ]);
 
@@ -532,6 +542,7 @@ class CustomerAuthApiTest extends CustomerAuthTestCase
         $response = $this->withCustomerToken($customer)
             ->post('/api/v1/customer/profile/complete', [
                 'firstName' => 'Ahmed',
+                'nationalId' => 'NID-TAKEN-001',
                 'email' => 'taken@example.com',
                 'birthDate' => '1990-05-15',
                 'gender' => 'male',
@@ -547,6 +558,59 @@ class CustomerAuthApiTest extends CustomerAuthTestCase
                 'success' => false,
                 'message' => 'Email is already in use',
             ]);
+    }
+
+    public function test_complete_profile_requires_national_id(): void
+    {
+        [, $city] = $this->createCountryAndCity();
+
+        $customer = Customer::factory()->create([
+            'phone' => self::TEST_PHONE,
+            'profile_completed' => false,
+        ]);
+
+        $response = $this->withCustomerToken($customer)
+            ->postJson('/api/v1/customer/profile/complete', [
+                'firstName' => 'Ahmed',
+                'email' => 'ahmed@example.com',
+                'birthDate' => '1990-05-15',
+                'gender' => 'male',
+                'cityId' => $city->id,
+                'country_code' => '249',
+            ]);
+
+        $response->assertStatus(422)
+            ->assertJsonValidationErrors(['nationalId']);
+    }
+
+    public function test_complete_profile_rejects_duplicate_national_id(): void
+    {
+        Mail::fake();
+
+        [, $city] = $this->createCountryAndCity();
+
+        Customer::factory()->create([
+            'national_id' => self::TEST_NATIONAL_ID,
+        ]);
+
+        $customer = Customer::factory()->create([
+            'phone' => self::TEST_PHONE,
+            'profile_completed' => false,
+        ]);
+
+        $response = $this->withCustomerToken($customer)
+            ->postJson('/api/v1/customer/profile/complete', [
+                'firstName' => 'Ahmed',
+                'nationalId' => self::TEST_NATIONAL_ID,
+                'email' => 'another@example.com',
+                'birthDate' => '1990-05-15',
+                'gender' => 'male',
+                'cityId' => $city->id,
+                'country_code' => '249',
+            ]);
+
+        $response->assertStatus(422)
+            ->assertJsonValidationErrors(['nationalId']);
     }
 
     public function test_can_logout(): void

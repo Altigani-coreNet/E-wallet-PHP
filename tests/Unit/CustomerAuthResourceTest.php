@@ -15,6 +15,7 @@ class CustomerAuthResourceTest extends CustomerAuthTestCase
             'name' => 'Ahmed',
             'email' => 'ahmed@example.com',
             'phone' => '+249912345678',
+            'national_id' => 'NID-RESOURCE-001',
             'balance' => 150.5,
             'profile_completed' => true,
         ]);
@@ -25,6 +26,7 @@ class CustomerAuthResourceTest extends CustomerAuthTestCase
         $this->assertSame('Ahmed', $payload['name']);
         $this->assertSame('ahmed@example.com', $payload['email']);
         $this->assertSame('+249912345678', $payload['phone']);
+        $this->assertSame('NID-RESOURCE-001', $payload['nationalId']);
         $this->assertSame('150.50', $payload['balance']);
         $this->assertTrue($payload['profileCompleted']);
         $this->assertNull($payload['country']);
