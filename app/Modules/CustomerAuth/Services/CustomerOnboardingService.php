@@ -35,6 +35,7 @@ class CustomerOnboardingService
 
         $country = Country::query()
             ->where('dial_code', $normalized)
+            ->orWhere('code', $normalized)
             ->where('status', true)
             ->whereNull('deleted_at')
             ->first();
