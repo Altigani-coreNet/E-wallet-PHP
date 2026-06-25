@@ -19,6 +19,7 @@ Broadcast::channel('customer-notifications.{targetCustomerId}', function ($user,
     return (string) $user->id === (string) $targetCustomerId;
 });
 
+
 Broadcast::channel('merchant-notifications.{targetMerchantId}', function ($user, string $targetMerchantId) {
     return (string) ($user->merchant_id ?? '') === (string) $targetMerchantId;
 });
