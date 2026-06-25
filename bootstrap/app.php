@@ -58,6 +58,7 @@ return Application::configure(basePath: dirname(__DIR__))
 
         $middleware->alias([
             'customer.jwt' => \App\Modules\CustomerAuth\Middleware\CustomerJwtMiddleware::class,
+            'customer.active' => \App\Modules\CustomerAuth\Middleware\CustomerActiveMiddleware::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions) {

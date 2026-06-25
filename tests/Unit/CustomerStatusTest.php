@@ -38,6 +38,24 @@ class CustomerStatusTest extends TestCase
         $this->assertStringContainsString('inactive', strtolower((string) $inactive->walletLoginBlockReason()));
     }
 
+    public function test_auth_login_block_reason_allows_pending_and_active(): void
+    {
+        $pending = new Customer(['status' => Customer::STATUS_PENDING]);
+        $this->assertNull($pending->authLoginBlockReason());
+
+        $active = new Customer(['status' => Customer::STATUS_ACTIVE]);
+        $this->assertNull($active->authLoginBlockReason());
+
+        $suspended = new Customer(['status' => Customer::STATUS_SUSPENDED]);
+        $this->assertStringContainsString('suspended', strtolower((string) $suspended->authLoginBlockReason()));
+
+        $inactive = new Customer(['status' => Customer::STATUS_INACTIVE]);
+        $this->assertStringContainsString('inactive', strtolower((string) $inactive->authLoginBlockReason()));
+
+        $deleted = new Customer(['status' => Customer::STATUS_DELETED]);
+        $this->assertStringContainsString('deleted', strtolower((string) $deleted->authLoginBlockReason()));
+    }
+
     public function test_new_customer_defaults_to_pending_on_create(): void
     {
         $customer = Customer::factory()->make(['status' => null]);

@@ -79,7 +79,7 @@ class CustomerAuthService
             );
         }
 
-        if ($reason = $customer->walletLoginBlockReason()) {
+        if ($reason = $customer->authLoginBlockReason()) {
             throw new \Symfony\Component\HttpKernel\Exception\UnauthorizedHttpException(
                 'Bearer',
                 $reason

@@ -191,7 +191,7 @@ class AdminCustomerApiIntegrationTest extends CustomerAuthTestCase
         ]);
     }
 
-    public function test_pending_customer_cannot_login(): void
+    public function test_pending_customer_can_login(): void
     {
         $this->createCustomer([
             'email' => 'pending-login@example.com',
@@ -203,7 +203,36 @@ class AdminCustomerApiIntegrationTest extends CustomerAuthTestCase
         $this->postJson('/api/v1/customer/auth/login', [
             'phone' => '+249911100009',
             'password' => self::VALID_PASSWORD,
-        ])->assertUnauthorized();
+        ])->assertOk()
+            ->assertJsonPath('success', true);
+    }
+
+    public function test_pending_customer_can_view_profile_but_cannot_transfer(): void
+    {
+        $pending = $this->createCustomer([
+            'email' => '',
+            'name' => '',
+            'phone' => '+249911100026',
+            'password' => Hash::make(self::VALID_PASSWORD),
+            'status' => Customer::STATUS_PENDING,
+            'profile_completed' => false,
+        ]);
+
+        $headers = $this->customerAuthHeaders($pending);
+
+        $this->withHeaders($headers)
+            ->getJson('/api/v1/customer/profile')
+            ->assertOk()
+            ->assertJsonPath('success', true)
+            ->assertJsonPath('data.customer.phone', '+249911100026');
+
+        $this->withHeaders($headers)
+            ->postJson('/api/v1/customer/wallet/transfer/by-phone', [
+                'recipient_phone' => '+249911100027',
+                'amount' => 10,
+            ])
+            ->assertForbidden()
+            ->assertJsonPath('success', false);
     }
 
     public function test_active_customer_can_login(): void

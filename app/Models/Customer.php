@@ -161,6 +161,17 @@ class Customer extends Model implements AuthenticatableContract
         return $this->isActive();
     }
 
+    public function authLoginBlockReason(): ?string
+    {
+        return match ($this->status) {
+            self::STATUS_ACTIVE, self::STATUS_PENDING => null,
+            self::STATUS_SUSPENDED => 'Your account has been suspended. Please contact support.',
+            self::STATUS_INACTIVE => 'Your account is inactive. Please contact support.',
+            self::STATUS_DELETED => 'Your account has been deleted.',
+            default => 'Your account is not available.',
+        };
+    }
+
     public function walletLoginBlockReason(): ?string
     {
         return match ($this->status) {
