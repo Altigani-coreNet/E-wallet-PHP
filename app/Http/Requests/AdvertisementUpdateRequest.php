@@ -36,6 +36,8 @@ class AdvertisementUpdateRequest extends FormRequest
     public function messages(): array
     {
         return [
+            'image.image' => 'The advertisement image must be a valid image file.',
+            'image.mimes' => 'The advertisement image must be a file of type: jpeg, png, jpg, gif.',
             'image.max' => 'The advertisement image may not be greater than 2MB.',
             'image.dimensions' => 'The banner image must be between 300×300 and 2000×2000 pixels.',
         ];

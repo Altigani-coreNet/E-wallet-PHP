@@ -2,6 +2,7 @@
 
 namespace App\Modules\Communication\Notification\Controllers;
 
+use App\Events\CustomerNotificationEvent;
 use App\Events\MerchantNotificationEvent;
 use App\Events\PublicNotificationEvent;
 use App\Events\UserNotificationEvent;
@@ -535,6 +536,13 @@ class AdminNotificationController extends Controller
         }
 
         if ($payload['target_type'] === 'customer') {
+            event(new CustomerNotificationEvent(
+                (string) $payload['customer_id'],
+                $payload['title'],
+                $payload['description'],
+                $meta,
+            ));
+
             return;
         }
 
