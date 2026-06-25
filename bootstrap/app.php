@@ -28,7 +28,7 @@ return Application::configure(basePath: dirname(__DIR__))
     // )
     ->withBroadcasting(
         channels: __DIR__.'/../routes/channels.php',
-        attributes: ['prefix' => 'api', 'middleware' => ['api', 'auth:api']],
+        attributes: ['prefix' => 'api', 'middleware' => ['api', \App\Http\Middleware\BroadcastAuthenticate::class]],
     )
     ->withMiddleware(function (Middleware $middleware) {
         $middleware->api(prepend: [
