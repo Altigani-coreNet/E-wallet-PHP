@@ -76,6 +76,10 @@ class CustomerAuthController
             return SuccessResponse::error('Unauthorized', 401);
         }
 
+        if ($reason = $customer->walletLoginBlockReason()) {
+            return SuccessResponse::error($reason, 401);
+        }
+
         $data = $this->authService->refreshToken($customer);
 
         return SuccessResponse::make($data, 'Token refreshed successfully');

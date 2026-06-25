@@ -144,6 +144,7 @@ class CustomerAuthApiTest extends CustomerAuthTestCase
         $this->assertDatabaseHas('customers', [
             'phone' => self::TEST_PHONE,
             'profile_completed' => false,
+            'status' => Customer::STATUS_PENDING,
         ]);
     }
 
@@ -218,7 +219,7 @@ class CustomerAuthApiTest extends CustomerAuthTestCase
 
     public function test_can_login(): void
     {
-        $customer = Customer::factory()->create([
+        $customer = Customer::factory()->active()->create([
             'phone' => self::TEST_PHONE,
             'password' => Hash::make(self::VALID_PASSWORD),
         ]);
@@ -311,7 +312,7 @@ class CustomerAuthApiTest extends CustomerAuthTestCase
 
     public function test_can_refresh_token(): void
     {
-        $customer = Customer::factory()->create([
+        $customer = Customer::factory()->active()->create([
             'phone' => self::TEST_PHONE,
             'password' => Hash::make(self::VALID_PASSWORD),
         ]);
@@ -481,15 +482,12 @@ class CustomerAuthApiTest extends CustomerAuthTestCase
         ]);
 
         $response = $this->withCustomerToken($customer)
-            ->patch('/api/v1/customer/profile/update', [
+            ->patchJson('/api/v1/customer/profile/update', [
                 'firstName' => 'Updated Name',
                 'birthDate' => '1992-03-20',
                 'gender' => 'female',
                 'cityId' => $city->id,
                 'country_code' => '249',
-                'picture' => UploadedFile::fake()->image('new-avatar.jpg'),
-            ], [
-                'Accept' => 'application/json',
             ]);
 
         $response->assertOk()

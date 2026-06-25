@@ -6,13 +6,72 @@ use Illuminate\Auth\Authenticatable;
 use Illuminate\Contracts\Auth\Authenticatable as AuthenticatableContract;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
+use App\Models\Wallet;
+use App\Services\WalletService;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Str;
 
 class Customer extends Model implements AuthenticatableContract
 {
-    use Authenticatable, HasFactory;
+    use Authenticatable, HasFactory, SoftDeletes;
+
+    public const STATUS_PENDING = 'pending';
+
+    public const STATUS_ACTIVE = 'active';
+
+    public const STATUS_SUSPENDED = 'suspended';
+
+    public const STATUS_INACTIVE = 'inactive';
+
+    public const STATUS_DELETED = 'deleted';
+
+    /** @var list<string> */
+    public const MANAGEABLE_STATUSES = [
+        self::STATUS_PENDING,
+        self::STATUS_ACTIVE,
+        self::STATUS_SUSPENDED,
+        self::STATUS_INACTIVE,
+    ];
+
+    /** @var list<string> */
+    public const ALL_STATUSES = [
+        self::STATUS_PENDING,
+        self::STATUS_ACTIVE,
+        self::STATUS_SUSPENDED,
+        self::STATUS_INACTIVE,
+        self::STATUS_DELETED,
+    ];
+
+    protected static function booted(): void
+    {
+        static::creating(function (Customer $customer) {
+            if (empty($customer->uuid)) {
+                $customer->uuid = (string) Str::uuid();
+            }
+
+            if (empty($customer->status)) {
+                $customer->status = self::STATUS_PENDING;
+            }
+        });
+
+        static::created(function (Customer $customer) {
+            try {
+                app(WalletService::class)->createForCustomer($customer);
+            } catch (\Throwable) {
+                // Wallet infra may be unavailable in tests; customer creation must not fail.
+            }
+        });
+    }
+
+    public function getRouteKeyName(): string
+    {
+        return 'uuid';
+    }
 
     protected $fillable = [
+        'uuid',
         'name',
         'email',
         'phone',
@@ -30,6 +89,7 @@ class Customer extends Model implements AuthenticatableContract
         'merchant_id',
         'merchant_country_id',
         'profile_completed',
+        'status',
     ];
 
     protected $hidden = [
@@ -57,9 +117,60 @@ class Customer extends Model implements AuthenticatableContract
         return $this->belongsTo(City::class);
     }
 
+    public function wallet(): HasOne
+    {
+        return $this->hasOne(Wallet::class);
+    }
+
     public function getCode()
     {
-        return 'CSMR' . str_replace('MERCH', '', $this->merchant->merchant_code) . '' . str_pad($this->id, 6, '0', STR_PAD_LEFT);
+        if ($this->merchant && $this->merchant->merchant_code) {
+            return 'CSMR' . str_replace('MERCH', '', $this->merchant->merchant_code) . str_pad((string) $this->id, 6, '0', STR_PAD_LEFT);
+        }
+
+        return 'CSMR' . str_pad((string) $this->id, 6, '0', STR_PAD_LEFT);
+    }
+
+    public function isSuspended(): bool
+    {
+        return $this->status === self::STATUS_SUSPENDED;
+    }
+
+    public function isPending(): bool
+    {
+        return $this->status === self::STATUS_PENDING;
+    }
+
+    public function isInactive(): bool
+    {
+        return $this->status === self::STATUS_INACTIVE;
+    }
+
+    public function isActive(): bool
+    {
+        return $this->status === self::STATUS_ACTIVE;
+    }
+
+    public function isDeletedStatus(): bool
+    {
+        return $this->status === self::STATUS_DELETED;
+    }
+
+    public function canAccessWallet(): bool
+    {
+        return $this->isActive();
+    }
+
+    public function walletLoginBlockReason(): ?string
+    {
+        return match ($this->status) {
+            self::STATUS_ACTIVE => null,
+            self::STATUS_PENDING => 'Your account is pending approval.',
+            self::STATUS_SUSPENDED => 'Your account has been suspended. Please contact support.',
+            self::STATUS_INACTIVE => 'Your account is inactive. Please contact support.',
+            self::STATUS_DELETED => 'Your account has been deleted.',
+            default => 'Your account is not available.',
+        };
     }
 
     public function getProfileImageApi(): ?string

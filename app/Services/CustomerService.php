@@ -6,12 +6,15 @@ use App\Models\Customer;
 use App\Models\Merchant;
 use App\Repositories\CustomerRepository;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 class CustomerService
 {
-    public function __construct(private readonly CustomerRepository $customerRepository)
-    {
+    public function __construct(
+        private readonly CustomerRepository $customerRepository,
+        private readonly WalletService $walletService,
+    ) {
     }
 
     public function listForMerchant(int $merchantId, int $perPage = 15, ?string $search = null): LengthAwarePaginator
@@ -45,24 +48,40 @@ class CustomerService
 
         $data['merchant_id'] = $merchantId;
         $data['merchant_country_id'] = $this->getMerchantCountryId($merchantId);
-        
-        return $this->customerRepository->create($data);
+
+        return DB::transaction(function () use ($data) {
+            $customer = $this->customerRepository->create($data);
+            $this->walletService->createForCustomer($customer);
+
+            return $customer;
+        });
     }
 
     /**
-     * Create customer (used by admin - merchant_id comes from data)
+     * Create customer (used by admin - merchant_id optional)
      */
     public function create(array $data): Customer
     {
-        $merchantId = $data['merchant_id'];
-        
-        if ($this->customerRepository->emailExistsForMerchant($data['email'], $merchantId)) {
-            throw ValidationException::withMessages(['email' => 'Customer with this email already exists for this merchant']);
+        if ($this->customerRepository->emailExistsGlobally($data['email'])) {
+            throw ValidationException::withMessages(['email' => 'Customer with this email already exists']);
         }
 
-        $data['merchant_country_id'] = $this->getMerchantCountryId($merchantId);
-        
-        return $this->customerRepository->create($data);
+        $merchantId = $data['merchant_id'] ?? null;
+        if ($merchantId) {
+            $data['merchant_country_id'] = $this->getMerchantCountryId((int) $merchantId);
+        } else {
+            unset($data['merchant_id']);
+            $data['merchant_country_id'] = $data['merchant_country_id'] ?? null;
+        }
+
+        $data['status'] = $data['status'] ?? Customer::STATUS_PENDING;
+
+        return DB::transaction(function () use ($data) {
+            $customer = $this->customerRepository->create($data);
+            $this->walletService->createForCustomer($customer);
+
+            return $customer;
+        });
     }
 
     /**
@@ -84,19 +103,52 @@ class CustomerService
     }
 
     /**
-     * Update customer (used by admin - merchant_id comes from data)
+     * Update customer (used by admin - merchant_id optional)
      */
     public function update(Customer $customer, array $data): Customer
     {
-        $merchantId = $data['merchant_id'];
-        
-        if ($this->customerRepository->emailExistsForMerchant($data['email'], $merchantId, $customer->id)) {
-            throw ValidationException::withMessages(['email' => 'Customer with this email already exists for this merchant']);
+        if ($this->customerRepository->emailExistsGlobally($data['email'], $customer->id)) {
+            throw ValidationException::withMessages(['email' => 'Customer with this email already exists']);
         }
 
-        $data['merchant_country_id'] = $this->getMerchantCountryId($merchantId);
-        
+        $merchantId = $data['merchant_id'] ?? null;
+        if ($merchantId) {
+            $data['merchant_country_id'] = $this->getMerchantCountryId((int) $merchantId);
+        } else {
+            $data['merchant_id'] = null;
+            if (! array_key_exists('merchant_country_id', $data)) {
+                $data['merchant_country_id'] = null;
+            }
+        }
+
         return $this->customerRepository->update($customer, $data);
+    }
+
+    /**
+     * Update customer account status (pending, active, suspended, inactive).
+     */
+    public function updateStatus(Customer $customer, string $status): Customer
+    {
+        if (! in_array($status, Customer::MANAGEABLE_STATUSES, true)) {
+            throw ValidationException::withMessages([
+                'status' => 'Invalid customer status.',
+            ]);
+        }
+
+        $customer->status = $status;
+        $customer->save();
+
+        return $customer->fresh(['merchant', 'country', 'city']);
+    }
+
+    /**
+     * @deprecated Use updateStatus() instead.
+     */
+    public function toggleStatus(Customer $customer): Customer
+    {
+        $nextStatus = $customer->isActive() ? Customer::STATUS_SUSPENDED : Customer::STATUS_ACTIVE;
+
+        return $this->updateStatus($customer, $nextStatus);
     }
 
     /**
@@ -108,7 +160,7 @@ class CustomerService
             throw ValidationException::withMessages(['customer' => 'Customer not found']);
         }
 
-        $this->customerRepository->delete($customer);
+        $this->softDeleteWithCorruption($customer);
     }
 
     /**
@@ -116,7 +168,74 @@ class CustomerService
      */
     public function delete(Customer $customer): void
     {
-        $this->customerRepository->delete($customer);
+        $this->softDeleteWithCorruption($customer);
+    }
+
+    /**
+     * Soft-delete customers by uuid with phone/email corruption to free unique constraints.
+     */
+    public function bulkDeleteByUuid(array $uuids): int
+    {
+        $deletedCount = 0;
+
+        Customer::query()
+            ->whereIn('uuid', $uuids)
+            ->get()
+            ->each(function (Customer $customer) use (&$deletedCount) {
+                $this->softDeleteWithCorruption($customer);
+                $deletedCount++;
+            });
+
+        return $deletedCount;
+    }
+
+    /**
+     * Soft-delete customers by id with phone/email corruption to free unique constraints.
+     */
+    public function bulkDelete(array $ids): int
+    {
+        $deletedCount = 0;
+
+        Customer::query()
+            ->whereIn('id', $ids)
+            ->get()
+            ->each(function (Customer $customer) use (&$deletedCount) {
+                $this->softDeleteWithCorruption($customer);
+                $deletedCount++;
+            });
+
+        return $deletedCount;
+    }
+
+    /**
+     * Corrupt unique identifiers, then soft-delete the customer inside a transaction.
+     */
+    public function softDeleteWithCorruption(Customer $customer): void
+    {
+        DB::transaction(function () use ($customer) {
+            $id = $customer->id;
+
+            $customer->phone = $this->corruptUniqueValue($customer->phone, $id);
+
+            if ($customer->email) {
+                $customer->email = $this->corruptUniqueValue($customer->email, $id);
+            }
+
+            $customer->status = Customer::STATUS_DELETED;
+            $customer->save();
+            $customer->delete();
+        });
+    }
+
+    private function corruptUniqueValue(string $value, int $id, int $maxLength = 255): string
+    {
+        $corrupted = "deleted_{$id}_{$value}";
+
+        if (strlen($corrupted) > $maxLength) {
+            return substr($corrupted, 0, $maxLength);
+        }
+
+        return $corrupted;
     }
 
     /**

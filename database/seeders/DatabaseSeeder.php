@@ -21,6 +21,7 @@ class DatabaseSeeder extends Seeder
         $this->call(PermissionsSeeder::class);
         $this->call(SettingSeeder::class);
         $this->call(CurrencySeeder::class);
+        $this->call(ChartOfAccountSeeder::class);
         $this->call(CountrySeeder::class);
         $this->call(CitySeeder::class);
         $this->call(TelecomTopupFlowSeeder::class);
@@ -28,6 +29,9 @@ class DatabaseSeeder extends Seeder
         
         // Create 3 merchants with their owners
         $this->call(MerchantSeeder::class);
+
+        // Demo wallet flow (master funding + customer transfers)
+        $this->call(WalletSeeder::class);
         
         // // Create 5 users for each merchant (15 total users + 1 test user)
         $this->call(UserSeeder::class);

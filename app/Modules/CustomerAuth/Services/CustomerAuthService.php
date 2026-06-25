@@ -56,6 +56,7 @@ class CustomerAuthService
             'phone' => $data['phone'],
             'password' => Hash::make($data['password']),
             'profile_completed' => false,
+            'status' => Customer::STATUS_PENDING,
             'name' => '',
             'email' => '',
         ]);
@@ -75,6 +76,13 @@ class CustomerAuthService
             throw new \Symfony\Component\HttpKernel\Exception\UnauthorizedHttpException(
                 'Bearer',
                 'Invalid credentials'
+            );
+        }
+
+        if ($reason = $customer->walletLoginBlockReason()) {
+            throw new \Symfony\Component\HttpKernel\Exception\UnauthorizedHttpException(
+                'Bearer',
+                $reason
             );
         }
 

@@ -35,6 +35,7 @@ use App\Http\Controllers\Api\V2\Admin\AdminHomeScreenConfigurationController;
 use App\Http\Middleware\ApiKeyAuthMiddleware;
 use App\Http\Middleware\JwtAuthMiddleware;
 use App\Http\Controllers\Api\GoogleOAuthController;
+use App\Http\Controllers\Api\Cashier\AdminCustomerApiController;
 
 /*
 |--------------------------------------------------------------------------
@@ -573,6 +574,18 @@ Route::prefix('v2/admin')->middleware([
     });
 });
 
+// Cashier admin customer API (Payment admin dashboard)
+Route::prefix('cashier/v2/admin')->middleware(['auth:admin-api'])->group(function () {
+    Route::get('customers', [AdminCustomerApiController::class, 'index']);
+    Route::get('customers/{uuid}', [AdminCustomerApiController::class, 'show']);
+    Route::post('customers', [AdminCustomerApiController::class, 'store']);
+    Route::put('customers/{uuid}', [AdminCustomerApiController::class, 'update']);
+    Route::delete('customers/{uuid}', [AdminCustomerApiController::class, 'destroy']);
+    Route::post('customers/bulk-delete', [AdminCustomerApiController::class, 'bulkDelete']);
+    Route::post('customers/{uuid}/status', [AdminCustomerApiController::class, 'updateStatus']);
+    Route::post('customers/{uuid}/toggle-status', [AdminCustomerApiController::class, 'toggleStatus']);
+});
+
 // V3 Admin API Routes
 Route::prefix('v3/admin')->middleware([
     'auth:admin-api'
@@ -737,7 +750,15 @@ Route::prefix('v3')->middleware([ApiKeyAuthMiddleware::class])->group(function (
     
 });
 
-Route::middleware('auth:admin-api')->group(function () {
+// Service Types (Admin) — dropdown; kept unversioned for legacy frontend path `/api/service-types/select`
+Route::middleware('auth:admin-api')->prefix('service-types')->group(function () {
+    Route::get('/select', [\App\Http\Controllers\Api\V2\Admin\AdminServiceTypeController::class, 'select']);
+});
+
+Route::prefix('v1/admin')->group(function () {
+    Route::get('service-categories/select-public', [\App\Http\Controllers\Api\ServiceCategoryController::class, 'select']);
+
+    Route::middleware('auth:admin-api')->group(function () {
 // Partners
 Route::prefix('partners')->group(function () {
     Route::get('/', [\App\Http\Controllers\Api\V2\Admin\AdminPartnerController::class, 'index']);
@@ -791,11 +812,6 @@ Route::prefix('service-sub-categories')->group(function () {
     Route::delete('/{id}', [AdminServiceSubCategoryController::class, 'destroy']);
 });
 
-// Service Types (Admin) — dropdown; CRUD may remain on AuthService if configured there
-Route::prefix('service-types')->group(function () {
-    Route::get('/select', [\App\Http\Controllers\Api\V2\Admin\AdminServiceTypeController::class, 'select']);
-});
-
 // Services Management (Admin)
 Route::prefix('services')->group(function () {
     Route::get('/catalog', [\App\Http\Controllers\Api\MerchantServiceController::class, 'catalogForAdmin']);
@@ -831,7 +847,7 @@ Route::prefix('products')->group(function () {
     Route::post('/{id}/service-forms', [App\Http\Controllers\Api\V2\Admin\ProductServiceFormController::class, 'store']);
 });
 
-
+    });
 });
 
 // End-customer onboarding geo (NestJS v2/countries parity)

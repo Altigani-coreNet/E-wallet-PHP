@@ -297,7 +297,7 @@ class AdminCustomerController extends Controller
             'ids.*' => 'exists:customers,id'
         ]);
 
-        $deletedCount = Customer::whereIn('id', $request->ids)->delete();
+        $deletedCount = $this->customerService->bulkDelete($request->ids);
 
         return response()->json([
             'success' => true,

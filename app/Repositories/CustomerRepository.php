@@ -46,6 +46,16 @@ class CustomerRepository
         return $query->exists();
     }
 
+    public function emailExistsGlobally(string $email, ?int $exceptCustomerId = null): bool
+    {
+        $query = Customer::where('email', $email);
+        if ($exceptCustomerId) {
+            $query->where('id', '!=', $exceptCustomerId);
+        }
+
+        return $query->exists();
+    }
+
     public function create(array $attributes): Customer
     {
         return Customer::create($attributes);
