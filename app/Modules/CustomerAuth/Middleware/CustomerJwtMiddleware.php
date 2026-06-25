@@ -43,6 +43,7 @@ class CustomerJwtMiddleware
         }
 
         Auth::guard('customer')->setUser($customer);
+        $request->setUserResolver(fn () => $customer);
 
         return $next($request);
     }
