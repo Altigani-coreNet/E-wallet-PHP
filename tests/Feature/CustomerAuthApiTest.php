@@ -386,7 +386,7 @@ class CustomerAuthApiTest extends CustomerAuthTestCase
         ]);
 
         $response = $this->withCustomerToken($customer)
-            ->patch('/api/v1/customer/profile/complete', [
+            ->post('/api/v1/customer/profile/complete', [
                 'firstName' => 'Ahmed',
                 'email' => 'ahmed@example.com',
                 'birthDate' => '1990-05-15',
@@ -449,7 +449,7 @@ class CustomerAuthApiTest extends CustomerAuthTestCase
         ]);
 
         $response = $this->withCustomerToken($customer)
-            ->patchJson('/api/v1/customer/profile/complete', [
+            ->postJson('/api/v1/customer/profile/complete', [
                 'firstName' => 'Ahmed',
                 'email' => 'ahmed@example.com',
                 'birthDate' => '1990-05-15',
@@ -482,7 +482,7 @@ class CustomerAuthApiTest extends CustomerAuthTestCase
         ]);
 
         $response = $this->withCustomerToken($customer)
-            ->patchJson('/api/v1/customer/profile/update', [
+            ->postJson('/api/v1/customer/profile/update', [
                 'firstName' => 'Updated Name',
                 'birthDate' => '1992-03-20',
                 'gender' => 'female',
@@ -530,7 +530,7 @@ class CustomerAuthApiTest extends CustomerAuthTestCase
         ]);
 
         $response = $this->withCustomerToken($customer)
-            ->patch('/api/v1/customer/profile/complete', [
+            ->post('/api/v1/customer/profile/complete', [
                 'firstName' => 'Ahmed',
                 'email' => 'taken@example.com',
                 'birthDate' => '1990-05-15',
@@ -577,10 +577,10 @@ class CustomerAuthApiTest extends CustomerAuthTestCase
                 'message' => 'Unauthorized',
             ]);
 
-        $this->patchJson('/api/v1/customer/profile/complete')
+        $this->postJson('/api/v1/customer/profile/complete')
             ->assertStatus(401);
 
-        $this->patchJson('/api/v1/customer/profile/update')
+        $this->postJson('/api/v1/customer/profile/update')
             ->assertStatus(401);
 
         $this->postJson('/api/v1/customer/auth/logout')

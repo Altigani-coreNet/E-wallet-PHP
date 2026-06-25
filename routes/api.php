@@ -878,8 +878,8 @@ Route::prefix('v1/customer')->group(function () {
 
     Route::middleware('customer.jwt')->group(function () {
         Route::get('profile', [\App\Modules\CustomerAuth\Controllers\CustomerAuthController::class, 'profile']);
-        Route::patch('profile/complete', [\App\Modules\CustomerAuth\Controllers\CustomerAuthController::class, 'completeProfile']);
-        Route::patch('profile/update', [\App\Modules\CustomerAuth\Controllers\CustomerAuthController::class, 'updateProfile']);
+        Route::post('profile/complete', [\App\Modules\CustomerAuth\Controllers\CustomerAuthController::class, 'completeProfile']);
+        Route::post('profile/update', [\App\Modules\CustomerAuth\Controllers\CustomerAuthController::class, 'updateProfile']);
         Route::post('auth/logout', [\App\Modules\CustomerAuth\Controllers\CustomerAuthController::class, 'logout']);
         Route::get('wallet/dashboard', [\App\Modules\CustomerAuth\Controllers\CustomerWalletController::class, 'dashboard']);
         Route::post('wallet/transfer/by-wallet-id', [\App\Modules\CustomerAuth\Controllers\CustomerWalletController::class, 'transferByWalletId'])
