@@ -213,6 +213,19 @@ return [
     'password_reset_simple_copy_url' => 'If you have trouble clicking the button, copy and paste this URL into your browser:',
     'password_reset_simple_footer' => 'If you have any questions, please contact our support team.',
 
+    // Customer set password (admin-created customers)
+    'customer_set_password_subject' => 'Set your password',
+    'customer_set_password_title' => 'Welcome! Set your password',
+    'customer_set_password_greeting' => 'Hello :name,',
+    'customer_set_password_body' => 'An account has been created for you. Click the button below to set your password and activate your account.',
+    'customer_set_password_section' => 'Set your password',
+    'customer_set_password_click' => 'Click the button below to continue:',
+    'customer_set_password_btn' => 'Set password',
+    'customer_set_password_expiry' => 'This link is valid for :hours hours. If it expires, contact support for a new link.',
+    'customer_set_password_copy_url' => 'If you have trouble clicking the button, copy and paste this URL into your browser:',
+    'customer_set_password_footer_help' => 'If you need help, our support team is available.',
+    'customer_set_password_automated' => 'This is an automated message. Please do not reply.',
+
     // Password reset success
     'password_reset_success_subject' => 'Password reset successful',
     'password_reset_success_greeting' => 'Hello :name,',

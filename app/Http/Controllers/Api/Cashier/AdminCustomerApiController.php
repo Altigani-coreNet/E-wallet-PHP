@@ -8,6 +8,7 @@ use App\Http\Requests\AdminCustomerStoreRequest;
 use App\Http\Requests\AdminCustomerUpdateRequest;
 use App\Http\Resources\AdminCustomerResource;
 use App\Models\Customer;
+use App\Modules\CustomerAuth\Services\CustomerPasswordSetupService;
 use App\Services\CustomerService;
 use App\Traits\HasFiles;
 use Illuminate\Http\JsonResponse;
@@ -19,8 +20,10 @@ class AdminCustomerApiController extends Controller
 {
     use HasFiles;
 
-    public function __construct(private readonly CustomerService $customerService)
-    {
+    public function __construct(
+        private readonly CustomerService $customerService,
+        private readonly CustomerPasswordSetupService $passwordSetupService,
+    ) {
     }
 
     public function index(Request $request): JsonResponse
@@ -110,6 +113,10 @@ class AdminCustomerApiController extends Controller
             }
 
             $customer = $this->customerService->create($data);
+
+            // Invite the customer to set their own password (email + SMS).
+            $this->passwordSetupService->generateAndSend($customer);
+
             $customer->load(['merchant', 'country', 'city']);
 
             return $this->jsonSuccess(AdminCustomerResource::make($customer)->resolve(), 'Customer created successfully', 201);
@@ -223,6 +230,25 @@ class AdminCustomerApiController extends Controller
             Log::error('AdminCustomerApiController@toggleStatus error: '.$exception->getMessage());
 
             return $this->jsonError('Failed to update customer status', 500);
+        }
+    }
+
+    public function resendPasswordInvite(string $uuid): JsonResponse
+    {
+        try {
+            $customer = $this->findCustomer($uuid);
+
+            if (! $customer->email && ! $customer->phone) {
+                return $this->jsonError('Customer has no email or phone to send the invite to', 422);
+            }
+
+            $this->passwordSetupService->generateAndSend($customer);
+
+            return $this->jsonSuccess(null, 'Password setup invite sent successfully');
+        } catch (\Throwable $exception) {
+            Log::error('AdminCustomerApiController@resendPasswordInvite error: '.$exception->getMessage());
+
+            return $this->jsonError('Failed to send password setup invite', 500);
         }
     }
 

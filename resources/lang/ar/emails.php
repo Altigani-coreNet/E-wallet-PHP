@@ -201,6 +201,19 @@ return [
     'password_reset_simple_copy_url' => 'إذا لم يعمل الزر، انسخ الرابط التالي إلى المتصفح:',
     'password_reset_simple_footer' => 'للاستفسار، تواصل مع فريق الدعم.',
 
+    // Customer set password (admin-created customers)
+    'customer_set_password_subject' => 'تعيين كلمة المرور',
+    'customer_set_password_title' => 'مرحباً! قم بتعيين كلمة المرور',
+    'customer_set_password_greeting' => 'مرحباً :name،',
+    'customer_set_password_body' => 'تم إنشاء حساب لك. انقر الزر أدناه لتعيين كلمة المرور وتفعيل حسابك.',
+    'customer_set_password_section' => 'تعيين كلمة المرور',
+    'customer_set_password_click' => 'انقر الزر أدناه للمتابعة:',
+    'customer_set_password_btn' => 'تعيين كلمة المرور',
+    'customer_set_password_expiry' => 'هذا الرابط صالح لمدة :hours ساعة. إذا انتهت صلاحيته، تواصل مع الدعم للحصول على رابط جديد.',
+    'customer_set_password_copy_url' => 'إذا لم يعمل الزر، انسخ الرابط التالي إلى المتصفح:',
+    'customer_set_password_footer_help' => 'فريق الدعم متاح عند الحاجة.',
+    'customer_set_password_automated' => 'هذه رسالة آلية. يرجى عدم الرد.',
+
     'password_reset_success_subject' => 'تم إعادة تعيين كلمة المرور بنجاح',
     'password_reset_success_greeting' => 'مرحباً :name،',
     'password_reset_success_body' => 'تم إعادة تعيين كلمة المرور بنجاح. إذا لم تقم بذلك، تواصل مع الدعم فوراً.',

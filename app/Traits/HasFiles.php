@@ -14,7 +14,7 @@ trait HasFiles
                 $image = $request->file($property);
 
                 // Define a unique file name
-                $imageName = time() . '.' . $image->getClientOriginalExtension();
+                $imageName = uniqid('', true) . '.' . $image->getClientOriginalExtension();
                 // Move the image to the public directory
                 $image->move(public_path($filename), $imageName);
 

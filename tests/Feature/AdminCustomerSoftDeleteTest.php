@@ -38,7 +38,7 @@ class AdminCustomerSoftDeleteTest extends CustomerAuthTestCase
         $customer->update(['email' => 'deleted-test@example.com']);
 
         $response = $this->actingAsAdminApi()
-            ->deleteJson("/api/cashier/v2/admin/customers/{$customer->uuid}");
+            ->deleteJson("/api/v2/admin/customers/{$customer->uuid}");
 
         $response->assertOk()
             ->assertJson([
@@ -64,11 +64,11 @@ class AdminCustomerSoftDeleteTest extends CustomerAuthTestCase
         $customer = Customer::query()->where('phone', self::TEST_PHONE)->firstOrFail();
 
         $this->actingAsAdminApi()
-            ->deleteJson("/api/cashier/v2/admin/customers/{$customer->uuid}")
+            ->deleteJson("/api/v2/admin/customers/{$customer->uuid}")
             ->assertOk();
 
         $indexResponse = $this->actingAsAdminApi()
-            ->getJson('/api/cashier/v2/admin/customers', [
+            ->getJson('/api/v2/admin/customers', [
                 'search' => self::TEST_PHONE,
             ]);
 
@@ -87,7 +87,7 @@ class AdminCustomerSoftDeleteTest extends CustomerAuthTestCase
         $customer->update(['status' => Customer::STATUS_ACTIVE]);
 
         $this->actingAsAdminApi()
-            ->deleteJson("/api/cashier/v2/admin/customers/{$customer->uuid}")
+            ->deleteJson("/api/v2/admin/customers/{$customer->uuid}")
             ->assertOk();
 
         $loginResponse = $this->postJson('/api/v1/customer/auth/login', [
@@ -109,7 +109,7 @@ class AdminCustomerSoftDeleteTest extends CustomerAuthTestCase
         $customer = Customer::query()->where('phone', self::TEST_PHONE)->firstOrFail();
 
         $this->actingAsAdminApi()
-            ->deleteJson("/api/cashier/v2/admin/customers/{$customer->uuid}")
+            ->deleteJson("/api/v2/admin/customers/{$customer->uuid}")
             ->assertOk();
 
         $reRegister = $this->registerCustomer(self::TEST_PHONE, 'NewPass1!');
@@ -137,7 +137,7 @@ class AdminCustomerSoftDeleteTest extends CustomerAuthTestCase
         $secondCustomer = Customer::query()->where('phone', '+249922222222')->firstOrFail();
 
         $response = $this->actingAsAdminApi()
-            ->postJson('/api/cashier/v2/admin/customers/bulk-delete', [
+            ->postJson('/api/v2/admin/customers/bulk-delete', [
                 'ids' => [$firstCustomer->uuid, $secondCustomer->uuid],
             ]);
 

@@ -574,8 +574,8 @@ Route::prefix('v2/admin')->middleware([
     });
 });
 
-// Cashier admin customer API (Payment admin dashboard)
-Route::prefix('cashier/v2/admin')->middleware(['auth:admin-api'])->group(function () {
+// Admin customer API (Payment admin dashboard)
+Route::prefix('v2/admin')->middleware(['auth:admin-api'])->group(function () {
     Route::get('customers', [AdminCustomerApiController::class, 'index']);
     Route::get('customers/{uuid}', [AdminCustomerApiController::class, 'show']);
     Route::post('customers', [AdminCustomerApiController::class, 'store']);
@@ -584,6 +584,7 @@ Route::prefix('cashier/v2/admin')->middleware(['auth:admin-api'])->group(functio
     Route::post('customers/bulk-delete', [AdminCustomerApiController::class, 'bulkDelete']);
     Route::post('customers/{uuid}/status', [AdminCustomerApiController::class, 'updateStatus']);
     Route::post('customers/{uuid}/toggle-status', [AdminCustomerApiController::class, 'toggleStatus']);
+    Route::post('customers/{uuid}/resend-password-invite', [AdminCustomerApiController::class, 'resendPasswordInvite']);
 });
 
 // V3 Admin API Routes
@@ -869,6 +870,10 @@ Route::prefix('v1/customer')->group(function () {
     Route::post('auth/refresh-token', [\App\Modules\CustomerAuth\Controllers\CustomerAuthController::class, 'refreshToken']);
     Route::post('password/forgot', [\App\Modules\CustomerAuth\Controllers\CustomerAuthController::class, 'forgotPassword']);
     Route::post('password/reset', [\App\Modules\CustomerAuth\Controllers\CustomerAuthController::class, 'resetPassword']);
+
+    // Admin-created customers set their own password via emailed/SMS invite link
+    Route::get('set-password/validate', [\App\Modules\CustomerAuth\Controllers\CustomerPasswordSetupController::class, 'validateToken']);
+    Route::post('set-password', [\App\Modules\CustomerAuth\Controllers\CustomerPasswordSetupController::class, 'setPassword']);
 
     Route::middleware('customer.jwt')->group(function () {
         Route::get('profile', [\App\Modules\CustomerAuth\Controllers\CustomerAuthController::class, 'profile']);

@@ -2,7 +2,7 @@
     "info": {
         "_postman_id": "customer-auth-api-2026",
         "name": "Customer Auth API",
-        "description": "End-customer authentication, onboarding, banners, services catalog, and notifications for Fast Pay SoftPOS (`/api/v1/customer`). Dev OTP mock: set `OTP_MOCK_CODE=111111`. Refresh-token accepts valid JWT or tokens expired within `JWT_REFRESH_GRACE` (default 7d).",
+        "description": "End-customer authentication, onboarding, wallet transfers (IFRS double-entry), banners, services catalog, and notifications for Fast Pay SoftPOS (`/api/v1/customer`). Dev OTP mock: set `OTP_MOCK_CODE=111111`. Refresh-token accepts valid JWT or tokens expired within `JWT_REFRESH_GRACE` (default 7d). Wallet E2E fixtures: run `php artisan db:seed --class=WalletE2eSeeder`.",
         "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
     },
     "variable": [
@@ -73,6 +73,31 @@
         },
         {
             "key": "partner_id",
+            "value": "",
+            "type": "string"
+        },
+        {
+            "key": "recipient_wallet_id",
+            "value": "",
+            "type": "string"
+        },
+        {
+            "key": "recipient_phone",
+            "value": "+249977700002",
+            "type": "string"
+        },
+        {
+            "key": "transfer_amount",
+            "value": "50",
+            "type": "string"
+        },
+        {
+            "key": "idempotency_key",
+            "value": "",
+            "type": "string"
+        },
+        {
+            "key": "sender_wallet_id",
             "value": "",
             "type": "string"
         }
@@ -1864,6 +1889,262 @@
                                 }
                             ],
                             "body": "{\n    \"success\": false,\n    \"message\": \"Notification not found\",\n    \"errors\": null,\n    \"data\": null\n}"
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "Wallet",
+            "item": [
+                {
+                    "name": "Wallet Dashboard",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json",
+                                "type": "text"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{customer_jwt}}",
+                                "type": "text"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/v1/customer/wallet/dashboard",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "v1",
+                                "customer",
+                                "wallet",
+                                "dashboard"
+                            ]
+                        },
+                        "description": "Returns current wallet balance, available balance, currency, status, and the most recent wallet transaction."
+                    },
+                    "response": [
+                        {
+                            "name": "Success",
+                            "status": "OK",
+                            "code": 200,
+                            "_postman_previewlanguage": "json",
+                            "header": [
+                                {
+                                    "key": "Content-Type",
+                                    "value": "application/json"
+                                }
+                            ],
+                            "body": "{\n    \"success\": true,\n    \"message\": \"Success\",\n    \"data\": {\n        \"wallet\": {\n            \"wallet_id\": \"WAL-00000001\",\n            \"user_number\": \"CSMR000001\",\n            \"currency_code\": \"SDG\",\n            \"balance\": 950,\n            \"available_balance\": 950,\n            \"status\": \"active\"\n        },\n        \"last_transaction\": {\n            \"id\": \"550e8400-e29b-41d4-a716-446655440000\",\n            \"type\": \"transfer\",\n            \"direction\": \"debit\",\n            \"amount\": 50,\n            \"balance_after\": 950,\n            \"description\": \"Transfer to friend\",\n            \"created_at\": \"2026-06-25T10:00:00+00:00\"\n        }\n    }\n}"
+                        }
+                    ],
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "if (pm.response.code === 200) {",
+                                    "    const json = pm.response.json();",
+                                    "    if (json.data && json.data.wallet && json.data.wallet.wallet_id) {",
+                                    "        pm.collectionVariables.set('sender_wallet_id', json.data.wallet.wallet_id);",
+                                    "    }",
+                                    "}"
+                                ]
+                            }
+                        }
+                    ]
+                },
+                {
+                    "name": "Transfer by Wallet ID",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json",
+                                "type": "text"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json",
+                                "type": "text"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{customer_jwt}}",
+                                "type": "text"
+                            },
+                            {
+                                "key": "Idempotency-Key",
+                                "value": "{{idempotency_key}}",
+                                "type": "text",
+                                "description": "Optional. Replays return the same response without double-spending."
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"recipient_wallet_id\": \"{{recipient_wallet_id}}\",\n    \"amount\": {{transfer_amount}},\n    \"description\": \"Transfer via wallet ID\"\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/api/v1/customer/wallet/transfer/by-wallet-id",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "v1",
+                                "customer",
+                                "wallet",
+                                "transfer",
+                                "by-wallet-id"
+                            ]
+                        },
+                        "description": "Send money to another customer wallet by public wallet_id. Sender must be active with sufficient balance; recipient must be active."
+                    },
+                    "response": [
+                        {
+                            "name": "Success",
+                            "status": "OK",
+                            "code": 200,
+                            "_postman_previewlanguage": "json",
+                            "header": [
+                                {
+                                    "key": "Content-Type",
+                                    "value": "application/json"
+                                }
+                            ],
+                            "body": "{\n    \"success\": true,\n    \"message\": \"Transfer completed successfully\",\n    \"data\": {\n        \"amount\": 50,\n        \"description\": \"Transfer via wallet ID\",\n        \"sender_wallet\": {\n            \"wallet_id\": \"WAL-00000001\",\n            \"balance\": 950,\n            \"available_balance\": 950,\n            \"currency_code\": \"SDG\",\n            \"status\": \"active\"\n        },\n        \"recipient\": {\n            \"name\": \"Wallet E2E Recipient\",\n            \"wallet_id\": \"WAL-00000002\"\n        },\n        \"transaction\": {\n            \"type\": \"transfer\",\n            \"direction\": \"debit\",\n            \"amount\": 50,\n            \"balance_after\": 950\n        }\n    }\n}"
+                        },
+                        {
+                            "name": "Insufficient balance",
+                            "status": "Unprocessable Entity",
+                            "code": 422,
+                            "_postman_previewlanguage": "json",
+                            "header": [
+                                {
+                                    "key": "Content-Type",
+                                    "value": "application/json"
+                                }
+                            ],
+                            "body": "{\n    \"success\": false,\n    \"message\": \"Insufficient wallet balance for this transfer.\",\n    \"errors\": null,\n    \"data\": null\n}"
+                        }
+                    ],
+                    "event": [
+                        {
+                            "listen": "prerequest",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "if (!pm.collectionVariables.get('idempotency_key')) {",
+                                    "    pm.collectionVariables.set('idempotency_key', 'pm-' + Date.now());",
+                                    "}"
+                                ]
+                            }
+                        }
+                    ]
+                },
+                {
+                    "name": "Transfer by Phone",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json",
+                                "type": "text"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json",
+                                "type": "text"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{customer_jwt}}",
+                                "type": "text"
+                            },
+                            {
+                                "key": "Idempotency-Key",
+                                "value": "{{idempotency_key}}",
+                                "type": "text"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"recipient_phone\": \"{{recipient_phone}}\",\n    \"amount\": {{transfer_amount}},\n    \"description\": \"Transfer via phone number\"\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/api/v1/customer/wallet/transfer/by-phone",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "v1",
+                                "customer",
+                                "wallet",
+                                "transfer",
+                                "by-phone"
+                            ]
+                        },
+                        "description": "Send money by recipient phone number. Resolves phone -> customer -> wallet automatically."
+                    },
+                    "response": [
+                        {
+                            "name": "Success",
+                            "status": "OK",
+                            "code": 200,
+                            "_postman_previewlanguage": "json",
+                            "header": [
+                                {
+                                    "key": "Content-Type",
+                                    "value": "application/json"
+                                }
+                            ],
+                            "body": "{\n    \"success\": true,\n    \"message\": \"Transfer completed successfully\",\n    \"data\": {\n        \"amount\": 50,\n        \"description\": \"Transfer via phone number\",\n        \"sender_wallet\": {\n            \"wallet_id\": \"WAL-00000001\",\n            \"balance\": 900,\n            \"available_balance\": 900,\n            \"currency_code\": \"SDG\",\n            \"status\": \"active\"\n        },\n        \"recipient\": {\n            \"name\": \"Wallet E2E Recipient\",\n            \"wallet_id\": \"WAL-00000002\"\n        },\n        \"transaction\": {\n            \"type\": \"transfer\",\n            \"direction\": \"debit\",\n            \"amount\": 50,\n            \"balance_after\": 900\n        }\n    }\n}"
+                        }
+                    ],
+                    "event": [
+                        {
+                            "listen": "prerequest",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "if (!pm.collectionVariables.get('idempotency_key')) {",
+                                    "    pm.collectionVariables.set('idempotency_key', 'pm-phone-' + Date.now());",
+                                    "}"
+                                ]
+                            }
+                        },
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "if (pm.response.code === 200) {",
+                                    "    const json = pm.response.json();",
+                                    "    if (json.data && json.data.recipient && json.data.recipient.wallet_id) {",
+                                    "        pm.collectionVariables.set('recipient_wallet_id', json.data.recipient.wallet_id);",
+                                    "    }",
+                                    "}"
+                                ]
+                            }
                         }
                     ]
                 }

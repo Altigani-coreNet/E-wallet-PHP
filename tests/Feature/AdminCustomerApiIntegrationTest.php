@@ -6,6 +6,7 @@ use App\Models\Admin;
 use App\Models\Customer;
 use App\Models\Country;
 use App\Models\City;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Hash;
 use Laravel\Passport\Passport;
 use Tests\CustomerAuthTestCase;
@@ -30,11 +31,12 @@ class AdminCustomerApiIntegrationTest extends CustomerAuthTestCase
         $this->configureCustomerAuthTesting();
         [$this->country, $this->city] = $this->seedCountryAndCity();
         $this->admin = Admin::factory()->active()->create();
+        $this->ensureCustomerProfilesDirectoryExists();
     }
 
     public function test_admin_can_create_customer_with_pending_status_by_default(): void
     {
-        $response = $this->actingAsAdminApi()->postJson('/api/cashier/v2/admin/customers', [
+        $response = $this->actingAsAdminApi()->postJson('/api/v2/admin/customers', [
             'name' => 'Pending Customer',
             'email' => 'pending@example.com',
             'phone' => '+249911100001',
@@ -58,7 +60,7 @@ class AdminCustomerApiIntegrationTest extends CustomerAuthTestCase
 
     public function test_admin_can_create_customer_with_explicit_active_status(): void
     {
-        $response = $this->actingAsAdminApi()->postJson('/api/cashier/v2/admin/customers', [
+        $response = $this->actingAsAdminApi()->postJson('/api/v2/admin/customers', [
             'name' => 'Active Customer',
             'email' => 'active@example.com',
             'phone' => '+249911100002',
@@ -83,7 +85,7 @@ class AdminCustomerApiIntegrationTest extends CustomerAuthTestCase
         ]);
 
         $response = $this->actingAsAdminApi()
-            ->getJson("/api/cashier/v2/admin/customers/{$customer->uuid}");
+            ->getJson("/api/v2/admin/customers/{$customer->uuid}");
 
         $response->assertOk()
             ->assertJsonPath('data.uuid', $customer->uuid)
@@ -103,7 +105,7 @@ class AdminCustomerApiIntegrationTest extends CustomerAuthTestCase
         ]);
 
         $response = $this->actingAsAdminApi()->putJson(
-            "/api/cashier/v2/admin/customers/{$customer->uuid}",
+            "/api/v2/admin/customers/{$customer->uuid}",
             [
                 'name' => 'After Update',
                 'email' => 'updated@example.com',
@@ -137,7 +139,7 @@ class AdminCustomerApiIntegrationTest extends CustomerAuthTestCase
         ]);
 
         $response = $this->actingAsAdminApi()->postJson(
-            "/api/cashier/v2/admin/customers/{$customer->uuid}/status",
+            "/api/v2/admin/customers/{$customer->uuid}/status",
             ['status' => Customer::STATUS_SUSPENDED]
         );
 
@@ -165,7 +167,7 @@ class AdminCustomerApiIntegrationTest extends CustomerAuthTestCase
         ]);
 
         $response = $this->actingAsAdminApi()->getJson(
-            '/api/cashier/v2/admin/customers?'.http_build_query([
+            '/api/v2/admin/customers?'.http_build_query([
                 'status' => Customer::STATUS_ACTIVE,
                 'search' => 'active-filter@example.com',
             ])
@@ -246,7 +248,7 @@ class AdminCustomerApiIntegrationTest extends CustomerAuthTestCase
         ]);
 
         $this->actingAsAdminApi()
-            ->deleteJson("/api/cashier/v2/admin/customers/{$customer->uuid}")
+            ->deleteJson("/api/v2/admin/customers/{$customer->uuid}")
             ->assertOk();
 
         $this->assertSoftDeleted('customers', ['uuid' => $customer->uuid]);
@@ -268,7 +270,7 @@ class AdminCustomerApiIntegrationTest extends CustomerAuthTestCase
             'phone' => '+249911100014',
         ]);
 
-        $this->actingAsAdminApi()->postJson('/api/cashier/v2/admin/customers/bulk-delete', [
+        $this->actingAsAdminApi()->postJson('/api/v2/admin/customers/bulk-delete', [
             'ids' => [$first->uuid, $second->uuid],
         ])->assertOk()
             ->assertJsonPath('data.deleted_count', 2);
@@ -285,7 +287,7 @@ class AdminCustomerApiIntegrationTest extends CustomerAuthTestCase
         ]);
 
         $this->actingAsAdminApi()->postJson(
-            "/api/cashier/v2/admin/customers/{$customer->uuid}/status",
+            "/api/v2/admin/customers/{$customer->uuid}/status",
             ['status' => 'deleted']
         )->assertUnprocessable();
     }
@@ -323,7 +325,7 @@ class AdminCustomerApiIntegrationTest extends CustomerAuthTestCase
 
         foreach ($transitions as $status) {
             $this->actingAsAdminApi()->postJson(
-                "/api/cashier/v2/admin/customers/{$customer->uuid}/status",
+                "/api/v2/admin/customers/{$customer->uuid}/status",
                 ['status' => $status]
             )->assertOk()
                 ->assertJsonPath('data.status', $status);
@@ -345,13 +347,161 @@ class AdminCustomerApiIntegrationTest extends CustomerAuthTestCase
             ]);
         }
 
-        $response = $this->actingAsAdminApi()->getJson('/api/cashier/v2/admin/customers?per_page=50');
+        $response = $this->actingAsAdminApi()->getJson('/api/v2/admin/customers?per_page=50');
 
         $response->assertOk()
             ->assertJsonPath('success', true);
 
         $statuses = collect($response->json('data.data'))->pluck('status')->unique()->values()->all();
         $this->assertEqualsCanonicalizing(Customer::MANAGEABLE_STATUSES, $statuses);
+    }
+
+    public function test_admin_can_create_customer_with_profile_image(): void
+    {
+        $this->ensureCustomerProfilesDirectoryExists();
+
+        $response = $this->actingAsAdminApi()->post('/api/v2/admin/customers', [
+            'name' => 'Image Customer',
+            'email' => 'image@example.com',
+            'phone' => '+249911100018',
+            'country_id' => $this->country->id,
+            'city_id' => $this->city->id,
+            'profile_image' => UploadedFile::fake()->image('avatar.jpg', 100, 100),
+        ]);
+
+        $response->assertCreated()
+            ->assertJsonPath('success', true)
+            ->assertJsonPath('data.profile_image_url', fn ($url) => is_string($url) && $url !== '');
+
+        $customer = Customer::query()->where('email', 'image@example.com')->firstOrFail();
+        $this->assertNotNull($customer->profile_image);
+        $this->assertFileExists(public_path($customer->profile_image));
+    }
+
+    public function test_admin_multipart_update_via_method_spoofing_persists_fields_and_image(): void
+    {
+        $this->ensureCustomerProfilesDirectoryExists();
+
+        $customer = $this->createCustomer([
+            'email' => 'multipart@example.com',
+            'phone' => '+249911100019',
+            'name' => 'Before Multipart',
+            'status' => Customer::STATUS_PENDING,
+        ]);
+
+        $response = $this->actingAsAdminApi()->post(
+            "/api/v2/admin/customers/{$customer->uuid}",
+            [
+                '_method' => 'PUT',
+                'name' => 'After Multipart',
+                'email' => 'multipart-updated@example.com',
+                'phone' => '+249911100019',
+                'address' => 'Multipart Street',
+                'country_id' => $this->country->id,
+                'city_id' => $this->city->id,
+                'status' => Customer::STATUS_ACTIVE,
+                'profile_image' => UploadedFile::fake()->image('updated.jpg', 100, 100),
+            ]
+        );
+
+        $response->assertOk()
+            ->assertJsonPath('data.name', 'After Multipart')
+            ->assertJsonPath('data.status', Customer::STATUS_ACTIVE)
+            ->assertJsonPath('data.profile_image_url', fn ($url) => is_string($url) && $url !== '');
+
+        $customer->refresh();
+        $this->assertSame('After Multipart', $customer->name);
+        $this->assertSame('multipart-updated@example.com', $customer->email);
+        $this->assertSame(Customer::STATUS_ACTIVE, $customer->status);
+        $this->assertNotNull($customer->profile_image);
+        $this->assertFileExists(public_path($customer->profile_image));
+    }
+
+    /**
+     * Browser multipart PUT is broken in PHP; the admin UI uses POST + _method=PUT instead.
+     * That regression is covered by Payment/cypress/e2e/customers/admin-customer-crud.cy.js.
+     */
+
+    public function test_unauthenticated_admin_customer_routes_return_401(): void
+    {
+        $customer = $this->createCustomer([
+            'email' => 'auth@example.com',
+            'phone' => '+249911100021',
+        ]);
+
+        $this->getJson('/api/v2/admin/customers')->assertUnauthorized();
+        $this->postJson('/api/v2/admin/customers', [
+            'name' => 'Unauthorized',
+            'email' => 'unauth@example.com',
+            'phone' => '+249911100022',
+        ])->assertUnauthorized();
+        $this->putJson("/api/v2/admin/customers/{$customer->uuid}", [
+            'name' => 'Unauthorized',
+            'email' => 'auth@example.com',
+            'phone' => '+249911100021',
+        ])->assertUnauthorized();
+        $this->deleteJson("/api/v2/admin/customers/{$customer->uuid}")->assertUnauthorized();
+    }
+
+    public function test_store_validation_rejects_missing_required_fields(): void
+    {
+        $this->actingAsAdminApi()->postJson('/api/v2/admin/customers', [])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['name', 'email', 'phone']);
+    }
+
+    public function test_store_validation_rejects_duplicate_email_and_phone(): void
+    {
+        $this->createCustomer([
+            'email' => 'duplicate@example.com',
+            'phone' => '+249911100023',
+        ]);
+
+        $this->actingAsAdminApi()->postJson('/api/v2/admin/customers', [
+            'name' => 'Duplicate Customer',
+            'email' => 'duplicate@example.com',
+            'phone' => '+249911100023',
+        ])->assertUnprocessable()
+            ->assertJsonValidationErrors(['email', 'phone']);
+    }
+
+    public function test_store_validation_rejects_invalid_foreign_keys_and_status(): void
+    {
+        $this->actingAsAdminApi()->postJson('/api/v2/admin/customers', [
+            'name' => 'Invalid FK',
+            'email' => 'invalid-fk@example.com',
+            'phone' => '+249911100024',
+            'country_id' => 999999,
+            'city_id' => 999999,
+            'status' => 'deleted',
+        ])->assertUnprocessable()
+            ->assertJsonValidationErrors(['country_id', 'city_id', 'status']);
+    }
+
+    public function test_store_validation_rejects_invalid_profile_image(): void
+    {
+        $this->actingAsAdminApi()->post('/api/v2/admin/customers', [
+            'name' => 'Bad Image',
+            'email' => 'bad-image@example.com',
+            'phone' => '+249911100025',
+            'profile_image' => UploadedFile::fake()->create('document.pdf', 100, 'application/pdf'),
+        ])->assertUnprocessable()
+            ->assertJsonValidationErrors(['profile_image']);
+    }
+
+    public function test_legacy_cashier_prefix_returns_not_found(): void
+    {
+        $this->actingAsAdminApi()
+            ->getJson('/api/cashier/v2/admin/customers')
+            ->assertNotFound();
+    }
+
+    private function ensureCustomerProfilesDirectoryExists(): void
+    {
+        $directory = public_path('customer_profiles');
+        if (! is_dir($directory)) {
+            mkdir($directory, 0777, true);
+        }
     }
 
     private function createCustomer(array $attributes = []): Customer

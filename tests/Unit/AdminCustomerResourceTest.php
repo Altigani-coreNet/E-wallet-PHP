@@ -49,4 +49,37 @@ class AdminCustomerResourceTest extends TestCase
         $this->assertSame('Khartoum', $payload['city']['name']);
         $this->assertArrayNotHasKey('id', $payload);
     }
+
+    public function test_resource_returns_null_profile_image_url_when_missing(): void
+    {
+        $customer = new Customer([
+            'uuid' => '550e8400-e29b-41d4-a716-446655440001',
+            'name' => 'No Image',
+            'email' => 'no-image@example.com',
+            'phone' => '+249900000002',
+            'status' => Customer::STATUS_ACTIVE,
+            'profile_image' => null,
+        ]);
+
+        $payload = AdminCustomerResource::make($customer)->toArray(Request::create('/'));
+
+        $this->assertNull($payload['profile_image_url']);
+    }
+
+    public function test_resource_returns_profile_image_url_when_image_set(): void
+    {
+        $customer = new Customer([
+            'uuid' => '550e8400-e29b-41d4-a716-446655440002',
+            'name' => 'With Image',
+            'email' => 'with-image@example.com',
+            'phone' => '+249900000003',
+            'status' => Customer::STATUS_ACTIVE,
+            'profile_image' => 'customer_profiles/test.jpg',
+        ]);
+
+        $payload = AdminCustomerResource::make($customer)->toArray(Request::create('/'));
+
+        $this->assertIsString($payload['profile_image_url']);
+        $this->assertStringContainsString('customer_profiles/test.jpg', $payload['profile_image_url']);
+    }
 }
