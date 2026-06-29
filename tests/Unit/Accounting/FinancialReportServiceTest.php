@@ -48,7 +48,7 @@ class FinancialReportServiceTest extends CustomerAuthTestCase
         $liability = $this->accountByCode(WalletService::WALLET_LIABILITY_ACCOUNT_CODE);
 
         $this->postLine($bank->id, 150, 0, '2026-02-01', LedgerService::REF_WALLET_TOPUP, '1', 0);
-        $this->postLine($liability->id, 0, 150, '2026-02-01', LedgerService::REF_WALLET_TOPUP, 1, 1);
+        $this->postLine($liability->id, 0, 150, '2026-02-01', LedgerService::REF_WALLET_TOPUP, '1', 1);
 
         $report = $this->service->ledger(null, null, '2026-02-01', '2026-02-28');
 

@@ -30,14 +30,14 @@ class CustomerRepository
         return $query->orderBy('created_at', 'desc')->paginate($perPage);
     }
 
-    public function findByIdAndMerchant(int $customerId, int $merchantId): ?Customer
+    public function findByIdAndMerchant(string $customerId, string $merchantId): ?Customer
     {
         return Customer::where('id', $customerId)
             ->where('merchant_id', $merchantId)
             ->first();
     }
 
-    public function emailExistsForMerchant(string $email, int $merchantId, ?int $exceptCustomerId = null): bool
+    public function emailExistsForMerchant(string $email, string $merchantId, ?string $exceptCustomerId = null): bool
     {
         $query = Customer::where('email', $email)->where('merchant_id', $merchantId);
         if ($exceptCustomerId) {
@@ -46,7 +46,7 @@ class CustomerRepository
         return $query->exists();
     }
 
-    public function emailExistsGlobally(string $email, ?int $exceptCustomerId = null): bool
+    public function emailExistsGlobally(string $email, ?string $exceptCustomerId = null): bool
     {
         $query = Customer::where('email', $email);
         if ($exceptCustomerId) {
@@ -72,7 +72,7 @@ class CustomerRepository
         $customer->delete();
     }
 
-    public function latestPaymentLinkForCustomer(int $merchantId, int $customerId): ?PaymentByLink
+    public function latestPaymentLinkForCustomer(string $merchantId, string $customerId): ?PaymentByLink
     {
         return PaymentByLink::where('merchant_id', $merchantId)
             ->where('customer_id', $customerId)

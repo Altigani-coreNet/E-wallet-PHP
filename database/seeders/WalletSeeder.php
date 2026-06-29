@@ -7,6 +7,7 @@ use App\Models\Wallet;
 use App\Services\CustomerService;
 use App\Services\WalletService;
 use Illuminate\Database\Seeder;
+use Illuminate\Support\Facades\Hash;
 
 /**
  * Demo wallet flow using production services only (IFRS double-entry).
@@ -17,6 +18,8 @@ use Illuminate\Database\Seeder;
  */
 class WalletSeeder extends Seeder
 {
+    public const DEMO_PASSWORD = 'WalletDemo1!';
+
     public function run(): void
     {
         $walletService = app(WalletService::class);
@@ -29,6 +32,8 @@ class WalletSeeder extends Seeder
             'name' => 'Jon',
             'email' => 'jon.wallet.demo@example.com',
             'phone' => '+249900000001',
+            'password' => Hash::make(self::DEMO_PASSWORD),
+            'profile_completed' => true,
             'status' => Customer::STATUS_ACTIVE,
         ]);
 
@@ -36,6 +41,8 @@ class WalletSeeder extends Seeder
             'name' => 'Ahmed',
             'email' => 'ahmed.wallet.demo@example.com',
             'phone' => '+249900000002',
+            'password' => Hash::make(self::DEMO_PASSWORD),
+            'profile_completed' => true,
             'status' => Customer::STATUS_ACTIVE,
         ]);
 
@@ -56,6 +63,7 @@ class WalletSeeder extends Seeder
         $ahmedBalance = Wallet::query()->where('customer_id', $ahmed->id)->value('balance');
 
         $this->command->info('Wallet demo seeded successfully.');
+        $this->command->info('Demo customers can log in with password: '.self::DEMO_PASSWORD);
         $this->command->info("Master wallet balance: {$masterBalance}");
         $this->command->info("Jon wallet balance: {$jonBalance}");
         $this->command->info("Ahmed wallet balance: {$ahmedBalance}");

@@ -5,6 +5,7 @@ namespace App\Modules\CustomerAuth\Controllers;
 use App\Models\Customer;
 use App\Modules\CustomerAuth\Requests\CustomerWalletQueryRequest;
 use App\Modules\CustomerAuth\Requests\CustomerWalletResolveRecipientRequest;
+use App\Modules\CustomerAuth\Requests\CustomerWalletTransactionsRequest;
 use App\Modules\CustomerAuth\Requests\CustomerWalletTransferRequest;
 use App\Modules\CustomerAuth\Requests\CustomerWalletWithdrawRequest;
 use App\Modules\CustomerAuth\Services\CustomerWalletService;
@@ -30,6 +31,36 @@ class CustomerWalletController
             return SuccessResponse::make($data);
         } catch (InvalidArgumentException $exception) {
             return SuccessResponse::error($exception->getMessage(), 422);
+        }
+    }
+
+    public function transactions(CustomerWalletTransactionsRequest $request)
+    {
+        /** @var Customer $customer */
+        $customer = Auth::guard('customer')->user();
+
+        try {
+            $data = $this->walletService->transactions($customer, $request->validated());
+
+            return SuccessResponse::make($data);
+        } catch (InvalidArgumentException $exception) {
+            return SuccessResponse::error($exception->getMessage(), 422);
+        }
+    }
+
+    public function showTransaction(string $transaction)
+    {
+        /** @var Customer $customer */
+        $customer = Auth::guard('customer')->user();
+
+        try {
+            $data = $this->walletService->showTransaction($customer, $transaction);
+
+            return SuccessResponse::make($data);
+        } catch (InvalidArgumentException $exception) {
+            return SuccessResponse::error($exception->getMessage(), 422);
+        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $exception) {
+            return SuccessResponse::error('Wallet transaction not found.', 404);
         }
     }
 

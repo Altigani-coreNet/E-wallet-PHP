@@ -922,6 +922,10 @@ Route::prefix('v1/customer')->group(function () {
         Route::post('password/change', [\App\Modules\CustomerAuth\Controllers\CustomerAuthController::class, 'changePassword']);
         Route::post('auth/logout', [\App\Modules\CustomerAuth\Controllers\CustomerAuthController::class, 'logout']);
         Route::get('wallet/dashboard', [\App\Modules\CustomerAuth\Controllers\CustomerWalletController::class, 'dashboard']);
+        Route::get('wallet/transactions', [\App\Modules\CustomerAuth\Controllers\CustomerWalletController::class, 'transactions'])
+            ->middleware('customer.active');
+        Route::get('wallet/transactions/{transaction}', [\App\Modules\CustomerAuth\Controllers\CustomerWalletController::class, 'showTransaction'])
+            ->middleware('customer.active');
         Route::get('wallet/query', [\App\Modules\CustomerAuth\Controllers\CustomerWalletController::class, 'query'])
             ->middleware('customer.active');
         Route::get('wallet/resolve-recipient', [\App\Modules\CustomerAuth\Controllers\CustomerWalletController::class, 'resolveRecipient'])

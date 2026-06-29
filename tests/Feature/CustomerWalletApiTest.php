@@ -28,6 +28,8 @@ class CustomerWalletApiTest extends CustomerAuthTestCase
     public function test_wallet_routes_require_authentication(): void
     {
         $this->getJson('/api/v1/customer/wallet/dashboard')->assertUnauthorized();
+        $this->getJson('/api/v1/customer/wallet/transactions')->assertUnauthorized();
+        $this->getJson('/api/v1/customer/wallet/transactions/00000000-0000-0000-0000-000000000001')->assertUnauthorized();
         $this->getJson('/api/v1/customer/wallet/query?identifier=test')->assertUnauthorized();
         $this->getJson('/api/v1/customer/wallet/resolve-recipient?identifier=test')->assertUnauthorized();
         $this->postJson('/api/v1/customer/wallet/transfer')->assertUnauthorized();
@@ -348,6 +350,220 @@ class CustomerWalletApiTest extends CustomerAuthTestCase
             ->assertJsonPath('data.wallet.balance', 120);
 
         $this->assertTrue(app(AccountBalanceService::class)->isSystemBalanced());
+    }
+
+    public function test_transactions_returns_paginated_list_newest_first(): void
+    {
+        [$sender, $recipient] = $this->createFundedCustomers(1000.00, 0.00);
+
+        foreach ([10, 20, 30, 40, 50] as $amount) {
+            $this->transfer($sender, $recipient->wallet->wallet_id, (float) $amount, "Transfer {$amount}")
+                ->assertOk();
+        }
+
+        $response = $this->withCustomerToken($sender)->getJson('/api/v1/customer/wallet/transactions?per_page=3');
+
+        $response->assertOk()
+            ->assertJsonPath('success', true)
+            ->assertJsonPath('data.per_page', 3)
+            ->assertJsonPath('data.current_page', 1)
+            ->assertJsonPath('data.total', 6)
+            ->assertJsonPath('data.last_page', 2)
+            ->assertJsonCount(3, 'data.data')
+            ->assertJsonPath('data.data.0.amount', 50)
+            ->assertJsonPath('data.data.0.direction', 'debit')
+            ->assertJsonPath('data.data.0.type', 'transfer');
+    }
+
+    public function test_transactions_page_two_returns_next_slice(): void
+    {
+        [$sender, $recipient] = $this->createFundedCustomers(1000.00, 0.00);
+
+        foreach ([10, 20, 30, 40, 50] as $amount) {
+            $this->transfer($sender, $recipient->wallet->wallet_id, (float) $amount, "Transfer {$amount}")
+                ->assertOk();
+        }
+
+        $response = $this->withCustomerToken($sender)->getJson('/api/v1/customer/wallet/transactions?per_page=3&page=2');
+
+        $response->assertOk()
+            ->assertJsonPath('data.current_page', 2)
+            ->assertJsonCount(3, 'data.data')
+            ->assertJsonPath('data.data.0.amount', 20);
+    }
+
+    public function test_transactions_search_filters_by_description_and_note(): void
+    {
+        [$sender, $recipient] = $this->createFundedCustomers(500.00, 0.00);
+
+        $this->transfer($sender, $recipient->wallet->wallet_id, 25.00, 'Lunch payment', null, null, 'Pizza note')
+            ->assertOk();
+        $this->transfer($sender, $recipient->wallet->wallet_id, 15.00, 'Coffee run')
+            ->assertOk();
+
+        $byDescription = $this->withCustomerToken($sender)->getJson(
+            '/api/v1/customer/wallet/transactions?search='.rawurlencode('Lunch')
+        );
+        $byDescription->assertOk()
+            ->assertJsonPath('data.total', 1)
+            ->assertJsonPath('data.data.0.description', 'Lunch payment');
+
+        $byNote = $this->withCustomerToken($sender)->getJson(
+            '/api/v1/customer/wallet/transactions?search='.rawurlencode('Pizza')
+        );
+        $byNote->assertOk()
+            ->assertJsonPath('data.total', 1)
+            ->assertJsonPath('data.data.0.note', 'Pizza note');
+    }
+
+    public function test_transactions_filters_by_type_and_direction(): void
+    {
+        [$sender, $recipient] = $this->createFundedCustomers(500.00, 0.00);
+
+        $this->transfer($sender, $recipient->wallet->wallet_id, 50.00, 'Filtered transfer')
+            ->assertOk();
+
+        $debitTransfers = $this->withCustomerToken($sender)->getJson(
+            '/api/v1/customer/wallet/transactions?type=transfer&direction=debit'
+        );
+        $debitTransfers->assertOk()
+            ->assertJsonPath('data.total', 1)
+            ->assertJsonPath('data.data.0.type', 'transfer')
+            ->assertJsonPath('data.data.0.direction', 'debit');
+
+        $credits = $this->withCustomerToken($sender)->getJson(
+            '/api/v1/customer/wallet/transactions?direction=credit'
+        );
+        $credits->assertOk()
+            ->assertJsonPath('data.total', 1)
+            ->assertJsonPath('data.data.0.direction', 'credit');
+    }
+
+    public function test_transactions_filters_by_date_range(): void
+    {
+        [$sender, $recipient] = $this->createFundedCustomers(500.00, 0.00);
+
+        $this->transfer($sender, $recipient->wallet->wallet_id, 30.00, 'In range')
+            ->assertOk();
+
+        $oldTransaction = WalletTransaction::query()
+            ->where('wallet_id', $sender->wallet->id)
+            ->where('direction', 'debit')
+            ->latest('id')
+            ->first();
+
+        $oldTransaction->forceFill(['created_at' => now()->subDays(10)])->save();
+
+        $this->transfer($sender, $recipient->wallet->wallet_id, 20.00, 'Recent only')
+            ->assertOk();
+
+        $today = now()->toDateString();
+        $response = $this->withCustomerToken($sender)->getJson(
+            '/api/v1/customer/wallet/transactions?date_from='.$today.'&date_to='.$today
+        );
+
+        $response->assertOk()
+            ->assertJsonPath('data.total', 2)
+            ->assertJsonMissing(['description' => 'In range']);
+    }
+
+    public function test_transactions_only_returns_authenticated_customer_wallet(): void
+    {
+        [$sender, $recipient] = $this->createFundedCustomers(500.00, 100.00);
+
+        $this->transfer($sender, $recipient->wallet->wallet_id, 40.00, 'Sender debit')
+            ->assertOk();
+
+        $senderResponse = $this->withCustomerToken($sender)->getJson('/api/v1/customer/wallet/transactions');
+        $recipientResponse = $this->withCustomerToken($recipient)->getJson('/api/v1/customer/wallet/transactions');
+
+        $senderResponse->assertOk()
+            ->assertJsonPath('data.data.0.direction', 'debit')
+            ->assertJsonPath('data.data.0.description', 'Sender debit');
+
+        $recipientResponse->assertOk()
+            ->assertJsonPath('data.data.0.direction', 'credit')
+            ->assertJsonPath('data.data.0.description', 'Sender debit');
+
+        $senderIds = collect($senderResponse->json('data.data'))->pluck('id')->all();
+        $recipientIds = collect($recipientResponse->json('data.data'))->pluck('id')->all();
+
+        $this->assertEmpty(array_intersect($senderIds, $recipientIds));
+    }
+
+    public function test_transactions_list_includes_signed_amount_and_counterparty(): void
+    {
+        [$sender, $recipient] = $this->createFundedCustomers(500.00, 0.00);
+
+        $this->transfer($sender, $recipient->wallet->wallet_id, 55.00, 'Counterparty list test')
+            ->assertOk();
+
+        $response = $this->withCustomerToken($sender)->getJson('/api/v1/customer/wallet/transactions');
+
+        $response->assertOk()
+            ->assertJsonPath('data.data.0.signed_amount', -55)
+            ->assertJsonPath('data.data.0.counterparty.wallet_id', $recipient->wallet->wallet_id)
+            ->assertJsonPath('data.data.0.counterparty.name', $recipient->name)
+            ->assertJsonPath('data.data.0.is_own', true);
+    }
+
+    public function test_show_transaction_returns_details_and_related_legs(): void
+    {
+        [$sender, $recipient] = $this->createFundedCustomers(500.00, 0.00);
+
+        $this->transfer($sender, $recipient->wallet->wallet_id, 33.00, 'Show API transfer', null, 1.00, 'Detail note')
+            ->assertOk();
+
+        $debitTx = WalletTransaction::query()
+            ->where('wallet_id', $sender->wallet->id)
+            ->where('direction', 'debit')
+            ->latest('id')
+            ->first();
+
+        $response = $this->withCustomerToken($sender)->getJson(
+            '/api/v1/customer/wallet/transactions/'.$debitTx->id
+        );
+
+        $response->assertOk()
+            ->assertJsonPath('data.transaction.id', $debitTx->id)
+            ->assertJsonPath('data.transaction.signed_amount', -33)
+            ->assertJsonPath('data.transaction.counterparty.wallet_id', $recipient->wallet->wallet_id)
+            ->assertJsonCount(2, 'data.related_transactions')
+            ->assertJsonPath('data.related_transactions.0.direction', 'debit')
+            ->assertJsonPath('data.related_transactions.1.direction', 'credit')
+            ->assertJsonPath('data.related_transactions.1.wallet.owner_name', $recipient->name);
+    }
+
+    public function test_show_transaction_returns_not_found_for_other_customer_row(): void
+    {
+        [$sender, $recipient] = $this->createFundedCustomers(500.00, 0.00);
+
+        $this->transfer($sender, $recipient->wallet->wallet_id, 12.00, 'Isolated transfer')
+            ->assertOk();
+
+        $recipientCredit = WalletTransaction::query()
+            ->where('wallet_id', $recipient->wallet->id)
+            ->where('direction', 'credit')
+            ->latest('id')
+            ->first();
+
+        $this->withCustomerToken($sender)->getJson(
+            '/api/v1/customer/wallet/transactions/'.$recipientCredit->id
+        )->assertNotFound();
+    }
+
+    public function test_transactions_validation_rejects_invalid_filters(): void
+    {
+        [$sender] = $this->createFundedCustomers(100.00, 0.00);
+
+        $this->withCustomerToken($sender)->getJson('/api/v1/customer/wallet/transactions?type=invalid')
+            ->assertStatus(422);
+
+        $this->withCustomerToken($sender)->getJson('/api/v1/customer/wallet/transactions?direction=side')
+            ->assertStatus(422);
+
+        $this->withCustomerToken($sender)->getJson('/api/v1/customer/wallet/transactions?per_page=101')
+            ->assertStatus(422);
     }
 
     /**

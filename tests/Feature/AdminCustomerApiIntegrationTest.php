@@ -227,8 +227,8 @@ class AdminCustomerApiIntegrationTest extends CustomerAuthTestCase
             ->assertJsonPath('data.customer.phone', '+249911100026');
 
         $this->withHeaders($headers)
-            ->postJson('/api/v1/customer/wallet/transfer/by-phone', [
-                'recipient_phone' => '+249911100027',
+            ->postJson('/api/v1/customer/wallet/transfer', [
+                'recipient_wallet_id' => '249911100027@fastpay',
                 'amount' => 10,
             ])
             ->assertForbidden()

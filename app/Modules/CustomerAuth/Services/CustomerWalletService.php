@@ -7,6 +7,9 @@ use App\Models\Wallet;
 use App\Models\WalletTransaction;
 use App\Services\IdempotencyService;
 use App\Services\WalletService;
+use Carbon\Carbon;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
+use Illuminate\Support\Collection;
 use InvalidArgumentException;
 
 class CustomerWalletService
@@ -14,6 +17,8 @@ class CustomerWalletService
     public const SCOPE_TRANSFER = 'wallet.transfer';
 
     public const SCOPE_WITHDRAW = 'wallet.withdraw';
+
+    private const COUNTERPARTY_PAIR_WINDOW_SECONDS = 10;
 
     public function __construct(
         private readonly WalletService $walletService,
@@ -27,12 +32,20 @@ class CustomerWalletService
 
         $wallet = $this->resolveActiveWalletForCustomer($customer);
 
-        $recentTransactions = WalletTransaction::query()
+        $recentRows = WalletTransaction::query()
             ->where('wallet_id', $wallet->id)
             ->latest('id')
             ->limit(5)
-            ->get()
-            ->map(fn (WalletTransaction $transaction) => $this->formatTransaction($transaction))
+            ->get();
+
+        $this->attachCounterparties($recentRows);
+
+        $recentTransactions = $recentRows
+            ->map(fn (WalletTransaction $transaction) => $this->formatTransaction(
+                $transaction,
+                $transaction->getAttribute('counterparty'),
+                $wallet->id
+            ))
             ->values()
             ->all();
 
@@ -41,6 +54,108 @@ class CustomerWalletService
             'last_transaction' => $recentTransactions[0] ?? null,
             'recent_transactions' => $recentTransactions,
         ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $filters
+     */
+    public function transactions(Customer $customer, array $filters = []): array
+    {
+        $this->assertCustomerCanUseWallet($customer);
+
+        $wallet = $this->resolveActiveWalletForCustomer($customer);
+        $perPage = (int) ($filters['per_page'] ?? 15);
+        $page = (int) ($filters['page'] ?? 1);
+
+        $query = WalletTransaction::query()
+            ->where('wallet_id', $wallet->id);
+
+        if (! empty($filters['type'])) {
+            $query->where('type', $filters['type']);
+        }
+
+        if (! empty($filters['direction'])) {
+            $query->where('direction', $filters['direction']);
+        }
+
+        if (! empty($filters['date_from'])) {
+            $from = Carbon::parse($filters['date_from']);
+            $query->where('created_at', '>=', $this->isDateOnly($filters['date_from'])
+                ? $from->copy()->startOfDay()
+                : $from);
+        }
+
+        if (! empty($filters['date_to'])) {
+            $to = Carbon::parse($filters['date_to']);
+            $query->where('created_at', '<=', $this->isDateOnly($filters['date_to'])
+                ? $to->copy()->endOfDay()
+                : $to);
+        }
+
+        if (! empty($filters['search'])) {
+            $search = '%'.$filters['search'].'%';
+            $query->where(function ($q) use ($search) {
+                $q->where('description', 'like', $search)
+                    ->orWhere('note', 'like', $search)
+                    ->orWhere('reference', 'like', $search);
+            });
+        }
+
+        $paginator = $query->latest('id')->paginate($perPage, ['*'], 'page', $page);
+        $walletId = $wallet->id;
+        $transactions = $paginator->getCollection();
+        $this->attachCounterparties($transactions);
+
+        return [
+            'data' => $transactions
+                ->map(fn (WalletTransaction $transaction) => $this->formatTransaction(
+                    $transaction,
+                    $transaction->getAttribute('counterparty'),
+                    $walletId
+                ))
+                ->values()
+                ->all(),
+            'current_page' => $paginator->currentPage(),
+            'per_page' => $paginator->perPage(),
+            'total' => $paginator->total(),
+            'last_page' => $paginator->lastPage(),
+        ];
+    }
+
+    public function showTransaction(Customer $customer, string $transactionId): array
+    {
+        $this->assertCustomerCanUseWallet($customer);
+
+        $wallet = $this->resolveActiveWalletForCustomer($customer);
+
+        $transaction = WalletTransaction::query()
+            ->with(['wallet.customer'])
+            ->where('wallet_id', $wallet->id)
+            ->where('id', $transactionId)
+            ->first();
+
+        if (! $transaction) {
+            throw new ModelNotFoundException('Wallet transaction not found.');
+        }
+
+        $this->attachCounterparties(collect([$transaction]));
+        $counterparty = $transaction->getAttribute('counterparty');
+
+        $relatedLegs = $this->resolveRelatedTransferLegs($transaction);
+        $this->attachCounterparties($relatedLegs);
+
+        return [
+            'transaction' => $this->formatTransaction($transaction, $counterparty, $wallet->id),
+            'related_transactions' => $relatedLegs
+                ->map(fn (WalletTransaction $leg) => $this->formatRelatedTransaction($leg, $wallet->id))
+                ->values()
+                ->all(),
+        ];
+    }
+
+    private function isDateOnly(string $value): bool
+    {
+        return preg_match('/^\d{4}-\d{2}-\d{2}$/', trim($value)) === 1;
     }
 
     public function queryRecipient(Customer $sender, string $identifier): array
@@ -306,17 +421,152 @@ class CustomerWalletService
         ];
     }
 
-    private function formatTransaction(WalletTransaction $transaction): array
-    {
+    private function formatTransaction(
+        WalletTransaction $transaction,
+        ?array $counterparty = null,
+        ?string $ownWalletId = null
+    ): array {
         return [
             'id' => $transaction->id,
             'type' => $transaction->type,
             'direction' => $transaction->direction,
             'amount' => (float) $transaction->amount,
+            'signed_amount' => $this->signedAmount($transaction),
+            'balance_after' => (float) $transaction->balance_after,
+            'reference' => $transaction->reference,
+            'reference_id' => $transaction->reference_id,
+            'description' => $transaction->description,
+            'note' => $transaction->note,
+            'counterparty' => $counterparty,
+            'is_own' => $ownWalletId !== null && $transaction->wallet_id === $ownWalletId,
+            'created_at' => $transaction->created_at?->toIso8601String(),
+        ];
+    }
+
+    private function formatRelatedTransaction(WalletTransaction $transaction, string $ownWalletId): array
+    {
+        $wallet = $transaction->relationLoaded('wallet') ? $transaction->wallet : $transaction->wallet()->with('customer')->first();
+        $customer = $wallet?->customer;
+
+        return [
+            'id' => $transaction->id,
+            'type' => $transaction->type,
+            'direction' => $transaction->direction,
+            'amount' => (float) $transaction->amount,
+            'signed_amount' => $this->signedAmount($transaction),
             'balance_after' => (float) $transaction->balance_after,
             'description' => $transaction->description,
             'note' => $transaction->note,
+            'is_own' => $transaction->wallet_id === $ownWalletId,
+            'wallet' => $wallet ? [
+                'wallet_id' => $wallet->wallet_id,
+                'owner_name' => $customer?->name,
+                'owner_phone' => $customer?->phone,
+            ] : null,
+            'counterparty' => $transaction->getAttribute('counterparty'),
             'created_at' => $transaction->created_at?->toIso8601String(),
         ];
+    }
+
+    /**
+     * @param  Collection<int, WalletTransaction>  $transactions
+     */
+    private function attachCounterparties(Collection $transactions): void
+    {
+        $transferTransactions = $transactions->filter(
+            fn (WalletTransaction $transaction) => $transaction->type === 'transfer'
+        );
+
+        $counterpartyMap = [];
+
+        foreach ($transferTransactions as $transaction) {
+            $counterpartyTx = $this->resolveCounterpartyTransaction($transaction);
+
+            if ($counterpartyTx) {
+                $counterpartyMap[$transaction->id] = $this->formatCounterparty($counterpartyTx);
+            }
+        }
+
+        $transactions->each(function (WalletTransaction $transaction) use ($counterpartyMap) {
+            $transaction->setAttribute('counterparty', $counterpartyMap[$transaction->id] ?? null);
+        });
+    }
+
+    /**
+     * @return Collection<int, WalletTransaction>
+     */
+    private function resolveRelatedTransferLegs(WalletTransaction $transaction): Collection
+    {
+        if ($transaction->type !== 'transfer') {
+            return collect([$transaction]);
+        }
+
+        $counterparty = $this->resolveCounterpartyTransaction($transaction);
+
+        if (! $counterparty) {
+            return collect([$transaction]);
+        }
+
+        if (! $transaction->relationLoaded('wallet')) {
+            $transaction->load(['wallet.customer']);
+        }
+
+        return collect([$transaction, $counterparty])
+            ->unique('id')
+            ->sortBy(fn (WalletTransaction $leg) => $leg->direction === 'debit' ? 0 : 1)
+            ->values();
+    }
+
+    private function resolveCounterpartyTransaction(WalletTransaction $transaction): ?WalletTransaction
+    {
+        if ($transaction->type !== 'transfer') {
+            return null;
+        }
+
+        $createdAt = $transaction->created_at;
+        if (! $createdAt || ! $transaction->reference || ! $transaction->reference_id) {
+            return null;
+        }
+
+        $oppositeDirection = $transaction->direction === 'debit' ? 'credit' : 'debit';
+
+        $query = WalletTransaction::query()
+            ->where('id', '!=', $transaction->id)
+            ->where('type', 'transfer')
+            ->where('reference', $transaction->reference)
+            ->where('reference_id', $transaction->reference_id)
+            ->where('direction', $oppositeDirection)
+            ->where('wallet_id', '!=', $transaction->wallet_id)
+            ->whereBetween('created_at', [
+                $createdAt->copy()->subSeconds(self::COUNTERPARTY_PAIR_WINDOW_SECONDS),
+                $createdAt->copy()->addSeconds(self::COUNTERPARTY_PAIR_WINDOW_SECONDS),
+            ])
+            ->with(['wallet.customer']);
+
+        if ($transaction->note !== null && $transaction->note !== '') {
+            $query->where('note', $transaction->note);
+        }
+
+        return $query->orderBy('created_at')->first();
+    }
+
+    private function formatCounterparty(WalletTransaction $counterpartyTx): array
+    {
+        $wallet = $counterpartyTx->wallet;
+        $customer = $wallet?->customer;
+
+        return [
+            'wallet_id' => $wallet?->wallet_id,
+            'name' => $customer?->name,
+            'phone' => $customer?->phone,
+            'direction' => $counterpartyTx->direction,
+        ];
+    }
+
+    private function signedAmount(WalletTransaction $transaction): float
+    {
+        $amount = (float) $transaction->amount;
+
+        return $transaction->direction === 'debit' ? -abs($amount) : abs($amount);
     }
 }
