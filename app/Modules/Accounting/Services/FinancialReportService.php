@@ -394,6 +394,22 @@ class FinancialReportService
      */
     private function buildBalanceSheetSection(string $startDate, string $endDate, string $typeName): array
     {
+        return $this->buildPeriodSection($startDate, $endDate, $typeName);
+    }
+
+    /**
+     * @return array{name: string, total: float, sub_types: list<array<string, mixed>>}
+     */
+    private function buildProfitLossSection(string $startDate, string $endDate, string $typeName): array
+    {
+        return $this->buildPeriodSection($startDate, $endDate, $typeName);
+    }
+
+    /**
+     * @return array{name: string, total: float, sub_types: list<array<string, mixed>>}
+     */
+    private function buildPeriodSection(string $startDate, string $endDate, string $typeName): array
+    {
         $accounts = ChartOfAccount::query()
             ->with(['accountType', 'accountSubType'])
             ->where('created_by', 0)
@@ -448,40 +464,106 @@ class FinancialReportService
      */
     public function profitAndLoss(string $startDate, string $endDate): array
     {
-        $typeTotals = $this->balanceService->totalsByTypeNameForPeriod($startDate, $endDate);
+        $incomeSection = $this->buildProfitLossSection($startDate, $endDate, 'Income');
+        $cogsSection = $this->buildProfitLossSection($startDate, $endDate, 'Costs of Goods Sold');
+        $expensesSection = $this->buildProfitLossSection($startDate, $endDate, 'Expenses');
 
-        $income = round($typeTotals['Income'] ?? 0, 2);
-        $cogs = round($typeTotals['Costs of Goods Sold'] ?? 0, 2);
-        $expenses = round($typeTotals['Expenses'] ?? 0, 2);
+        $income = round($incomeSection['total'], 2);
+        $cogs = round($cogsSection['total'], 2);
+        $expenses = round($expensesSection['total'], 2);
         $grossProfit = round($income - $cogs, 2);
         $netProfit = round($grossProfit - $expenses, 2);
-
-        $accounts = $this->accountsGroupedByTypeForPeriod($startDate, $endDate, [
-            'Income',
-            'Costs of Goods Sold',
-            'Expenses',
-        ]);
 
         return [
             'filter' => [
                 'start_date' => $startDate,
                 'end_date' => $endDate,
             ],
-            'income' => [
-                'total' => $income,
-                'accounts' => $accounts['Income'] ?? [],
-            ],
-            'costs_of_goods_sold' => [
-                'total' => $cogs,
-                'accounts' => $accounts['Costs of Goods Sold'] ?? [],
-            ],
-            'expenses' => [
-                'total' => $expenses,
-                'accounts' => $accounts['Expenses'] ?? [],
+            'sections' => [
+                'income' => $incomeSection,
+                'costs_of_goods_sold' => $cogsSection,
+                'expenses' => $expensesSection,
             ],
             'gross_profit' => $grossProfit,
             'net_profit' => $netProfit,
         ];
+    }
+
+    /**
+     * @return \Symfony\Component\HttpFoundation\BinaryFileResponse
+     */
+    public function exportProfitAndLoss(string $startDate, string $endDate)
+    {
+        $payload = $this->profitAndLoss($startDate, $endDate);
+
+        $spreadsheet = new Spreadsheet();
+        $sheet = $spreadsheet->getActiveSheet();
+        $sheet->setTitle('Profit and Loss');
+
+        $sheet->mergeCells('A1:C1');
+        $sheet->setCellValue('A1', 'Profit & Loss Report - '.date('Y-m-d H:i'));
+        $sheet->getStyle('A1')->getFont()->setBold(true);
+        $sheet->getStyle('A1')->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+
+        $sheet->mergeCells('A2:C2');
+        $sheet->setCellValue('A2', 'Date Range: '.$startDate.' to '.$endDate);
+        $sheet->getStyle('A2')->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+
+        $headers = ['Account', 'Code', 'Amount'];
+        $sheet->fromArray([$headers], null, 'A3');
+        $sheet->getStyle('A3:C3')->getFont()->setBold(true);
+        $sheet->getStyle('A3:C3')->getFill()
+            ->setFillType(Fill::FILL_SOLID)
+            ->getStartColor()->setRGB('4472C4');
+        $sheet->getStyle('A3:C3')->getFont()->getColor()->setRGB('FFFFFF');
+
+        $row = 4;
+        $sectionKeys = ['income', 'costs_of_goods_sold', 'expenses'];
+
+        foreach ($sectionKeys as $sectionKey) {
+            $section = $payload['sections'][$sectionKey];
+            $sheet->setCellValue("A{$row}", $section['name']);
+            $sheet->setCellValue("C{$row}", $section['total']);
+            $sheet->getStyle("A{$row}:C{$row}")->getFont()->setBold(true);
+            $row++;
+
+            foreach ($section['sub_types'] as $subType) {
+                $sheet->setCellValue("A{$row}", '  '.$subType['sub_type_name']);
+                $sheet->setCellValue("C{$row}", $subType['subtotal']);
+                $sheet->getStyle("A{$row}:C{$row}")->getFont()->setBold(true);
+                $row++;
+
+                foreach ($subType['accounts'] as $account) {
+                    $sheet->fromArray([
+                        '    '.$account['name'],
+                        $account['code'] ?? '',
+                        $account['balance'],
+                    ], null, "A{$row}");
+                    $row++;
+                }
+            }
+
+            if ($sectionKey === 'costs_of_goods_sold') {
+                $sheet->setCellValue("A{$row}", 'Gross Profit');
+                $sheet->setCellValue("C{$row}", $payload['gross_profit']);
+                $sheet->getStyle("A{$row}:C{$row}")->getFont()->setBold(true);
+                $row++;
+            }
+        }
+
+        $sheet->setCellValue("A{$row}", 'Net Profit');
+        $sheet->setCellValue("C{$row}", $payload['net_profit']);
+        $sheet->getStyle("A{$row}:C{$row}")->getFont()->setBold(true);
+
+        $filename = 'profit_and_loss_'.date('Y-m-d').'.xlsx';
+        $tempPath = storage_path('app/temp/'.Str::uuid().'.xlsx');
+        if (! is_dir(dirname($tempPath))) {
+            mkdir(dirname($tempPath), 0777, true);
+        }
+
+        (new Xlsx($spreadsheet))->save($tempPath);
+
+        return response()->download($tempPath, $filename)->deleteFileAfterSend(true);
     }
 
     /**
@@ -555,44 +637,6 @@ class FinancialReportService
             }
 
             $balance = $this->balanceService->closingBalance($account->id, $endDate ?? date('Y-m-d'), $typeName);
-            if (abs($balance) < 0.01) {
-                continue;
-            }
-
-            $result[$typeName][] = [
-                'id' => $account->id,
-                'code' => $account->code,
-                'name' => $account->name,
-                'sub_type' => $account->accountSubType?->name,
-                'balance' => $balance,
-            ];
-        }
-
-        return $result;
-    }
-
-    /**
-     * @param  list<string>  $typeNames
-     * @return array<string, list<array<string, mixed>>>
-     */
-    private function accountsGroupedByTypeForPeriod(string $startDate, string $endDate, array $typeNames): array
-    {
-        $result = array_fill_keys($typeNames, []);
-
-        $accounts = ChartOfAccount::query()
-            ->with(['accountType', 'accountSubType'])
-            ->where('created_by', 0)
-            ->whereHas('accountType', fn ($q) => $q->whereIn('name', $typeNames))
-            ->orderBy('code')
-            ->get();
-
-        foreach ($accounts as $account) {
-            $typeName = $account->accountType?->name;
-            if (! $typeName || ! in_array($typeName, $typeNames, true)) {
-                continue;
-            }
-
-            $balance = $this->balanceService->balance($account->id, $startDate, $endDate, AccountBalanceService::MODE_PERIOD, $typeName);
             if (abs($balance) < 0.01) {
                 continue;
             }

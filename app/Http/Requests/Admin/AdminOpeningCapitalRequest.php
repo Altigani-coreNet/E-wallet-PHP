@@ -16,6 +16,7 @@ class AdminOpeningCapitalRequest extends FormRequest
         return [
             'amount' => ['required', 'numeric', 'min:0.01'],
             'description' => ['nullable', 'string', 'max:255'],
+            'idempotency_key' => ['nullable', 'string', 'max:128'],
         ];
     }
 }

@@ -164,6 +164,25 @@ class AdminWalletMoneyApiTest extends CustomerAuthTestCase
         $this->assertSame($linesAfterFirst, TransactionLine::query()->where('reference', LedgerService::REF_WALLET_CASH_IN)->count());
     }
 
+    public function test_cash_in_accepts_idempotency_key_in_request_body(): void
+    {
+        $customer = Customer::factory()->active()->create();
+        $wallet = app(WalletService::class)->createForCustomer($customer);
+        $key = 'cash-in-body-'.uniqid();
+
+        $response = $this->actingAsAdminApi()->postJson(
+            "/api/v2/admin/wallets/{$wallet->id}/cash-in",
+            ['amount' => 50, 'description' => 'Body idempotency', 'idempotency_key' => $key]
+        );
+
+        $response->assertOk()
+            ->assertJsonPath('data.amount', 50)
+            ->assertJsonPath('data.wallet.balance', 50);
+
+        $wallet->refresh();
+        $this->assertSame(50.0, (float) $wallet->balance);
+    }
+
     private function actingAsAdminApi(): self
     {
         Passport::actingAs($this->admin, [], 'admin-api');

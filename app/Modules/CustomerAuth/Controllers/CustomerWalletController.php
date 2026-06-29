@@ -94,7 +94,6 @@ class CustomerWalletController
                 (float) $request->validated('amount'),
                 $request->validated('description'),
                 $this->resolveIdempotencyKey($request),
-                (float) ($request->validated('fee') ?? 0),
                 $request->validated('note')
             );
 

@@ -85,4 +85,13 @@ return [
     'otp' => [
         'mock_code' => env('OTP_MOCK_CODE', 111111),
     ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Wallet transfer fee (fixed amount deducted from each customer transfer)
+    |--------------------------------------------------------------------------
+    */
+    'wallet' => [
+        'transfer_fee' => (float) env('WALLET_TRANSFER_FEE', 2),
+    ],
 ];

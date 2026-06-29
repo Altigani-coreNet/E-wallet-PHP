@@ -67,7 +67,18 @@ return [
 
     'allowed_origins_patterns' => [],
 
-    'allowed_headers' => ['*'],
+    // Explicit list: with supports_credentials=true, some proxies/browsers reject wildcard headers.
+    // Idempotency-Key is used by wallet money ops and Cypress; the SPA sends idempotency_key in the body instead.
+    'allowed_headers' => [
+        'Accept',
+        'Authorization',
+        'Content-Type',
+        'X-Requested-With',
+        'Origin',
+        'X-CSRF-TOKEN',
+        'Idempotency-Key',
+        'X-Idempotency-Key',
+    ],
 
     'exposed_headers' => [],
 

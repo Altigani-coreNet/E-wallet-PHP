@@ -349,17 +349,21 @@ class WalletService
         });
     }
 
+    public function transferFee(): float
+    {
+        return round(max(0, (float) config('services.wallet.transfer_fee', 0)), 2);
+    }
+
     public function transfer(
         Wallet $from,
         Wallet $to,
         float $amount,
         ?string $description = null,
         int $createdBy = 0,
-        float $fee = 0.0,
         ?string $note = null
     ): void {
         $amount = $this->normalizeAmount($amount);
-        $fee = round(max(0, $fee), 2);
+        $fee = $this->transferFee();
 
         if ($fee > $amount) {
             throw new InvalidArgumentException('Fee cannot exceed transfer amount.');

@@ -143,6 +143,7 @@ class AccountBalanceService
         $query = TransactionLine::query()
             ->join('chart_of_accounts', 'chart_of_accounts.id', '=', 'transaction_lines.account_id')
             ->join('chart_of_account_types', 'chart_of_account_types.id', '=', 'chart_of_accounts.type')
+            ->where('chart_of_accounts.created_by', 0)
             ->whereDate('transaction_lines.date', '>=', $startDate)
             ->whereDate('transaction_lines.date', '<=', $endDate)
             ->select(

@@ -55,7 +55,7 @@ class CustomerWalletServiceTest extends CustomerAuthTestCase
     {
         [$sender, $recipient] = $this->createFundedCustomers(500.00, 0.00);
 
-        $this->walletService->transfer($sender->wallet, $recipient->wallet, 50.00, 'Unique lunch transfer', 0, 0, 'Burger note');
+        $this->walletService->transfer($sender->wallet, $recipient->wallet, 50.00, 'Unique lunch transfer', 0, 'Burger note');
 
         $byType = $this->customerWalletService->transactions($sender, [
             'type' => 'transfer',

@@ -582,6 +582,8 @@ Route::prefix('v2/admin')->middleware(['auth:admin-api'])->group(function () {
     Route::post('customers/import-preview', [AdminCustomerApiController::class, 'importPreview']);
     Route::post('customers/import', [AdminCustomerApiController::class, 'import']);
     Route::get('customers', [AdminCustomerApiController::class, 'index']);
+    Route::get('customers/{id}/wallet', [AdminCustomerApiController::class, 'wallet']);
+    Route::get('customers/{id}/transactions', [AdminCustomerApiController::class, 'transactions']);
     Route::get('customers/{id}', [AdminCustomerApiController::class, 'show']);
     Route::post('customers', [AdminCustomerApiController::class, 'store']);
     Route::put('customers/{id}', [AdminCustomerApiController::class, 'update']);
@@ -623,6 +625,7 @@ Route::prefix('v2/admin')->middleware(['auth:admin-api'])->group(function () {
         Route::get('ledger', [\App\Modules\Accounting\Controllers\LedgerController::class, 'index']);
         Route::get('reports/balance-sheet/export', [\App\Modules\Accounting\Controllers\ReportController::class, 'balanceSheetExport']);
         Route::get('reports/balance-sheet', [\App\Modules\Accounting\Controllers\ReportController::class, 'balanceSheet']);
+        Route::get('reports/profit-loss/export', [\App\Modules\Accounting\Controllers\ReportController::class, 'profitLossExport']);
         Route::get('reports/profit-loss', [\App\Modules\Accounting\Controllers\ReportController::class, 'profitLoss']);
         Route::get('reports/trial-balance', [\App\Modules\Accounting\Controllers\ReportController::class, 'trialBalance']);
     });

@@ -7,8 +7,11 @@ use App\Http\Requests\AdminCustomerStatusRequest;
 use App\Http\Requests\AdminCustomerStoreRequest;
 use App\Http\Requests\AdminCustomerUpdateRequest;
 use App\Http\Resources\AdminCustomerResource;
+use App\Http\Resources\AdminWalletResource;
+use App\Http\Resources\AdminWalletTransactionResource;
 use App\Models\Customer;
 use App\Modules\CustomerAuth\Services\CustomerPasswordSetupService;
+use App\Services\Admin\AdminWalletService;
 use App\Services\CustomerService;
 use App\Support\CsvExport;
 use App\Traits\HasFiles;
@@ -25,6 +28,7 @@ class AdminCustomerApiController extends Controller
     public function __construct(
         private readonly CustomerService $customerService,
         private readonly CustomerPasswordSetupService $passwordSetupService,
+        private readonly AdminWalletService $walletService,
     ) {
     }
 
@@ -175,6 +179,83 @@ class AdminCustomerApiController extends Controller
             Log::error('AdminCustomerApiController@show error: '.$exception->getMessage());
 
             return $this->jsonError('Customer not found', 404);
+        }
+    }
+
+    public function wallet(string $id): JsonResponse
+    {
+        try {
+            $customer = $this->findCustomer($id);
+
+            if (! $customer->wallet) {
+                return $this->jsonSuccess([
+                    'wallet' => null,
+                    'summary' => [
+                        'transaction_count' => 0,
+                        'total_credits' => 0,
+                        'total_debits' => 0,
+                    ],
+                    'recent_transactions' => [],
+                ]);
+            }
+
+            $wallet = $this->walletService->show($customer->wallet->id);
+            $recentPaginated = $this->walletService->walletTransactions($customer->wallet->id, [], 5);
+
+            return $this->jsonSuccess([
+                'wallet' => AdminWalletResource::make($wallet)->resolve(),
+                'summary' => $wallet->summary,
+                'recent_transactions' => AdminWalletTransactionResource::collection($recentPaginated->items())->resolve(),
+            ]);
+        } catch (\Throwable $exception) {
+            Log::error('AdminCustomerApiController@wallet error: '.$exception->getMessage());
+
+            if ($exception instanceof \Illuminate\Database\Eloquent\ModelNotFoundException) {
+                return $this->jsonError('Customer not found', 404);
+            }
+
+            return $this->jsonError('Failed to fetch customer wallet', 500);
+        }
+    }
+
+    public function transactions(Request $request, string $id): JsonResponse
+    {
+        try {
+            $customer = $this->findCustomer($id);
+            $perPage = (int) $request->input('per_page', 15);
+
+            if (! $customer->wallet) {
+                return $this->jsonSuccess([
+                    'data' => [],
+                    'current_page' => 1,
+                    'last_page' => 1,
+                    'per_page' => $perPage,
+                    'total' => 0,
+                    'from' => null,
+                    'to' => null,
+                ]);
+            }
+
+            $filters = $this->transactionFilters($request);
+            $paginated = $this->walletService->walletTransactions($customer->wallet->id, $filters, $perPage);
+
+            return $this->jsonSuccess([
+                'data' => AdminWalletTransactionResource::collection($paginated->items())->resolve(),
+                'current_page' => $paginated->currentPage(),
+                'last_page' => $paginated->lastPage(),
+                'per_page' => $paginated->perPage(),
+                'total' => $paginated->total(),
+                'from' => $paginated->firstItem(),
+                'to' => $paginated->lastItem(),
+            ]);
+        } catch (\Throwable $exception) {
+            Log::error('AdminCustomerApiController@transactions error: '.$exception->getMessage());
+
+            if ($exception instanceof \Illuminate\Database\Eloquent\ModelNotFoundException) {
+                return $this->jsonError('Customer not found', 404);
+            }
+
+            return $this->jsonError('Failed to fetch customer transactions', 500);
         }
     }
 
@@ -380,6 +461,22 @@ class AdminCustomerApiController extends Controller
             ->withCountry()
             ->whereKey($id)
             ->firstOrFail();
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function transactionFilters(Request $request): array
+    {
+        return [
+            'search' => $request->input('search'),
+            'direction' => $request->input('direction'),
+            'type' => $request->input('type'),
+            'date_from' => $request->input('date_from', $request->input('start_date')),
+            'date_to' => $request->input('date_to', $request->input('end_date')),
+            'min_amount' => $request->input('min_amount'),
+            'max_amount' => $request->input('max_amount'),
+        ];
     }
 
     private function deleteProfileImageFile(?string $profileImage): void

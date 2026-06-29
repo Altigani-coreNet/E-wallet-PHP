@@ -40,7 +40,8 @@ class WalletAccountingReconciliationTest extends CustomerAuthTestCase
         $recipientWallet = app(WalletService::class)->createForCustomer($recipient);
 
         app(WalletService::class)->cashIn($senderWallet, 200, 'Buy balance');
-        app(WalletService::class)->transfer($senderWallet, $recipientWallet, 50, 'Pay friend', 0, 2);
+        config(['services.wallet.transfer_fee' => 2]);
+        app(WalletService::class)->transfer($senderWallet, $recipientWallet, 50, 'Pay friend');
         app(WalletService::class)->cashOut($recipientWallet, 20, 'Cash out');
 
         $balanceService = app(AccountBalanceService::class);

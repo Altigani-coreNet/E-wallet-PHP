@@ -356,9 +356,38 @@ class AdminAccountingApiTest extends CustomerAuthTestCase
         );
 
         $response->assertOk()
-            ->assertJsonPath('data.income.total', 1000)
-            ->assertJsonPath('data.expenses.total', 200)
+            ->assertJsonStructure([
+                'status',
+                'data' => [
+                    'filter',
+                    'sections' => [
+                        'income' => ['name', 'total', 'sub_types'],
+                        'costs_of_goods_sold' => ['name', 'total', 'sub_types'],
+                        'expenses' => ['name', 'total', 'sub_types'],
+                    ],
+                    'gross_profit',
+                    'net_profit',
+                ],
+            ])
+            ->assertJsonPath('data.sections.income.total', 1000)
+            ->assertJsonPath('data.sections.expenses.total', 200)
             ->assertJsonPath('data.net_profit', 800);
+    }
+
+    public function test_profit_and_loss_export_returns_spreadsheet(): void
+    {
+        $incomeAccount = $this->accountByCode(4000);
+        $this->postLine($incomeAccount->id, 0, 500);
+
+        $response = $this->actingAsAdminApi()->get(
+            '/api/v2/admin/accounting/reports/profit-loss/export?start_date='.date('Y-01-01').'&end_date='.date('Y-m-d')
+        );
+
+        $response->assertOk();
+        $this->assertStringContainsString(
+            'spreadsheetml.sheet',
+            (string) $response->headers->get('content-type')
+        );
     }
 
     public function test_trial_balance_api_returns_balanced_totals(): void

@@ -77,7 +77,8 @@ class AdminWalletService
         $query = $this->transactionQuery($filters)
             ->where('wallet_id', $walletId)
             ->with(['wallet.customer.merchant'])
-            ->orderByDesc('created_at');
+            ->orderByDesc('created_at')
+            ->orderByDesc('id');
 
         $paginated = $query->paginate($perPage);
         $this->attachCounterparties($paginated->getCollection());
@@ -89,7 +90,8 @@ class AdminWalletService
     {
         $query = $this->transactionQuery($filters)
             ->with(['wallet.customer.merchant'])
-            ->orderByDesc('created_at');
+            ->orderByDesc('created_at')
+            ->orderByDesc('id');
 
         $paginated = $query->paginate($perPage);
         $this->attachCounterparties($paginated->getCollection());

@@ -152,15 +152,28 @@ class FinancialReportServiceTest extends CustomerAuthTestCase
 
         $report = $this->service->profitAndLoss('2026-02-01', '2026-02-28');
 
-        $this->assertSame(2000.0, $report['income']['total']);
-        $this->assertSame(300.0, $report['expenses']['total']);
+        $this->assertSame(2000.0, $report['sections']['income']['total']);
+        $this->assertSame(300.0, $report['sections']['expenses']['total']);
+        $this->assertNotEmpty($report['sections']['income']['sub_types']);
         if ($cogsAccount) {
-            $this->assertSame(500.0, $report['costs_of_goods_sold']['total']);
+            $this->assertSame(500.0, $report['sections']['costs_of_goods_sold']['total']);
             $this->assertSame(1500.0, $report['gross_profit']);
             $this->assertSame(1200.0, $report['net_profit']);
         } else {
             $this->assertSame(1700.0, $report['net_profit']);
         }
+    }
+
+    public function test_profit_and_loss_sub_type_subtotals_sum_to_section_total(): void
+    {
+        $income = $this->accountByCode(4000);
+        $this->postLine($income->id, 0, 750, '2026-02-01');
+
+        $report = $this->service->profitAndLoss('2026-02-01', '2026-02-28');
+
+        $sectionTotal = $report['sections']['income']['total'];
+        $subTypeSum = array_sum(array_column($report['sections']['income']['sub_types'], 'subtotal'));
+        $this->assertSame($sectionTotal, round($subTypeSum, 2));
     }
 
     public function test_profit_and_loss_excludes_transactions_outside_period(): void
@@ -171,7 +184,7 @@ class FinancialReportServiceTest extends CustomerAuthTestCase
 
         $report = $this->service->profitAndLoss('2026-02-01', '2026-02-28');
 
-        $this->assertSame(100.0, $report['income']['total']);
+        $this->assertSame(100.0, $report['sections']['income']['total']);
         $this->assertSame(100.0, $report['net_profit']);
     }
 

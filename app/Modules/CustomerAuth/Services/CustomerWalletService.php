@@ -172,14 +172,13 @@ class CustomerWalletService
         float $amount,
         ?string $description = null,
         ?string $idempotencyKey = null,
-        float $fee = 0.0,
         ?string $note = null
     ): array {
         return $this->idempotencyService->execute(
             $sender->id,
             self::SCOPE_TRANSFER,
             $idempotencyKey,
-            function () use ($sender, $recipientWalletId, $amount, $description, $fee, $note) {
+            function () use ($sender, $recipientWalletId, $amount, $description, $note) {
                 $this->assertCustomerCanUseWallet($sender);
 
                 $fromWallet = $this->resolveActiveWalletForCustomer($sender);
@@ -193,7 +192,7 @@ class CustomerWalletService
                 );
                 $toWallet->load('customer');
 
-                return $this->executeTransfer($sender, $fromWallet, $toWallet, $amount, $description, $fee, $note);
+                return $this->executeTransfer($sender, $fromWallet, $toWallet, $amount, $description, $note);
             }
         );
     }
@@ -241,7 +240,6 @@ class CustomerWalletService
         Wallet $toWallet,
         float $amount,
         ?string $description,
-        float $fee = 0.0,
         ?string $note = null
     ): array {
         if ($fromWallet->id === $toWallet->id) {
@@ -261,13 +259,14 @@ class CustomerWalletService
             throw new InvalidArgumentException('Cross-currency transfers are not supported.');
         }
 
+        $fee = $this->walletService->transferFee();
+
         $this->walletService->transfer(
             $fromWallet,
             $toWallet,
             $amount,
             $description,
             0,
-            $fee,
             $note
         );
 

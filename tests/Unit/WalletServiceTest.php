@@ -110,9 +110,11 @@ class WalletServiceTest extends TestCase
 
     public function test_transfer_with_fee_credits_fee_income(): void
     {
+        config(['services.wallet.transfer_fee' => 2]);
+
         [$senderWallet, $recipientWallet] = $this->createPair(500, 0);
 
-        $this->walletService->transfer($senderWallet, $recipientWallet, 50, 'Fee transfer', 0, 2);
+        $this->walletService->transfer($senderWallet, $recipientWallet, 50, 'Fee transfer');
 
         $senderWallet->refresh();
         $recipientWallet->refresh();

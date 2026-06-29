@@ -192,9 +192,11 @@ class CustomerWalletApiTest extends CustomerAuthTestCase
 
     public function test_transfer_with_fee_credits_fee_income(): void
     {
+        config(['services.wallet.transfer_fee' => 2]);
+
         [$sender, $recipient] = $this->createFundedCustomers(500.00, 0.00);
 
-        $this->transfer($sender, $recipient->wallet->wallet_id, 50.00, 'Fee test', null, 2.00)
+        $this->transfer($sender, $recipient->wallet->wallet_id, 50.00, 'Fee test')
             ->assertOk()
             ->assertJsonPath('data.recipient_amount', 48)
             ->assertJsonPath('data.sender_wallet.balance', 450);
@@ -395,7 +397,7 @@ class CustomerWalletApiTest extends CustomerAuthTestCase
     {
         [$sender, $recipient] = $this->createFundedCustomers(500.00, 0.00);
 
-        $this->transfer($sender, $recipient->wallet->wallet_id, 25.00, 'Lunch payment', null, null, 'Pizza note')
+        $this->transfer($sender, $recipient->wallet->wallet_id, 25.00, 'Lunch payment', null, 'Pizza note')
             ->assertOk();
         $this->transfer($sender, $recipient->wallet->wallet_id, 15.00, 'Coffee run')
             ->assertOk();
@@ -540,7 +542,6 @@ class CustomerWalletApiTest extends CustomerAuthTestCase
         float $amount,
         ?string $description = null,
         ?string $idempotencyKey = null,
-        ?float $fee = null,
         ?string $note = null
     ): TestResponse {
         $headers = [];
@@ -553,7 +554,6 @@ class CustomerWalletApiTest extends CustomerAuthTestCase
             ->postJson('/api/v1/customer/wallet/transfer', array_filter([
                 'recipient_wallet_id' => $recipientWalletId,
                 'amount' => $amount,
-                'fee' => $fee,
                 'description' => $description,
                 'note' => $note,
             ], fn ($value) => $value !== null));
