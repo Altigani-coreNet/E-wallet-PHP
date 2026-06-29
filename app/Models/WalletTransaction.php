@@ -33,6 +33,7 @@ class WalletTransaction extends Model
         'reference',
         'reference_id',
         'description',
+        'note',
         'created_by',
     ];
 

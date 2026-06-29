@@ -598,5 +598,28 @@ return [
                 'export_sales_reports',
             ],
         ],
+        'accounting_permissions' => [
+            'chart_of_accounts' => [
+                'view_chart_of_accounts',
+                'create_chart_of_accounts',
+                'edit_chart_of_accounts',
+                'delete_chart_of_accounts',
+                'import_chart_of_accounts',
+                'export_chart_of_accounts',
+            ],
+            'ledger' => [
+                'view_ledger',
+            ],
+            'reports' => [
+                'view_accounting_reports',
+            ],
+            'manage' => [
+                'manage_opening_capital',
+            ],
+            'wallets' => [
+                'cash_in_wallets',
+                'cash_out_wallets',
+            ],
+        ],
     ],
 ];

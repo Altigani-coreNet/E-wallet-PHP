@@ -7,6 +7,7 @@ use App\Models\Currency;
 use App\Models\Customer;
 use App\Models\Wallet;
 use App\Models\WalletTransaction;
+use App\Support\AccountCode;
 use Illuminate\Support\Facades\DB;
 use InvalidArgumentException;
 use RuntimeException;
@@ -17,9 +18,11 @@ class WalletService
 
     public const MASTER_USER_NUMBER = 'MASTER';
 
-    public const BANK_ACCOUNT_CODE = 1000;
+    /** @deprecated Use AccountCode::BANK */
+    public const BANK_ACCOUNT_CODE = AccountCode::BANK;
 
-    public const WALLET_LIABILITY_ACCOUNT_CODE = 2000;
+    /** @deprecated Use AccountCode::CUSTOMER_LIABILITY */
+    public const WALLET_LIABILITY_ACCOUNT_CODE = AccountCode::CUSTOMER_LIABILITY;
 
     public const DEFAULT_CURRENCY_CODE = 'SDG';
 
@@ -52,9 +55,9 @@ class WalletService
 
     public function createMasterWallet(): Wallet
     {
-        $liabilityAccount = $this->resolveWalletLiabilityAccount();
+        $liabilityAccount = $this->resolveMasterLiabilityAccount();
         if (! $liabilityAccount) {
-            throw new RuntimeException('Customer Wallet Liability account (2000) is not configured.');
+            throw new RuntimeException('Master Wallet Liability account (2050) is not configured.');
         }
 
         return Wallet::query()->firstOrCreate(
@@ -73,80 +76,305 @@ class WalletService
         );
     }
 
+    /**
+     * Legacy direct bank top-up (tests / back-compat). Prefer cashIn() for production flows.
+     */
     public function topUpFromBank(Wallet $wallet, float $amount, ?string $description = null, int $createdBy = 0): void
     {
-        $amount = round($amount, 2);
+        if ($wallet->isMaster()) {
+            $this->fundMaster($wallet, $this->normalizeAmount($amount), $description ?? 'Master float funded from bank', $createdBy);
 
-        if ($amount <= 0) {
-            throw new InvalidArgumentException('Top-up amount must be greater than zero.');
+            return;
         }
 
-        DB::transaction(function () use ($wallet, $amount, $description, $createdBy) {
-            $wallet = Wallet::query()->whereKey($wallet->id)->lockForUpdate()->firstOrFail();
+        $this->postDirectBankToLiability($wallet, $this->normalizeAmount($amount), LedgerService::REF_WALLET_TOPUP, 'topup', $description ?? 'Wallet top-up from bank', $createdBy);
+    }
+
+    /**
+     * Cash-in. For the master wallet this funds the float from the bank
+     * (DR Bank / CR Master). For a customer wallet the master issues e-money
+     * to the customer (DR Master / CR Customer); the master must hold enough float.
+     */
+    public function cashIn(Wallet $userWallet, float $amount, ?string $description = null, int $createdBy = 0): void
+    {
+        $amount = $this->normalizeAmount($amount);
+
+        $this->assertWalletIsActive($userWallet, 'Wallet is not available for cash-in.');
+
+        if ($userWallet->isMaster()) {
+            $this->fundMaster($userWallet, $amount, $description, $createdBy);
+
+            return;
+        }
+
+        DB::transaction(function () use ($userWallet, $amount, $description, $createdBy) {
+            [$master, $userWallet] = $this->lockWalletsInOrder(
+                $this->createMasterWallet(),
+                $userWallet
+            );
+
+            $this->assertSufficientBalance($master, $amount, 'Master float has insufficient balance for this cash-in.');
+
+            $referenceId = $this->walletReferenceId($userWallet);
 
             $this->ledgerService->post(
                 [
-                    ['account_code' => self::BANK_ACCOUNT_CODE, 'debit' => $amount, 'sub_id' => 0],
-                    ['account_code' => self::WALLET_LIABILITY_ACCOUNT_CODE, 'credit' => $amount, 'sub_id' => 1],
+                    ['account_code' => AccountCode::MASTER_LIABILITY, 'debit' => $amount, 'sub_id' => 0],
+                    ['account_code' => AccountCode::CUSTOMER_LIABILITY, 'credit' => $amount, 'sub_id' => 1],
                 ],
-                LedgerService::REF_WALLET_TOPUP,
-                $this->walletReferenceId($wallet),
+                LedgerService::REF_WALLET_CASH_IN,
+                $referenceId,
                 createdBy: $createdBy
             );
 
-            $newBalance = round((float) $wallet->balance + $amount, 2);
+            $masterBalance = round((float) $master->balance - $amount, 2);
+            $userBalance = round((float) $userWallet->balance + $amount, 2);
 
-            $wallet->update([
-                'balance' => $newBalance,
-                'available_balance' => $newBalance,
+            $master->update([
+                'balance' => $masterBalance,
+                'available_balance' => $masterBalance,
+            ]);
+
+            $userWallet->update([
+                'balance' => $userBalance,
+                'available_balance' => $userBalance,
             ]);
 
             WalletTransaction::create([
-                'wallet_id' => $wallet->id,
+                'wallet_id' => $master->id,
+                'type' => 'adjustment',
+                'direction' => 'debit',
+                'amount' => $amount,
+                'balance_after' => $masterBalance,
+                'reference' => LedgerService::REF_WALLET_CASH_IN,
+                'reference_id' => $referenceId,
+                'description' => $description ?? 'Master issue to customer (cash-in)',
+                'created_by' => $createdBy,
+            ]);
+
+            WalletTransaction::create([
+                'wallet_id' => $userWallet->id,
                 'type' => 'topup',
                 'direction' => 'credit',
                 'amount' => $amount,
-                'balance_after' => $newBalance,
-                'reference' => LedgerService::REF_WALLET_TOPUP,
-                'reference_id' => $this->walletReferenceId($wallet),
-                'description' => $description ?? 'Wallet top-up from bank',
+                'balance_after' => $userBalance,
+                'reference' => LedgerService::REF_WALLET_CASH_IN,
+                'reference_id' => $referenceId,
+                'description' => $description ?? 'Wallet cash-in',
                 'created_by' => $createdBy,
             ]);
         });
     }
 
-    public function transfer(Wallet $from, Wallet $to, float $amount, ?string $description = null, int $createdBy = 0): void
+    /**
+     * Cash-out. For the master wallet this withdraws float to the bank
+     * (DR Master / CR Bank). For a customer wallet the customer redeems
+     * e-money back to the master (DR Customer / CR Master).
+     */
+    public function cashOut(Wallet $userWallet, float $amount, ?string $description = null, int $createdBy = 0): void
     {
-        $amount = round($amount, 2);
+        $amount = $this->normalizeAmount($amount);
 
-        if ($amount <= 0) {
-            throw new InvalidArgumentException('Transfer amount must be greater than zero.');
+        $this->assertWalletIsActive($userWallet, 'Wallet is not available for cash-out.');
+
+        if ($userWallet->isMaster()) {
+            $this->defundMaster($userWallet, $amount, $description, $createdBy);
+
+            return;
+        }
+
+        DB::transaction(function () use ($userWallet, $amount, $description, $createdBy) {
+            [$master, $userWallet] = $this->lockWalletsInOrder(
+                $this->createMasterWallet(),
+                $userWallet
+            );
+
+            $this->assertSufficientBalance($userWallet, $amount);
+
+            $referenceId = $this->walletReferenceId($userWallet);
+
+            $this->ledgerService->post(
+                [
+                    ['account_code' => AccountCode::CUSTOMER_LIABILITY, 'debit' => $amount, 'sub_id' => 0],
+                    ['account_code' => AccountCode::MASTER_LIABILITY, 'credit' => $amount, 'sub_id' => 1],
+                ],
+                LedgerService::REF_WALLET_CASH_OUT,
+                $referenceId,
+                createdBy: $createdBy
+            );
+
+            $masterBalance = round((float) $master->balance + $amount, 2);
+            $userBalance = round((float) $userWallet->balance - $amount, 2);
+
+            $master->update([
+                'balance' => $masterBalance,
+                'available_balance' => $masterBalance,
+            ]);
+
+            $userWallet->update([
+                'balance' => $userBalance,
+                'available_balance' => $userBalance,
+            ]);
+
+            WalletTransaction::create([
+                'wallet_id' => $userWallet->id,
+                'type' => 'adjustment',
+                'direction' => 'debit',
+                'amount' => $amount,
+                'balance_after' => $userBalance,
+                'reference' => LedgerService::REF_WALLET_CASH_OUT,
+                'reference_id' => $referenceId,
+                'description' => $description ?? 'Wallet cash-out',
+                'created_by' => $createdBy,
+            ]);
+
+            WalletTransaction::create([
+                'wallet_id' => $master->id,
+                'type' => 'adjustment',
+                'direction' => 'credit',
+                'amount' => $amount,
+                'balance_after' => $masterBalance,
+                'reference' => LedgerService::REF_WALLET_CASH_OUT,
+                'reference_id' => $referenceId,
+                'description' => $description ?? 'Customer redeem to master (cash-out)',
+                'created_by' => $createdBy,
+            ]);
+        });
+    }
+
+    /**
+     * Operator funds the master float with real cash: DR Bank / CR Master.
+     */
+    private function fundMaster(Wallet $master, float $amount, ?string $description, int $createdBy): void
+    {
+        DB::transaction(function () use ($master, $amount, $description, $createdBy) {
+            $master = Wallet::query()->whereKey($master->id)->lockForUpdate()->firstOrFail();
+
+            $referenceId = $this->walletReferenceId($master);
+
+            $this->ledgerService->post(
+                [
+                    ['account_code' => AccountCode::BANK, 'debit' => $amount, 'sub_id' => 0],
+                    ['account_code' => AccountCode::MASTER_LIABILITY, 'credit' => $amount, 'sub_id' => 1],
+                ],
+                LedgerService::REF_WALLET_CASH_IN,
+                $referenceId,
+                createdBy: $createdBy
+            );
+
+            $newBalance = round((float) $master->balance + $amount, 2);
+
+            $master->update([
+                'balance' => $newBalance,
+                'available_balance' => $newBalance,
+            ]);
+
+            WalletTransaction::create([
+                'wallet_id' => $master->id,
+                'type' => 'topup',
+                'direction' => 'credit',
+                'amount' => $amount,
+                'balance_after' => $newBalance,
+                'reference' => LedgerService::REF_WALLET_CASH_IN,
+                'reference_id' => $referenceId,
+                'description' => $description ?? 'Master float funded from bank',
+                'created_by' => $createdBy,
+            ]);
+        });
+    }
+
+    /**
+     * Operator withdraws cash from the master float: DR Master / CR Bank.
+     */
+    private function defundMaster(Wallet $master, float $amount, ?string $description, int $createdBy): void
+    {
+        DB::transaction(function () use ($master, $amount, $description, $createdBy) {
+            $master = Wallet::query()->whereKey($master->id)->lockForUpdate()->firstOrFail();
+
+            $this->assertSufficientBalance($master, $amount, 'Master float has insufficient balance for this withdrawal.');
+
+            $referenceId = $this->walletReferenceId($master);
+
+            $this->ledgerService->post(
+                [
+                    ['account_code' => AccountCode::MASTER_LIABILITY, 'debit' => $amount, 'sub_id' => 0],
+                    ['account_code' => AccountCode::BANK, 'credit' => $amount, 'sub_id' => 1],
+                ],
+                LedgerService::REF_WALLET_CASH_OUT,
+                $referenceId,
+                createdBy: $createdBy
+            );
+
+            $newBalance = round((float) $master->balance - $amount, 2);
+
+            $master->update([
+                'balance' => $newBalance,
+                'available_balance' => $newBalance,
+            ]);
+
+            WalletTransaction::create([
+                'wallet_id' => $master->id,
+                'type' => 'adjustment',
+                'direction' => 'debit',
+                'amount' => $amount,
+                'balance_after' => $newBalance,
+                'reference' => LedgerService::REF_WALLET_CASH_OUT,
+                'reference_id' => $referenceId,
+                'description' => $description ?? 'Master float withdrawn to bank',
+                'created_by' => $createdBy,
+            ]);
+        });
+    }
+
+    public function transfer(
+        Wallet $from,
+        Wallet $to,
+        float $amount,
+        ?string $description = null,
+        int $createdBy = 0,
+        float $fee = 0.0,
+        ?string $note = null
+    ): void {
+        $amount = $this->normalizeAmount($amount);
+        $fee = round(max(0, $fee), 2);
+
+        if ($fee > $amount) {
+            throw new InvalidArgumentException('Fee cannot exceed transfer amount.');
         }
 
         if ($from->id === $to->id) {
             throw new InvalidArgumentException('Cannot transfer to the same wallet.');
         }
 
-        DB::transaction(function () use ($from, $to, $amount, $description, $createdBy) {
-            $fromWallet = Wallet::query()->whereKey($from->id)->lockForUpdate()->firstOrFail();
-            $toWallet = Wallet::query()->whereKey($to->id)->lockForUpdate()->firstOrFail();
+        if ($from->isMaster() || $to->isMaster()) {
+            throw new InvalidArgumentException('Transfers must be between customer wallets.');
+        }
 
-            if ((float) $fromWallet->available_balance < $amount) {
-                throw new InvalidArgumentException('Insufficient wallet balance for transfer.');
+        $recipientAmount = round($amount - $fee, 2);
+
+        DB::transaction(function () use ($from, $to, $amount, $fee, $recipientAmount, $description, $createdBy, $note) {
+            [$fromWallet, $toWallet] = $this->lockWalletsInOrder($from, $to);
+
+            $this->assertSufficientBalance($fromWallet, $amount);
+
+            $lines = [
+                ['account_code' => AccountCode::CUSTOMER_LIABILITY, 'debit' => $amount, 'sub_id' => 0],
+                ['account_code' => AccountCode::CUSTOMER_LIABILITY, 'credit' => $recipientAmount, 'sub_id' => 1],
+            ];
+
+            if ($fee > 0) {
+                $lines[] = ['account_code' => AccountCode::FEE_INCOME, 'credit' => $fee, 'sub_id' => 2];
             }
 
             $this->ledgerService->post(
-                [
-                    ['account_code' => self::WALLET_LIABILITY_ACCOUNT_CODE, 'debit' => $amount, 'sub_id' => 0],
-                    ['account_code' => self::WALLET_LIABILITY_ACCOUNT_CODE, 'credit' => $amount, 'sub_id' => 1],
-                ],
+                $lines,
                 LedgerService::REF_WALLET_TRANSFER,
                 $this->walletReferenceId($fromWallet),
                 createdBy: $createdBy
             );
 
             $fromBalance = round((float) $fromWallet->balance - $amount, 2);
-            $toBalance = round((float) $toWallet->balance + $amount, 2);
+            $toBalance = round((float) $toWallet->balance + $recipientAmount, 2);
 
             $fromWallet->update([
                 'balance' => $fromBalance,
@@ -167,6 +395,7 @@ class WalletService
                 'reference' => LedgerService::REF_WALLET_TRANSFER,
                 'reference_id' => $this->walletReferenceId($fromWallet),
                 'description' => $description ?? 'Wallet transfer out',
+                'note' => $note,
                 'created_by' => $createdBy,
             ]);
 
@@ -174,19 +403,169 @@ class WalletService
                 'wallet_id' => $toWallet->id,
                 'type' => 'transfer',
                 'direction' => 'credit',
-                'amount' => $amount,
+                'amount' => $recipientAmount,
                 'balance_after' => $toBalance,
                 'reference' => LedgerService::REF_WALLET_TRANSFER,
                 'reference_id' => $this->walletReferenceId($fromWallet),
                 'description' => $description ?? 'Wallet transfer in',
+                'note' => $note,
                 'created_by' => $createdBy,
             ]);
         });
     }
 
+    public function resolveRecipient(
+        string $identifier,
+        ?Wallet $excludeWallet = null,
+        bool $allowPhone = true,
+        string $selfWalletContext = 'transfer'
+    ): Wallet {
+        $identifier = trim($identifier);
+
+        if ($identifier === '') {
+            throw new InvalidArgumentException('Recipient identifier is required.');
+        }
+
+        $wallet = Wallet::query()
+            ->with(['customer'])
+            ->where(function ($query) use ($identifier, $allowPhone) {
+                $query->where('wallet_id', $identifier)
+                    ->orWhere('user_number', $identifier);
+
+                if ($allowPhone) {
+                    $query->orWhereHas('customer', function ($customerQuery) use ($identifier) {
+                        $customerQuery->where('phone', $identifier);
+                    });
+                }
+            })
+            ->first();
+
+        if (! $wallet) {
+            throw new InvalidArgumentException('Recipient wallet was not found.');
+        }
+
+        if ($wallet->isMaster()) {
+            throw new InvalidArgumentException('Cannot transfer to the master wallet.');
+        }
+
+        if ($excludeWallet !== null && $wallet->id === $excludeWallet->id) {
+            throw new InvalidArgumentException($this->selfWalletMessage($selfWalletContext));
+        }
+
+        return $wallet;
+    }
+
+    private function selfWalletMessage(string $context): string
+    {
+        return match ($context) {
+            'query' => 'You cannot search for your own wallet.',
+            default => 'You cannot transfer money to your own wallet.',
+        };
+    }
+
+    public function formatRecipient(Wallet $wallet): array
+    {
+        $customer = $wallet->customer;
+
+        return [
+            'recipient_wallet_id' => $wallet->wallet_id,
+            'wallet_uuid' => $wallet->id,
+            'owner_name' => $customer?->name,
+            'wallet_id' => $wallet->wallet_id,
+            'user_number' => $wallet->user_number,
+            'status' => $wallet->status,
+            'currency' => $wallet->currency_code,
+            'currency_code' => $wallet->currency_code,
+        ];
+    }
+
+    public function assertSufficientBalance(Wallet $wallet, float $needed, string $message = 'Insufficient wallet balance for this operation.'): void
+    {
+        $needed = round($needed, 2);
+
+        if ((float) $wallet->available_balance < $needed) {
+            throw new InvalidArgumentException($message);
+        }
+    }
+
     public function walletForCustomer(Customer $customer): ?Wallet
     {
         return Wallet::query()->where('customer_id', $customer->id)->first();
+    }
+
+    private function postDirectBankToLiability(
+        Wallet $wallet,
+        float $amount,
+        string $reference,
+        string $type,
+        string $description,
+        int $createdBy
+    ): void {
+        DB::transaction(function () use ($wallet, $amount, $reference, $type, $description, $createdBy) {
+            $wallet = Wallet::query()->whereKey($wallet->id)->lockForUpdate()->firstOrFail();
+
+            $this->ledgerService->post(
+                [
+                    ['account_code' => AccountCode::BANK, 'debit' => $amount, 'sub_id' => 0],
+                    ['account_code' => AccountCode::CUSTOMER_LIABILITY, 'credit' => $amount, 'sub_id' => 1],
+                ],
+                $reference,
+                $this->walletReferenceId($wallet),
+                createdBy: $createdBy
+            );
+
+            $newBalance = round((float) $wallet->balance + $amount, 2);
+
+            $wallet->update([
+                'balance' => $newBalance,
+                'available_balance' => $newBalance,
+            ]);
+
+            WalletTransaction::create([
+                'wallet_id' => $wallet->id,
+                'type' => $type,
+                'direction' => 'credit',
+                'amount' => $amount,
+                'balance_after' => $newBalance,
+                'reference' => $reference,
+                'reference_id' => $this->walletReferenceId($wallet),
+                'description' => $description,
+                'created_by' => $createdBy,
+            ]);
+        });
+    }
+
+    /**
+     * @return array{0: Wallet, 1: Wallet}
+     */
+    private function lockWalletsInOrder(Wallet $first, Wallet $second): array
+    {
+        $orderedIds = collect([$first->id, $second->id])->sort()->values();
+
+        $locked = [];
+        foreach ($orderedIds as $id) {
+            $locked[$id] = Wallet::query()->whereKey($id)->lockForUpdate()->firstOrFail();
+        }
+
+        return [$locked[$first->id], $locked[$second->id]];
+    }
+
+    private function assertWalletIsActive(Wallet $wallet, string $message): void
+    {
+        if ($wallet->status !== 'active') {
+            throw new InvalidArgumentException($message);
+        }
+    }
+
+    private function normalizeAmount(float $amount): float
+    {
+        $amount = round($amount, 2);
+
+        if ($amount <= 0) {
+            throw new InvalidArgumentException('Amount must be greater than zero.');
+        }
+
+        return $amount;
     }
 
     private function walletReferenceId(Wallet $wallet): int
@@ -201,7 +580,12 @@ class WalletService
 
     private function resolveWalletLiabilityAccount(): ?ChartOfAccount
     {
-        return ChartOfAccount::query()->byCode(self::WALLET_LIABILITY_ACCOUNT_CODE)->first();
+        return ChartOfAccount::query()->byCode(AccountCode::CUSTOMER_LIABILITY)->first();
+    }
+
+    private function resolveMasterLiabilityAccount(): ?ChartOfAccount
+    {
+        return ChartOfAccount::query()->byCode(AccountCode::MASTER_LIABILITY)->first();
     }
 
     private function resolveDefaultCurrencyId(): ?string

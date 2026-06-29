@@ -8,11 +8,8 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use App\Models\Wallet;
-use App\Services\WalletService;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Str;
-
 class Customer extends Model implements AuthenticatableContract
 {
     use Authenticatable, HasFactory, SoftDeletes;
@@ -47,31 +44,13 @@ class Customer extends Model implements AuthenticatableContract
     protected static function booted(): void
     {
         static::creating(function (Customer $customer) {
-            if (empty($customer->uuid)) {
-                $customer->uuid = (string) Str::uuid();
-            }
-
             if (empty($customer->status)) {
                 $customer->status = self::STATUS_PENDING;
             }
         });
-
-        static::created(function (Customer $customer) {
-            try {
-                app(WalletService::class)->createForCustomer($customer);
-            } catch (\Throwable) {
-                // Wallet infra may be unavailable in tests; customer creation must not fail.
-            }
-        });
-    }
-
-    public function getRouteKeyName(): string
-    {
-        return 'uuid';
     }
 
     protected $fillable = [
-        'uuid',
         'name',
         'email',
         'phone',

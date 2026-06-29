@@ -20,6 +20,17 @@
             <file>tests/Unit/CustomerStatusTest.php</file>
             <file>tests/Unit/AdminCustomerResourceTest.php</file>
         </testsuite>
+        <testsuite name="Ewallet">
+            <file>tests/Unit/WalletServiceTest.php</file>
+            <file>tests/Unit/Admin/AdminWalletServiceTest.php</file>
+            <file>tests/Unit/AdminWalletResourceTest.php</file>
+            <directory>tests/Unit/Accounting</directory>
+            <file>tests/Feature/AdminWalletMoneyApiTest.php</file>
+            <file>tests/Feature/AdminWalletApiTest.php</file>
+            <file>tests/Feature/WalletAccountingReconciliationTest.php</file>
+            <file>tests/Feature/CustomerWalletApiTest.php</file>
+            <file>tests/Feature/AdminAccountingApiTest.php</file>
+        </testsuite>
     </testsuites>
     <source>
         <include>

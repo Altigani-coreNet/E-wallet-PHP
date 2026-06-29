@@ -56,9 +56,10 @@ class WalletE2eSeeder extends Seeder
             ?? $walletService->createForCustomer($recipient);
 
         if ($senderWallet && (float) $senderWallet->balance < 1000) {
+            $walletService->createMasterWallet();
             $topUpAmount = 1000 - (float) $senderWallet->balance;
             if ($topUpAmount > 0) {
-                $walletService->topUpFromBank($senderWallet, $topUpAmount, 'E2E sender funding');
+                $walletService->cashIn($senderWallet, $topUpAmount, 'E2E sender funding');
             }
         }
 

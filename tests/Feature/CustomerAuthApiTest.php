@@ -134,6 +134,9 @@ class CustomerAuthApiTest extends CustomerAuthTestCase
             ->assertJsonStructure([
                 'data' => [
                     'token',
+                    'refresh_token',
+                    'expires_in',
+                    'refresh_token_expires_in',
                     'customer' => [
                         'id',
                         'phone',
@@ -244,7 +247,7 @@ class CustomerAuthApiTest extends CustomerAuthTestCase
                 ],
             ])
             ->assertJsonStructure([
-                'data' => ['token'],
+                'data' => ['token', 'refresh_token'],
             ]);
     }
 
@@ -305,16 +308,134 @@ class CustomerAuthApiTest extends CustomerAuthTestCase
                 'message' => 'Password reset successfully',
             ])
             ->assertJsonStructure([
-                'data' => ['token'],
+                'data' => ['token', 'refresh_token'],
             ]);
 
         $customer = Customer::query()->where('phone', self::TEST_PHONE)->first();
         $this->assertTrue(Hash::check(self::VALID_PASSWORD, $customer->password));
     }
 
-    public function test_can_refresh_token(): void
+    public function test_can_refresh_token_with_refresh_token_body(): void
     {
-        $customer = Customer::factory()->active()->create([
+        Customer::factory()->active()->create([
+            'phone' => self::TEST_PHONE,
+            'password' => Hash::make(self::VALID_PASSWORD),
+        ]);
+
+        $loginResponse = $this->postJson('/api/v1/customer/auth/login', [
+            'phone' => self::TEST_PHONE,
+            'password' => self::VALID_PASSWORD,
+        ]);
+
+        $refreshToken = $loginResponse->json('data.refresh_token');
+        $this->assertNotEmpty($refreshToken);
+
+        $response = $this->postJson('/api/v1/customer/auth/refresh-token', [
+            'refresh_token' => $refreshToken,
+        ]);
+
+        $response->assertOk()
+            ->assertJson([
+                'success' => true,
+                'message' => 'Token refreshed successfully',
+            ])
+            ->assertJsonStructure([
+                'data' => [
+                    'token',
+                    'refresh_token',
+                    'expires_in',
+                    'refresh_token_expires_in',
+                    'customer' => ['id'],
+                ],
+            ]);
+
+        $this->assertNotSame($refreshToken, $response->json('data.refresh_token'));
+        $this->assertNotEmpty($response->json('data.token'));
+    }
+
+    public function test_can_refresh_token_with_bearer_fallback(): void
+    {
+        Customer::factory()->active()->create([
+            'phone' => self::TEST_PHONE,
+            'password' => Hash::make(self::VALID_PASSWORD),
+        ]);
+
+        $loginResponse = $this->postJson('/api/v1/customer/auth/login', [
+            'phone' => self::TEST_PHONE,
+            'password' => self::VALID_PASSWORD,
+        ]);
+
+        $response = $this->withHeaders([
+            'Authorization' => 'Bearer '.$loginResponse->json('data.refresh_token'),
+        ])->postJson('/api/v1/customer/auth/refresh-token');
+
+        $response->assertOk()
+            ->assertJson([
+                'success' => true,
+                'message' => 'Token refreshed successfully',
+            ]);
+    }
+
+    public function test_refresh_token_rejects_access_token(): void
+    {
+        Customer::factory()->active()->create([
+            'phone' => self::TEST_PHONE,
+            'password' => Hash::make(self::VALID_PASSWORD),
+        ]);
+
+        $loginResponse = $this->postJson('/api/v1/customer/auth/login', [
+            'phone' => self::TEST_PHONE,
+            'password' => self::VALID_PASSWORD,
+        ]);
+
+        $response = $this->postJson('/api/v1/customer/auth/refresh-token', [
+            'refresh_token' => $loginResponse->json('data.token'),
+        ]);
+
+        $response->assertStatus(401)
+            ->assertJson([
+                'success' => false,
+                'message' => 'Unauthorized',
+            ]);
+    }
+
+    public function test_refresh_token_requires_valid_token(): void
+    {
+        $response = $this->postJson('/api/v1/customer/auth/refresh-token');
+
+        $response->assertStatus(401)
+            ->assertJson([
+                'success' => false,
+                'message' => 'Unauthorized',
+            ]);
+    }
+
+    public function test_refresh_token_cannot_access_protected_routes(): void
+    {
+        $customer = Customer::factory()->create([
+            'phone' => self::TEST_PHONE,
+        ]);
+
+        $refresh = app(CustomerJwtService::class)->createRefreshToken(
+            $customer->id,
+            $customer->email ?: $customer->phone,
+        );
+
+        $this->withHeaders([
+            'Authorization' => 'Bearer '.$refresh['token'],
+        ])->getJson('/api/v1/customer/profile')
+            ->assertStatus(401)
+            ->assertJson([
+                'success' => false,
+                'message' => 'Unauthorized',
+            ]);
+    }
+
+    public function test_can_change_password(): void
+    {
+        $newPassword = 'NewSecure1!';
+
+        Customer::factory()->active()->create([
             'phone' => self::TEST_PHONE,
             'password' => Hash::make(self::VALID_PASSWORD),
         ]);
@@ -326,31 +447,97 @@ class CustomerAuthApiTest extends CustomerAuthTestCase
 
         $response = $this->withHeaders([
             'Authorization' => 'Bearer '.$loginResponse->json('data.token'),
-        ])->postJson('/api/v1/customer/auth/refresh-token');
+        ])->postJson('/api/v1/customer/password/change', [
+            'current_password' => self::VALID_PASSWORD,
+            'password' => $newPassword,
+            'password_confirmation' => $newPassword,
+        ]);
 
         $response->assertOk()
             ->assertJson([
                 'success' => true,
-                'message' => 'Token refreshed successfully',
+                'message' => 'Password changed successfully',
             ])
             ->assertJsonStructure([
-                'data' => [
-                    'token',
-                    'customer' => ['id'],
-                ],
+                'data' => ['token', 'refresh_token'],
             ]);
 
-        $this->assertNotEmpty($response->json('data.token'));
+        $this->postJson('/api/v1/customer/auth/login', [
+            'phone' => self::TEST_PHONE,
+            'password' => self::VALID_PASSWORD,
+        ])->assertStatus(401);
+
+        $this->postJson('/api/v1/customer/auth/login', [
+            'phone' => self::TEST_PHONE,
+            'password' => $newPassword,
+        ])->assertOk();
     }
 
-    public function test_refresh_token_requires_valid_token(): void
+    public function test_change_password_fails_with_wrong_current_password(): void
     {
-        $response = $this->postJson('/api/v1/customer/auth/refresh-token');
+        Customer::factory()->active()->create([
+            'phone' => self::TEST_PHONE,
+            'password' => Hash::make(self::VALID_PASSWORD),
+        ]);
+
+        $loginResponse = $this->postJson('/api/v1/customer/auth/login', [
+            'phone' => self::TEST_PHONE,
+            'password' => self::VALID_PASSWORD,
+        ]);
+
+        $response = $this->withHeaders([
+            'Authorization' => 'Bearer '.$loginResponse->json('data.token'),
+        ])->postJson('/api/v1/customer/password/change', [
+            'current_password' => 'WrongPass1!',
+            'password' => 'NewSecure1!',
+            'password_confirmation' => 'NewSecure1!',
+        ]);
+
+        $response->assertStatus(400)
+            ->assertJson([
+                'success' => false,
+                'message' => 'Current password is incorrect',
+            ]);
+    }
+
+    public function test_change_password_requires_authentication(): void
+    {
+        $response = $this->postJson('/api/v1/customer/password/change', [
+            'current_password' => self::VALID_PASSWORD,
+            'password' => 'NewSecure1!',
+            'password_confirmation' => 'NewSecure1!',
+        ]);
 
         $response->assertStatus(401)
             ->assertJson([
                 'success' => false,
                 'message' => 'Unauthorized',
+            ]);
+    }
+
+    public function test_change_password_validation_requires_strong_password(): void
+    {
+        Customer::factory()->active()->create([
+            'phone' => self::TEST_PHONE,
+            'password' => Hash::make(self::VALID_PASSWORD),
+        ]);
+
+        $loginResponse = $this->postJson('/api/v1/customer/auth/login', [
+            'phone' => self::TEST_PHONE,
+            'password' => self::VALID_PASSWORD,
+        ]);
+
+        $response = $this->withHeaders([
+            'Authorization' => 'Bearer '.$loginResponse->json('data.token'),
+        ])->postJson('/api/v1/customer/password/change', [
+            'current_password' => self::VALID_PASSWORD,
+            'password' => 'weakpass',
+            'password_confirmation' => 'weakpass',
+        ]);
+
+        $response->assertStatus(422)
+            ->assertJson([
+                'success' => false,
             ]);
     }
 
@@ -648,6 +835,9 @@ class CustomerAuthApiTest extends CustomerAuthTestCase
             ->assertStatus(401);
 
         $this->postJson('/api/v1/customer/auth/logout')
+            ->assertStatus(401);
+
+        $this->postJson('/api/v1/customer/password/change')
             ->assertStatus(401);
 
         $this->getJson('/api/v1/customer/banners')

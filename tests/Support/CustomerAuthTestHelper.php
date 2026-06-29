@@ -26,6 +26,7 @@ trait CustomerAuthTestHelper
             'services.otp.mock_code' => 111111,
             'services.jwt.secret' => 'test-secret-for-customer-auth',
             'services.jwt.expires_in' => '7d',
+            'services.jwt.refresh_expires_in' => '30d',
             'services.jwt.refresh_grace' => '7d',
         ]);
     }

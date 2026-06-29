@@ -1,8 +1,10 @@
 <?php
 
-namespace App\Modules\CustomerAuth\Requests;
+namespace App\Http\Requests\Admin;
 
-class CustomerWalletTransferByWalletIdRequest extends CustomerAuthFormRequest
+use Illuminate\Foundation\Http\FormRequest;
+
+class AdminWalletCashOutRequest extends FormRequest
 {
     public function authorize(): bool
     {
@@ -12,10 +14,8 @@ class CustomerWalletTransferByWalletIdRequest extends CustomerAuthFormRequest
     public function rules(): array
     {
         return [
-            'recipient_wallet_id' => ['required', 'string', 'max:255'],
             'amount' => ['required', 'numeric', 'min:0.01'],
             'description' => ['nullable', 'string', 'max:255'],
-            'idempotency_key' => ['nullable', 'string', 'max:255'],
         ];
     }
 }

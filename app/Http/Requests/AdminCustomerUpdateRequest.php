@@ -16,7 +16,7 @@ class AdminCustomerUpdateRequest extends FormRequest
     public function rules(): array
     {
         $customer = Customer::query()
-            ->where('uuid', $this->route('uuid'))
+            ->whereKey($this->route('id'))
             ->first();
 
         $customerId = $customer?->id;

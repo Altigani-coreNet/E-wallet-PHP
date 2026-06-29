@@ -47,7 +47,7 @@ class AdminCustomerApiIntegrationTest extends CustomerAuthTestCase
         $response->assertCreated()
             ->assertJsonPath('success', true)
             ->assertJsonPath('data.status', Customer::STATUS_PENDING)
-            ->assertJsonPath('data.uuid', fn ($uuid) => is_string($uuid) && $uuid !== '');
+            ->assertJsonPath('data.id', fn ($id) => is_int($id) || (is_string($id) && $id !== ''));
 
         $this->assertDatabaseHas('customers', [
             'email' => 'pending@example.com',
@@ -76,7 +76,7 @@ class AdminCustomerApiIntegrationTest extends CustomerAuthTestCase
         ]);
     }
 
-    public function test_admin_can_show_customer_by_uuid(): void
+    public function test_admin_can_show_customer_by_id(): void
     {
         $customer = $this->createCustomer([
             'email' => 'show@example.com',
@@ -85,10 +85,10 @@ class AdminCustomerApiIntegrationTest extends CustomerAuthTestCase
         ]);
 
         $response = $this->actingAsAdminApi()
-            ->getJson("/api/v2/admin/customers/{$customer->uuid}");
+            ->getJson("/api/v2/admin/customers/{$customer->id}");
 
         $response->assertOk()
-            ->assertJsonPath('data.uuid', $customer->uuid)
+            ->assertJsonPath('data.id', $customer->id)
             ->assertJsonPath('data.email', 'show@example.com')
             ->assertJsonPath('data.status', Customer::STATUS_ACTIVE)
             ->assertJsonPath('data.country_name', 'Sudan')
@@ -105,7 +105,7 @@ class AdminCustomerApiIntegrationTest extends CustomerAuthTestCase
         ]);
 
         $response = $this->actingAsAdminApi()->putJson(
-            "/api/v2/admin/customers/{$customer->uuid}",
+            "/api/v2/admin/customers/{$customer->id}",
             [
                 'name' => 'After Update',
                 'email' => 'updated@example.com',
@@ -122,7 +122,7 @@ class AdminCustomerApiIntegrationTest extends CustomerAuthTestCase
             ->assertJsonPath('data.status', Customer::STATUS_ACTIVE);
 
         $this->assertDatabaseHas('customers', [
-            'uuid' => $customer->uuid,
+            'id' => $customer->id,
             'name' => 'After Update',
             'email' => 'updated@example.com',
             'address' => 'New Street',
@@ -139,7 +139,7 @@ class AdminCustomerApiIntegrationTest extends CustomerAuthTestCase
         ]);
 
         $response = $this->actingAsAdminApi()->postJson(
-            "/api/v2/admin/customers/{$customer->uuid}/status",
+            "/api/v2/admin/customers/{$customer->id}/status",
             ['status' => Customer::STATUS_SUSPENDED]
         );
 
@@ -147,7 +147,7 @@ class AdminCustomerApiIntegrationTest extends CustomerAuthTestCase
             ->assertJsonPath('data.status', Customer::STATUS_SUSPENDED);
 
         $this->assertDatabaseHas('customers', [
-            'uuid' => $customer->uuid,
+            'id' => $customer->id,
             'status' => Customer::STATUS_SUSPENDED,
         ]);
     }
@@ -277,18 +277,18 @@ class AdminCustomerApiIntegrationTest extends CustomerAuthTestCase
         ]);
 
         $this->actingAsAdminApi()
-            ->deleteJson("/api/v2/admin/customers/{$customer->uuid}")
+            ->deleteJson("/api/v2/admin/customers/{$customer->id}")
             ->assertOk();
 
-        $this->assertSoftDeleted('customers', ['uuid' => $customer->uuid]);
+        $this->assertSoftDeleted('customers', ['id' => $customer->id]);
 
-        $trashed = Customer::withTrashed()->where('uuid', $customer->uuid)->firstOrFail();
+        $trashed = Customer::withTrashed()->whereKey($customer->id)->firstOrFail();
         $this->assertSame(Customer::STATUS_DELETED, $trashed->status);
         $this->assertSame("deleted_{$customer->id}_+249911100012", $trashed->phone);
         $this->assertSame("deleted_{$customer->id}_delete@example.com", $trashed->email);
     }
 
-    public function test_admin_bulk_delete_uses_uuids_and_updates_database(): void
+    public function test_admin_bulk_delete_uses_ids_and_updates_database(): void
     {
         $first = $this->createCustomer([
             'email' => 'bulk1@example.com',
@@ -300,12 +300,12 @@ class AdminCustomerApiIntegrationTest extends CustomerAuthTestCase
         ]);
 
         $this->actingAsAdminApi()->postJson('/api/v2/admin/customers/bulk-delete', [
-            'ids' => [$first->uuid, $second->uuid],
+            'ids' => [$first->id, $second->id],
         ])->assertOk()
             ->assertJsonPath('data.deleted_count', 2);
 
-        $this->assertSoftDeleted('customers', ['uuid' => $first->uuid]);
-        $this->assertSoftDeleted('customers', ['uuid' => $second->uuid]);
+        $this->assertSoftDeleted('customers', ['id' => $first->id]);
+        $this->assertSoftDeleted('customers', ['id' => $second->id]);
     }
 
     public function test_status_endpoint_rejects_invalid_status(): void
@@ -316,7 +316,7 @@ class AdminCustomerApiIntegrationTest extends CustomerAuthTestCase
         ]);
 
         $this->actingAsAdminApi()->postJson(
-            "/api/v2/admin/customers/{$customer->uuid}/status",
+            "/api/v2/admin/customers/{$customer->id}/status",
             ['status' => 'deleted']
         )->assertUnprocessable();
     }
@@ -354,13 +354,13 @@ class AdminCustomerApiIntegrationTest extends CustomerAuthTestCase
 
         foreach ($transitions as $status) {
             $this->actingAsAdminApi()->postJson(
-                "/api/v2/admin/customers/{$customer->uuid}/status",
+                "/api/v2/admin/customers/{$customer->id}/status",
                 ['status' => $status]
             )->assertOk()
                 ->assertJsonPath('data.status', $status);
 
             $this->assertDatabaseHas('customers', [
-                'uuid' => $customer->uuid,
+                'id' => $customer->id,
                 'status' => $status,
             ]);
         }
@@ -419,7 +419,7 @@ class AdminCustomerApiIntegrationTest extends CustomerAuthTestCase
         ]);
 
         $response = $this->actingAsAdminApi()->post(
-            "/api/v2/admin/customers/{$customer->uuid}",
+            "/api/v2/admin/customers/{$customer->id}",
             [
                 '_method' => 'PUT',
                 'name' => 'After Multipart',
@@ -464,12 +464,12 @@ class AdminCustomerApiIntegrationTest extends CustomerAuthTestCase
             'email' => 'unauth@example.com',
             'phone' => '+249911100022',
         ])->assertUnauthorized();
-        $this->putJson("/api/v2/admin/customers/{$customer->uuid}", [
+        $this->putJson("/api/v2/admin/customers/{$customer->id}", [
             'name' => 'Unauthorized',
             'email' => 'auth@example.com',
             'phone' => '+249911100021',
         ])->assertUnauthorized();
-        $this->deleteJson("/api/v2/admin/customers/{$customer->uuid}")->assertUnauthorized();
+        $this->deleteJson("/api/v2/admin/customers/{$customer->id}")->assertUnauthorized();
     }
 
     public function test_store_validation_rejects_missing_required_fields(): void

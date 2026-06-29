@@ -13,9 +13,15 @@ return new class extends Migration
     {
         Schema::create('customers', function (Blueprint $table) {
             $table->id();
-            $table->string('name');
-            $table->string('email');
-            $table->string('phone');
+            $table->string('name')->nullable();
+            $table->string('email')->nullable();
+            $table->string('phone')->unique();
+            $table->string('password')->nullable();
+            $table->decimal('balance', 20, 2)->default(0);
+            $table->dateTime('birth_date')->nullable();
+            $table->string('gender')->nullable();
+            $table->string('national_id', 50)->nullable()->unique();
+            $table->string('profile_image')->nullable();
             $table->string('address')->nullable();
             $table->uuid('country_id')->nullable();
             $table->uuid('merchant_country_id')->nullable();
@@ -23,14 +29,11 @@ return new class extends Migration
             $table->string('state')->nullable();
             $table->string('zip')->nullable();
             $table->uuid('merchant_id')->nullable();
-            // $table->foreignId('merchant_id')->constrained('merchants');
+            $table->boolean('profile_completed')->default(false);
+            $table->string('status', 20)->default('pending');
             $table->timestamps();
+            $table->softDeletes();
         });
-
-        // Schema::table('customers', function (Blueprint $table) {
-        //     $table->foreign('country_id')->references('id')->on('countries')->onDelete('set null');
-        //     $table->foreign('city_id')->references('id')->on('cities')->onDelete('set null');
-        // });
     }
 
     /**

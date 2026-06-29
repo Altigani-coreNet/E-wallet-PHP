@@ -28,38 +28,38 @@ class AdminCustomerResourceTest extends TestCase
         ]);
 
         $customer = new Customer([
-            'uuid' => '550e8400-e29b-41d4-a716-446655440000',
             'name' => 'Resource Customer',
             'email' => 'resource@example.com',
             'phone' => '+249900000001',
             'status' => Customer::STATUS_PENDING,
             'balance' => 10.5,
         ]);
+        $customer->id = 1;
 
         $customer->setRelation('country', $country);
         $customer->setRelation('city', $city);
 
         $payload = AdminCustomerResource::make($customer)->toArray(Request::create('/'));
 
-        $this->assertSame('550e8400-e29b-41d4-a716-446655440000', $payload['uuid']);
+        $this->assertSame(1, $payload['id']);
         $this->assertSame(Customer::STATUS_PENDING, $payload['status']);
         $this->assertSame('Sudan', $payload['country_name']);
         $this->assertSame('Khartoum', $payload['city_name']);
         $this->assertSame('Sudan', $payload['country']['name']);
         $this->assertSame('Khartoum', $payload['city']['name']);
-        $this->assertArrayNotHasKey('id', $payload);
+        $this->assertArrayNotHasKey('uuid', $payload);
     }
 
     public function test_resource_returns_null_profile_image_url_when_missing(): void
     {
         $customer = new Customer([
-            'uuid' => '550e8400-e29b-41d4-a716-446655440001',
             'name' => 'No Image',
             'email' => 'no-image@example.com',
             'phone' => '+249900000002',
             'status' => Customer::STATUS_ACTIVE,
             'profile_image' => null,
         ]);
+        $customer->id = 2;
 
         $payload = AdminCustomerResource::make($customer)->toArray(Request::create('/'));
 
@@ -69,13 +69,13 @@ class AdminCustomerResourceTest extends TestCase
     public function test_resource_returns_profile_image_url_when_image_set(): void
     {
         $customer = new Customer([
-            'uuid' => '550e8400-e29b-41d4-a716-446655440002',
             'name' => 'With Image',
             'email' => 'with-image@example.com',
             'phone' => '+249900000003',
             'status' => Customer::STATUS_ACTIVE,
             'profile_image' => 'customer_profiles/test.jpg',
         ]);
+        $customer->id = 3;
 
         $payload = AdminCustomerResource::make($customer)->toArray(Request::create('/'));
 

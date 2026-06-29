@@ -6,18 +6,22 @@ use Firebase\JWT\ExpiredException;
 use Firebase\JWT\JWT;
 use Firebase\JWT\Key;
 use Firebase\JWT\SignatureInvalidException;
+use Illuminate\Support\Str;
 
 class CustomerJwtService
 {
     public function createToken(int|string $id, string $email, string $type = 'customer'): array
     {
         $now = time();
+        $expiresIn = $this->expiresInSeconds();
         $payload = [
             'sub' => (string) $id,
             'email' => $email,
             'type' => $type,
+            'token_use' => 'access',
+            'jti' => (string) Str::uuid(),
             'iat' => $now,
-            'exp' => $now + $this->expiresInSeconds(),
+            'exp' => $now + $expiresIn,
         ];
 
         $token = JWT::encode($payload, $this->secret(), 'HS256');
@@ -25,12 +29,46 @@ class CustomerJwtService
         return [
             'token' => $token,
             'tokenType' => 'Bearer',
+            'expiresIn' => $expiresIn,
+        ];
+    }
+
+    public function createRefreshToken(int|string $id, string $email, string $type = 'customer'): array
+    {
+        $now = time();
+        $expiresIn = $this->refreshExpiresInSeconds();
+        $payload = [
+            'sub' => (string) $id,
+            'email' => $email,
+            'type' => $type,
+            'token_use' => 'refresh',
+            'jti' => (string) Str::uuid(),
+            'iat' => $now,
+            'exp' => $now + $expiresIn,
+        ];
+
+        $token = JWT::encode($payload, $this->secret(), 'HS256');
+
+        return [
+            'token' => $token,
+            'expiresIn' => $expiresIn,
         ];
     }
 
     public function decode(string $token): object
     {
         return JWT::decode($token, new Key($this->secret(), 'HS256'));
+    }
+
+    public function decodeRefreshToken(string $token): object
+    {
+        $payload = $this->decode($token);
+
+        if (($payload->token_use ?? null) !== 'refresh') {
+            throw new \UnexpectedValueException('Invalid refresh token');
+        }
+
+        return $payload;
     }
 
     public function decodeForRefresh(string $token): object
@@ -64,6 +102,11 @@ class CustomerJwtService
     private function expiresInSeconds(): int
     {
         return $this->parseDuration(config('services.jwt.expires_in', '7d'));
+    }
+
+    private function refreshExpiresInSeconds(): int
+    {
+        return $this->parseDuration(config('services.jwt.refresh_expires_in', '30d'));
     }
 
     private function parseDuration(mixed $value): int

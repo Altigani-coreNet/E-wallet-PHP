@@ -578,14 +578,49 @@ Route::prefix('v2/admin')->middleware([
 // Admin customer API (Payment admin dashboard)
 Route::prefix('v2/admin')->middleware(['auth:admin-api'])->group(function () {
     Route::get('customers', [AdminCustomerApiController::class, 'index']);
-    Route::get('customers/{uuid}', [AdminCustomerApiController::class, 'show']);
+    Route::get('customers/{id}', [AdminCustomerApiController::class, 'show']);
     Route::post('customers', [AdminCustomerApiController::class, 'store']);
-    Route::put('customers/{uuid}', [AdminCustomerApiController::class, 'update']);
-    Route::delete('customers/{uuid}', [AdminCustomerApiController::class, 'destroy']);
+    Route::put('customers/{id}', [AdminCustomerApiController::class, 'update']);
+    Route::delete('customers/{id}', [AdminCustomerApiController::class, 'destroy']);
     Route::post('customers/bulk-delete', [AdminCustomerApiController::class, 'bulkDelete']);
-    Route::post('customers/{uuid}/status', [AdminCustomerApiController::class, 'updateStatus']);
-    Route::post('customers/{uuid}/toggle-status', [AdminCustomerApiController::class, 'toggleStatus']);
-    Route::post('customers/{uuid}/resend-password-invite', [AdminCustomerApiController::class, 'resendPasswordInvite']);
+    Route::post('customers/{id}/status', [AdminCustomerApiController::class, 'updateStatus']);
+    Route::post('customers/{id}/toggle-status', [AdminCustomerApiController::class, 'toggleStatus']);
+    Route::post('customers/{id}/resend-password-invite', [AdminCustomerApiController::class, 'resendPasswordInvite']);
+
+    Route::prefix('wallets')->group(function () {
+        Route::get('/', [\App\Http\Controllers\Api\V2\Admin\AdminWalletController::class, 'index']);
+        Route::get('/export', [\App\Http\Controllers\Api\V2\Admin\AdminWalletController::class, 'export']);
+        Route::get('/transactions', [\App\Http\Controllers\Api\V2\Admin\AdminWalletController::class, 'allTransactions']);
+        Route::get('/transactions/export', [\App\Http\Controllers\Api\V2\Admin\AdminWalletController::class, 'exportTransactions']);
+        Route::post('/opening-capital', [\App\Http\Controllers\Api\V2\Admin\AdminWalletController::class, 'openingCapital']);
+        Route::get('/{id}', [\App\Http\Controllers\Api\V2\Admin\AdminWalletController::class, 'show']);
+        Route::get('/{id}/transactions', [\App\Http\Controllers\Api\V2\Admin\AdminWalletController::class, 'transactions']);
+        Route::post('/{id}/cash-in', [\App\Http\Controllers\Api\V2\Admin\AdminWalletController::class, 'cashIn']);
+        Route::post('/{id}/cash-out', [\App\Http\Controllers\Api\V2\Admin\AdminWalletController::class, 'cashOut']);
+        Route::post('/{id}/suspend', [\App\Http\Controllers\Api\V2\Admin\AdminWalletController::class, 'suspend']);
+        Route::post('/{id}/activate', [\App\Http\Controllers\Api\V2\Admin\AdminWalletController::class, 'activate']);
+        Route::delete('/{id}', [\App\Http\Controllers\Api\V2\Admin\AdminWalletController::class, 'destroy']);
+    });
+
+    Route::prefix('accounting')->group(function () {
+        Route::get('account-types', [\App\Modules\Accounting\Controllers\ChartOfAccountController::class, 'types']);
+        Route::get('chart-of-accounts/next-code', [\App\Modules\Accounting\Controllers\ChartOfAccountController::class, 'nextCode']);
+        Route::get('chart-of-accounts/export', [\App\Modules\Accounting\Controllers\ChartOfAccountController::class, 'export']);
+        Route::get('chart-of-accounts/sample', [\App\Modules\Accounting\Controllers\ChartOfAccountController::class, 'sample']);
+        Route::post('chart-of-accounts/import', [\App\Modules\Accounting\Controllers\ChartOfAccountController::class, 'import']);
+        Route::get('chart-of-accounts', [\App\Modules\Accounting\Controllers\ChartOfAccountController::class, 'index']);
+        Route::post('chart-of-accounts', [\App\Modules\Accounting\Controllers\ChartOfAccountController::class, 'store']);
+        Route::get('chart-of-accounts/{id}', [\App\Modules\Accounting\Controllers\ChartOfAccountController::class, 'show']);
+        Route::put('chart-of-accounts/{id}', [\App\Modules\Accounting\Controllers\ChartOfAccountController::class, 'update']);
+        Route::delete('chart-of-accounts/{id}', [\App\Modules\Accounting\Controllers\ChartOfAccountController::class, 'destroy']);
+        Route::get('ledger/export', [\App\Modules\Accounting\Controllers\LedgerController::class, 'export']);
+        Route::get('ledger/customers', [\App\Modules\Accounting\Controllers\LedgerController::class, 'customers']);
+        Route::get('ledger', [\App\Modules\Accounting\Controllers\LedgerController::class, 'index']);
+        Route::get('reports/balance-sheet/export', [\App\Modules\Accounting\Controllers\ReportController::class, 'balanceSheetExport']);
+        Route::get('reports/balance-sheet', [\App\Modules\Accounting\Controllers\ReportController::class, 'balanceSheet']);
+        Route::get('reports/profit-loss', [\App\Modules\Accounting\Controllers\ReportController::class, 'profitLoss']);
+        Route::get('reports/trial-balance', [\App\Modules\Accounting\Controllers\ReportController::class, 'trialBalance']);
+    });
 });
 
 // V3 Admin API Routes
@@ -880,11 +915,16 @@ Route::prefix('v1/customer')->group(function () {
         Route::get('profile', [\App\Modules\CustomerAuth\Controllers\CustomerAuthController::class, 'profile']);
         Route::post('profile/complete', [\App\Modules\CustomerAuth\Controllers\CustomerAuthController::class, 'completeProfile']);
         Route::post('profile/update', [\App\Modules\CustomerAuth\Controllers\CustomerAuthController::class, 'updateProfile']);
+        Route::post('password/change', [\App\Modules\CustomerAuth\Controllers\CustomerAuthController::class, 'changePassword']);
         Route::post('auth/logout', [\App\Modules\CustomerAuth\Controllers\CustomerAuthController::class, 'logout']);
         Route::get('wallet/dashboard', [\App\Modules\CustomerAuth\Controllers\CustomerWalletController::class, 'dashboard']);
-        Route::post('wallet/transfer/by-wallet-id', [\App\Modules\CustomerAuth\Controllers\CustomerWalletController::class, 'transferByWalletId'])
+        Route::get('wallet/query', [\App\Modules\CustomerAuth\Controllers\CustomerWalletController::class, 'query'])
             ->middleware('customer.active');
-        Route::post('wallet/transfer/by-phone', [\App\Modules\CustomerAuth\Controllers\CustomerWalletController::class, 'transferByPhone'])
+        Route::get('wallet/resolve-recipient', [\App\Modules\CustomerAuth\Controllers\CustomerWalletController::class, 'resolveRecipient'])
+            ->middleware('customer.active');
+        Route::post('wallet/transfer', [\App\Modules\CustomerAuth\Controllers\CustomerWalletController::class, 'transfer'])
+            ->middleware('customer.active');
+        Route::post('wallet/withdraw', [\App\Modules\CustomerAuth\Controllers\CustomerWalletController::class, 'withdraw'])
             ->middleware('customer.active');
         Route::get('banners', [\App\Modules\CustomerAuth\Controllers\CustomerBannerController::class, 'index']);
         // One-shot customer catalog for client-side navigation:

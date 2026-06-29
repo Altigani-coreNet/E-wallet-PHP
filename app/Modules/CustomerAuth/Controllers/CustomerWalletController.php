@@ -3,8 +3,10 @@
 namespace App\Modules\CustomerAuth\Controllers;
 
 use App\Models\Customer;
-use App\Modules\CustomerAuth\Requests\CustomerWalletTransferByPhoneRequest;
-use App\Modules\CustomerAuth\Requests\CustomerWalletTransferByWalletIdRequest;
+use App\Modules\CustomerAuth\Requests\CustomerWalletQueryRequest;
+use App\Modules\CustomerAuth\Requests\CustomerWalletResolveRecipientRequest;
+use App\Modules\CustomerAuth\Requests\CustomerWalletTransferRequest;
+use App\Modules\CustomerAuth\Requests\CustomerWalletWithdrawRequest;
 use App\Modules\CustomerAuth\Services\CustomerWalletService;
 use App\Support\SuccessResponse;
 use Illuminate\Http\Request;
@@ -31,18 +33,54 @@ class CustomerWalletController
         }
     }
 
-    public function transferByWalletId(CustomerWalletTransferByWalletIdRequest $request)
+    public function query(CustomerWalletQueryRequest $request)
     {
         /** @var Customer $customer */
         $customer = Auth::guard('customer')->user();
 
         try {
-            $data = $this->walletService->transferByWalletId(
+            $data = $this->walletService->queryRecipient(
+                $customer,
+                $request->validated('identifier')
+            );
+
+            return SuccessResponse::make($data);
+        } catch (InvalidArgumentException $exception) {
+            return SuccessResponse::error($exception->getMessage(), 422);
+        }
+    }
+
+    public function resolveRecipient(CustomerWalletResolveRecipientRequest $request)
+    {
+        /** @var Customer $customer */
+        $customer = Auth::guard('customer')->user();
+
+        try {
+            $data = $this->walletService->resolveRecipient(
+                $customer,
+                $request->validated('identifier')
+            );
+
+            return SuccessResponse::make($data);
+        } catch (InvalidArgumentException $exception) {
+            return SuccessResponse::error($exception->getMessage(), 422);
+        }
+    }
+
+    public function transfer(CustomerWalletTransferRequest $request)
+    {
+        /** @var Customer $customer */
+        $customer = Auth::guard('customer')->user();
+
+        try {
+            $data = $this->walletService->transfer(
                 $customer,
                 $request->validated('recipient_wallet_id'),
                 (float) $request->validated('amount'),
                 $request->validated('description'),
-                $this->resolveIdempotencyKey($request)
+                $this->resolveIdempotencyKey($request),
+                (float) ($request->validated('fee') ?? 0),
+                $request->validated('note')
             );
 
             return SuccessResponse::make($data, 'Transfer completed successfully');
@@ -51,21 +89,20 @@ class CustomerWalletController
         }
     }
 
-    public function transferByPhone(CustomerWalletTransferByPhoneRequest $request)
+    public function withdraw(CustomerWalletWithdrawRequest $request)
     {
         /** @var Customer $customer */
         $customer = Auth::guard('customer')->user();
 
         try {
-            $data = $this->walletService->transferByPhone(
+            $data = $this->walletService->withdraw(
                 $customer,
-                $request->validated('recipient_phone'),
                 (float) $request->validated('amount'),
                 $request->validated('description'),
                 $this->resolveIdempotencyKey($request)
             );
 
-            return SuccessResponse::make($data, 'Transfer completed successfully');
+            return SuccessResponse::make($data, 'Withdrawal completed successfully');
         } catch (InvalidArgumentException $exception) {
             return SuccessResponse::error($exception->getMessage(), 422);
         }

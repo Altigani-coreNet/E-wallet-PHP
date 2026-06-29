@@ -172,24 +172,6 @@ class CustomerService
     }
 
     /**
-     * Soft-delete customers by uuid with phone/email corruption to free unique constraints.
-     */
-    public function bulkDeleteByUuid(array $uuids): int
-    {
-        $deletedCount = 0;
-
-        Customer::query()
-            ->whereIn('uuid', $uuids)
-            ->get()
-            ->each(function (Customer $customer) use (&$deletedCount) {
-                $this->softDeleteWithCorruption($customer);
-                $deletedCount++;
-            });
-
-        return $deletedCount;
-    }
-
-    /**
      * Soft-delete customers by id with phone/email corruption to free unique constraints.
      */
     public function bulkDelete(array $ids): int

@@ -17,7 +17,7 @@ class AdminCustomerResource extends JsonResource
         $customer = $this->resource;
 
         return [
-            'uuid' => $customer->uuid,
+            'id' => $customer->id,
             'name' => $customer->name,
             'email' => $customer->email,
             'phone' => $customer->phone,
@@ -28,7 +28,9 @@ class AdminCustomerResource extends JsonResource
             'state' => $customer->state,
             'zip' => $customer->zip,
             'status' => $customer->status ?? Customer::STATUS_PENDING,
-            'balance' => (float) ($customer->balance ?? 0),
+            'balance' => (float) ($customer->relationLoaded('wallet') && $customer->wallet
+                ? $customer->wallet->balance
+                : 0),
             'profile_image_url' => $customer->getProfileImageApi(),
             'profile_completed' => (bool) $customer->profile_completed,
             'merchant_id' => $customer->merchant_id,

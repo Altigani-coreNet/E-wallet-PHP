@@ -188,7 +188,7 @@ class CustomerPasswordSetupTest extends CustomerAuthTestCase
         ]);
 
         $this->actingAsAdminApi()
-            ->postJson("/api/v2/admin/customers/{$customer->uuid}/resend-password-invite")
+            ->postJson("/api/v2/admin/customers/{$customer->id}/resend-password-invite")
             ->assertOk()
             ->assertJsonPath('success', true);
 

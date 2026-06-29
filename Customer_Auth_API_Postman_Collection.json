@@ -2,7 +2,7 @@
     "info": {
         "_postman_id": "customer-auth-api-2026",
         "name": "Customer Auth API",
-        "description": "End-customer authentication, onboarding, wallet transfers (IFRS double-entry), banners, services catalog, and notifications for Fast Pay SoftPOS (`/api/v1/customer`). Dev OTP mock: set `OTP_MOCK_CODE=111111`. Refresh-token accepts valid JWT or tokens expired within `JWT_REFRESH_GRACE` (default 7d). Wallet E2E fixtures: run `php artisan db:seed --class=WalletE2eSeeder`.",
+        "description": "End-customer authentication, onboarding, wallet transfers (IFRS double-entry), banners, services catalog, and notifications for Fast Pay SoftPOS (`/api/v1/customer`).\n\n## Auth\nRegister/login/reset/refresh/change-password return `token`, `refresh_token`, `expires_in`, and `refresh_token_expires_in`. Use `POST /auth/refresh-token` with body `{ \"refresh_token\": \"...\" }` to rotate the pair. Change password: `POST /password/change` (Bearer access token required).\n\nDev OTP mock: set `OTP_MOCK_CODE=111111`. JWT config: `JWT_EXPIRES_IN` (access, default 7d), `JWT_REFRESH_EXPIRES_IN` (refresh, default 30d).\n\n## Customer wallet transfer flow (recommended order)\n1. **Login** — `POST /auth/login` → saves `customer_jwt`\n2. **Dashboard** — `GET /wallet/dashboard` → balance + last 5 transactions\n3. **Query recipient** — `GET /wallet/query?identifier=<phone|wallet_id>` → returns recipient `wallet_id`, `name`, `email` (cannot query your own account)\n4. **Transfer** — `POST /wallet/transfer` with `recipient_wallet_id` from step 3 + `amount` + optional `note` and `fee` (phone is NOT accepted here; use query first)\n5. **Withdraw** (optional) — `POST /wallet/withdraw` to cash out to master float\n\nRun wallet folder requests top-to-bottom for a full demo. `recipient_wallet_id` is auto-saved from **Query Recipient**.\n\nAdmin **Wallets** folder: `/api/v2/admin/wallets` (list, transactions, cash-in/out, opening capital). Seed: `php artisan db:seed --class=WalletE2eSeeder` (master `WAL-MASTER`).",
         "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
     },
     "variable": [
@@ -52,6 +52,11 @@
             "type": "string"
         },
         {
+            "key": "customer_refresh_token",
+            "value": "",
+            "type": "string"
+        },
+        {
             "key": "country_code",
             "value": "249",
             "type": "string"
@@ -92,6 +97,11 @@
             "type": "string"
         },
         {
+            "key": "transfer_note",
+            "value": "Thanks for lunch",
+            "type": "string"
+        },
+        {
             "key": "idempotency_key",
             "value": "",
             "type": "string"
@@ -99,6 +109,31 @@
         {
             "key": "sender_wallet_id",
             "value": "",
+            "type": "string"
+        },
+        {
+            "key": "admin_email",
+            "value": "admin@example.com",
+            "type": "string"
+        },
+        {
+            "key": "admin_password",
+            "value": "password",
+            "type": "string"
+        },
+        {
+            "key": "admin_token",
+            "value": "",
+            "type": "string"
+        },
+        {
+            "key": "admin_wallet_uuid",
+            "value": "",
+            "type": "string"
+        },
+        {
+            "key": "admin_wallet_public_id",
+            "value": "WAL-MASTER",
             "type": "string"
         }
     ],
@@ -529,7 +564,7 @@
                                 }
                             }
                         },
-                        "description": "Run Send SMS OTP → Verify OTP first."
+                        "description": "Run Send SMS OTP → Verify OTP first. Returns access token + refresh_token (saved to `customer_jwt` / `customer_refresh_token`)."
                     },
                     "response": [
                         {
@@ -543,7 +578,7 @@
                                     "value": "application/json"
                                 }
                             ],
-                            "body": "{\n    \"success\": true,\n    \"message\": \"Registration successful\",\n    \"data\": {\n        \"token\": \"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.example\",\n        \"token_type\": \"Bearer\",\n        \"profile_completed\": true,\n        \"customer\": {\n            \"id\": 1,\n            \"name\": \"Ahmed\",\n            \"email\": \"ahmed@example.com\",\n            \"phone\": \"+249912345678\",\n            \"birthDate\": \"1990-05-15T00:00:00+00:00\",\n            \"gender\": \"male\",\n            \"address\": null,\n            \"countryId\": \"00000000-0000-4000-8000-000000000001\",\n            \"merchantCountryId\": null,\n            \"cityId\": \"10000000-0000-4000-8000-000000000001\",\n            \"state\": null,\n            \"zip\": null,\n            \"merchantId\": null,\n            \"profileCompleted\": true,\n            \"balance\": \"0.00\",\n            \"country\": {\n                \"id\": \"00000000-0000-4000-8000-000000000001\",\n                \"name\": \"Sudan\",\n                \"code\": \"249\"\n            },\n            \"city\": {\n                \"id\": \"10000000-0000-4000-8000-000000000001\",\n                \"name\": \"Khartoum\"\n            },\n            \"createdAt\": \"2026-06-23T10:00:00+00:00\",\n            \"updatedAt\": \"2026-06-23T10:30:00+00:00\"\n        }\n    }\n}"
+                            "body": "{\n    \"success\": true,\n    \"message\": \"Registration successful\",\n    \"data\": {\n        \"token\": \"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.example\",\n        \"token_type\": \"Bearer\",\n        \"expires_in\": 604800,\n        \"refresh_token\": \"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.refresh\",\n        \"refresh_token_expires_in\": 2592000,\n        \"profile_completed\": false,\n        \"customer\": {\n            \"id\": 1,\n            \"name\": \"Ahmed\",\n            \"email\": \"ahmed@example.com\",\n            \"phone\": \"+249912345678\",\n            \"birthDate\": \"1990-05-15T00:00:00+00:00\",\n            \"gender\": \"male\",\n            \"address\": null,\n            \"countryId\": \"00000000-0000-4000-8000-000000000001\",\n            \"merchantCountryId\": null,\n            \"cityId\": \"10000000-0000-4000-8000-000000000001\",\n            \"state\": null,\n            \"zip\": null,\n            \"merchantId\": null,\n            \"profileCompleted\": true,\n            \"balance\": \"0.00\",\n            \"country\": {\n                \"id\": \"00000000-0000-4000-8000-000000000001\",\n                \"name\": \"Sudan\",\n                \"code\": \"249\"\n            },\n            \"city\": {\n                \"id\": \"10000000-0000-4000-8000-000000000001\",\n                \"name\": \"Khartoum\"\n            },\n            \"createdAt\": \"2026-06-23T10:00:00+00:00\",\n            \"updatedAt\": \"2026-06-23T10:30:00+00:00\"\n        }\n    }\n}"
                         },
                         {
                             "name": "Error",
@@ -569,6 +604,9 @@
                                     "    const json = pm.response.json();",
                                     "    if (json.data && json.data.token) {",
                                     "        pm.collectionVariables.set('customer_jwt', json.data.token);",
+                                    "    }",
+                                    "    if (json.data && json.data.refresh_token) {",
+                                    "        pm.collectionVariables.set('customer_refresh_token', json.data.refresh_token);",
                                     "    }",
                                     "}"
                                 ]
@@ -613,7 +651,8 @@
                                     "language": "json"
                                 }
                             }
-                        }
+                        },
+                        "description": "Returns access token + refresh_token (saved to `customer_jwt` / `customer_refresh_token`)."
                     },
                     "response": [
                         {
@@ -627,7 +666,7 @@
                                     "value": "application/json"
                                 }
                             ],
-                            "body": "{\n    \"success\": true,\n    \"message\": \"Login successful\",\n    \"data\": {\n        \"token\": \"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.example\",\n        \"token_type\": \"Bearer\",\n        \"profile_completed\": true,\n        \"customer\": {\n            \"id\": 1,\n            \"name\": \"Ahmed\",\n            \"email\": \"ahmed@example.com\",\n            \"phone\": \"+249912345678\",\n            \"birthDate\": \"1990-05-15T00:00:00+00:00\",\n            \"gender\": \"male\",\n            \"address\": null,\n            \"countryId\": \"00000000-0000-4000-8000-000000000001\",\n            \"merchantCountryId\": null,\n            \"cityId\": \"10000000-0000-4000-8000-000000000001\",\n            \"state\": null,\n            \"zip\": null,\n            \"merchantId\": null,\n            \"profileCompleted\": true,\n            \"balance\": \"0.00\",\n            \"country\": {\n                \"id\": \"00000000-0000-4000-8000-000000000001\",\n                \"name\": \"Sudan\",\n                \"code\": \"249\"\n            },\n            \"city\": {\n                \"id\": \"10000000-0000-4000-8000-000000000001\",\n                \"name\": \"Khartoum\"\n            },\n            \"createdAt\": \"2026-06-23T10:00:00+00:00\",\n            \"updatedAt\": \"2026-06-23T10:30:00+00:00\"\n        }\n    }\n}"
+                            "body": "{\n    \"success\": true,\n    \"message\": \"Login successful\",\n    \"data\": {\n        \"token\": \"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.example\",\n        \"token_type\": \"Bearer\",\n        \"expires_in\": 604800,\n        \"refresh_token\": \"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.refresh\",\n        \"refresh_token_expires_in\": 2592000,\n        \"profile_completed\": true,\n        \"customer\": {\n            \"id\": 1,\n            \"name\": \"Ahmed\",\n            \"email\": \"ahmed@example.com\",\n            \"phone\": \"+249912345678\",\n            \"birthDate\": \"1990-05-15T00:00:00+00:00\",\n            \"gender\": \"male\",\n            \"address\": null,\n            \"countryId\": \"00000000-0000-4000-8000-000000000001\",\n            \"merchantCountryId\": null,\n            \"cityId\": \"10000000-0000-4000-8000-000000000001\",\n            \"state\": null,\n            \"zip\": null,\n            \"merchantId\": null,\n            \"profileCompleted\": true,\n            \"balance\": \"0.00\",\n            \"country\": {\n                \"id\": \"00000000-0000-4000-8000-000000000001\",\n                \"name\": \"Sudan\",\n                \"code\": \"249\"\n            },\n            \"city\": {\n                \"id\": \"10000000-0000-4000-8000-000000000001\",\n                \"name\": \"Khartoum\"\n            },\n            \"createdAt\": \"2026-06-23T10:00:00+00:00\",\n            \"updatedAt\": \"2026-06-23T10:30:00+00:00\"\n        }\n    }\n}"
                         },
                         {
                             "name": "Error",
@@ -653,6 +692,9 @@
                                     "    const json = pm.response.json();",
                                     "    if (json.data && json.data.token) {",
                                     "        pm.collectionVariables.set('customer_jwt', json.data.token);",
+                                    "    }",
+                                    "    if (json.data && json.data.refresh_token) {",
+                                    "        pm.collectionVariables.set('customer_refresh_token', json.data.refresh_token);",
                                     "    }",
                                     "}"
                                 ]
@@ -770,7 +812,7 @@
                                 }
                             }
                         },
-                        "description": "Run Forgot Password → Verify OTP first."
+                        "description": "Run Forgot Password → Verify OTP first. Returns access token + refresh_token on success."
                     },
                     "response": [
                         {
@@ -784,7 +826,7 @@
                                     "value": "application/json"
                                 }
                             ],
-                            "body": "{\n    \"success\": true,\n    \"message\": \"Password reset successfully\",\n    \"data\": {\n        \"token\": \"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.example\",\n        \"token_type\": \"Bearer\",\n        \"profile_completed\": true,\n        \"customer\": {\n            \"id\": 1,\n            \"name\": \"Ahmed\",\n            \"email\": \"ahmed@example.com\",\n            \"phone\": \"+249912345678\",\n            \"birthDate\": \"1990-05-15T00:00:00+00:00\",\n            \"gender\": \"male\",\n            \"address\": null,\n            \"countryId\": \"00000000-0000-4000-8000-000000000001\",\n            \"merchantCountryId\": null,\n            \"cityId\": \"10000000-0000-4000-8000-000000000001\",\n            \"state\": null,\n            \"zip\": null,\n            \"merchantId\": null,\n            \"profileCompleted\": true,\n            \"balance\": \"0.00\",\n            \"country\": {\n                \"id\": \"00000000-0000-4000-8000-000000000001\",\n                \"name\": \"Sudan\",\n                \"code\": \"249\"\n            },\n            \"city\": {\n                \"id\": \"10000000-0000-4000-8000-000000000001\",\n                \"name\": \"Khartoum\"\n            },\n            \"createdAt\": \"2026-06-23T10:00:00+00:00\",\n            \"updatedAt\": \"2026-06-23T10:30:00+00:00\"\n        }\n    }\n}"
+                            "body": "{\n    \"success\": true,\n    \"message\": \"Password reset successfully\",\n    \"data\": {\n        \"token\": \"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.example\",\n        \"token_type\": \"Bearer\",\n        \"expires_in\": 604800,\n        \"refresh_token\": \"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.refresh\",\n        \"refresh_token_expires_in\": 2592000,\n        \"profile_completed\": true,\n        \"customer\": {\n            \"id\": 1,\n            \"name\": \"Ahmed\",\n            \"email\": \"ahmed@example.com\",\n            \"phone\": \"+249912345678\",\n            \"birthDate\": \"1990-05-15T00:00:00+00:00\",\n            \"gender\": \"male\",\n            \"address\": null,\n            \"countryId\": \"00000000-0000-4000-8000-000000000001\",\n            \"merchantCountryId\": null,\n            \"cityId\": \"10000000-0000-4000-8000-000000000001\",\n            \"state\": null,\n            \"zip\": null,\n            \"merchantId\": null,\n            \"profileCompleted\": true,\n            \"balance\": \"0.00\",\n            \"country\": {\n                \"id\": \"00000000-0000-4000-8000-000000000001\",\n                \"name\": \"Sudan\",\n                \"code\": \"249\"\n            },\n            \"city\": {\n                \"id\": \"10000000-0000-4000-8000-000000000001\",\n                \"name\": \"Khartoum\"\n            },\n            \"createdAt\": \"2026-06-23T10:00:00+00:00\",\n            \"updatedAt\": \"2026-06-23T10:30:00+00:00\"\n        }\n    }\n}"
                         },
                         {
                             "name": "Error",
@@ -811,6 +853,9 @@
                                     "    if (json.data && json.data.token) {",
                                     "        pm.collectionVariables.set('customer_jwt', json.data.token);",
                                     "    }",
+                                    "    if (json.data && json.data.refresh_token) {",
+                                    "        pm.collectionVariables.set('customer_refresh_token', json.data.refresh_token);",
+                                    "    }",
                                     "}"
                                 ]
                             }
@@ -818,7 +863,7 @@
                     ]
                 },
                 {
-                    "name": "Refresh Token",
+                    "name": "Change Password",
                     "request": {
                         "method": "POST",
                         "header": [
@@ -839,7 +884,7 @@
                             }
                         ],
                         "url": {
-                            "raw": "{{base_url}}/api/v1/customer/auth/refresh-token",
+                            "raw": "{{base_url}}/api/v1/customer/password/change",
                             "host": [
                                 "{{base_url}}"
                             ],
@@ -847,11 +892,20 @@
                                 "api",
                                 "v1",
                                 "customer",
-                                "auth",
-                                "refresh-token"
+                                "password",
+                                "change"
                             ]
                         },
-                        "description": "Issues a new JWT using a valid customer token or one expired within JWT_REFRESH_GRACE (default 7d, same as JWT_EXPIRES_IN). No request body."
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"current_password\": \"{{customer_password}}\",\n    \"password\": \"NewSecurePass1!\",\n    \"password_confirmation\": \"NewSecurePass1!\"\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        },
+                        "description": "Requires a valid customer access token. Returns a fresh token pair on success."
                     },
                     "response": [
                         {
@@ -865,7 +919,95 @@
                                     "value": "application/json"
                                 }
                             ],
-                            "body": "{\n    \"success\": true,\n    \"message\": \"Token refreshed successfully\",\n    \"data\": {\n        \"token\": \"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.example\",\n        \"token_type\": \"Bearer\",\n        \"profile_completed\": true,\n        \"customer\": {\n            \"id\": 1,\n            \"name\": \"Ahmed\",\n            \"email\": \"ahmed@example.com\",\n            \"phone\": \"+249912345678\",\n            \"birthDate\": \"1990-05-15T00:00:00+00:00\",\n            \"gender\": \"male\",\n            \"address\": null,\n            \"countryId\": \"00000000-0000-4000-8000-000000000001\",\n            \"merchantCountryId\": null,\n            \"cityId\": \"10000000-0000-4000-8000-000000000001\",\n            \"state\": null,\n            \"zip\": null,\n            \"merchantId\": null,\n            \"profileCompleted\": true,\n            \"balance\": \"0.00\",\n            \"country\": {\n                \"id\": \"00000000-0000-4000-8000-000000000001\",\n                \"name\": \"Sudan\",\n                \"code\": \"249\"\n            },\n            \"city\": {\n                \"id\": \"10000000-0000-4000-8000-000000000001\",\n                \"name\": \"Khartoum\"\n            },\n            \"createdAt\": \"2026-06-23T10:00:00+00:00\",\n            \"updatedAt\": \"2026-06-23T10:30:00+00:00\"\n        }\n    }\n}"
+                            "body": "{\n    \"success\": true,\n    \"message\": \"Password changed successfully\",\n    \"data\": {\n        \"token\": \"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.example\",\n        \"token_type\": \"Bearer\",\n        \"expires_in\": 604800,\n        \"refresh_token\": \"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.refresh\",\n        \"refresh_token_expires_in\": 2592000,\n        \"profile_completed\": true,\n        \"customer\": {\n            \"id\": 1,\n            \"phone\": \"+249912345678\"\n        }\n    }\n}"
+                        },
+                        {
+                            "name": "Error",
+                            "status": "Bad Request",
+                            "code": 400,
+                            "_postman_previewlanguage": "json",
+                            "header": [
+                                {
+                                    "key": "Content-Type",
+                                    "value": "application/json"
+                                }
+                            ],
+                            "body": "{\n    \"success\": false,\n    \"message\": \"Current password is incorrect\",\n    \"errors\": null,\n    \"data\": null\n}"
+                        }
+                    ],
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "if (pm.response.code === 200 || pm.response.code === 201) {",
+                                    "    const json = pm.response.json();",
+                                    "    if (json.data && json.data.token) {",
+                                    "        pm.collectionVariables.set('customer_jwt', json.data.token);",
+                                    "    }",
+                                    "    if (json.data && json.data.refresh_token) {",
+                                    "        pm.collectionVariables.set('customer_refresh_token', json.data.refresh_token);",
+                                    "    }",
+                                    "}"
+                                ]
+                            }
+                        }
+                    ]
+                },
+                {
+                    "name": "Refresh Token",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json",
+                                "type": "text"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json",
+                                "type": "text"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/v1/customer/auth/refresh-token",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "v1",
+                                "customer",
+                                "auth",
+                                "refresh-token"
+                            ]
+                        },
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"refresh_token\": \"{{customer_refresh_token}}\"\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        },
+                        "description": "Issues a new access + refresh token pair using the refresh_token from login/register. Bearer header with refresh_token is also accepted as fallback."
+                    },
+                    "response": [
+                        {
+                            "name": "Success",
+                            "status": "OK",
+                            "code": 200,
+                            "_postman_previewlanguage": "json",
+                            "header": [
+                                {
+                                    "key": "Content-Type",
+                                    "value": "application/json"
+                                }
+                            ],
+                            "body": "{\n    \"success\": true,\n    \"message\": \"Token refreshed successfully\",\n    \"data\": {\n        \"token\": \"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.example\",\n        \"token_type\": \"Bearer\",\n        \"expires_in\": 604800,\n        \"refresh_token\": \"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.refresh\",\n        \"refresh_token_expires_in\": 2592000,\n        \"profile_completed\": true,\n        \"customer\": {\n            \"id\": 1,\n            \"name\": \"Ahmed\",\n            \"email\": \"ahmed@example.com\",\n            \"phone\": \"+249912345678\",\n            \"birthDate\": \"1990-05-15T00:00:00+00:00\",\n            \"gender\": \"male\",\n            \"address\": null,\n            \"countryId\": \"00000000-0000-4000-8000-000000000001\",\n            \"merchantCountryId\": null,\n            \"cityId\": \"10000000-0000-4000-8000-000000000001\",\n            \"state\": null,\n            \"zip\": null,\n            \"merchantId\": null,\n            \"profileCompleted\": true,\n            \"balance\": \"0.00\",\n            \"country\": {\n                \"id\": \"00000000-0000-4000-8000-000000000001\",\n                \"name\": \"Sudan\",\n                \"code\": \"249\"\n            },\n            \"city\": {\n                \"id\": \"10000000-0000-4000-8000-000000000001\",\n                \"name\": \"Khartoum\"\n            },\n            \"createdAt\": \"2026-06-23T10:00:00+00:00\",\n            \"updatedAt\": \"2026-06-23T10:30:00+00:00\"\n        }\n    }\n}"
                         },
                         {
                             "name": "Error",
@@ -891,6 +1033,9 @@
                                     "    const json = pm.response.json();",
                                     "    if (json.data && json.data.token) {",
                                     "        pm.collectionVariables.set('customer_jwt', json.data.token);",
+                                    "    }",
+                                    "    if (json.data && json.data.refresh_token) {",
+                                    "        pm.collectionVariables.set('customer_refresh_token', json.data.refresh_token);",
                                     "    }",
                                     "}"
                                 ]
@@ -1896,9 +2041,10 @@
         },
         {
             "name": "Wallet",
+            "description": "## Customer wallet API\n\nBearer token required (`customer_jwt`). Customer must be **active** for query/transfer/withdraw.\n\n### Recommended flow\n```\nDashboard → Query Recipient → Transfer → Dashboard (verify)\n```\n\n| Step | Request | Purpose |\n|------|---------|--------|\n| 1 | Wallet Dashboard | See balance + last 5 transactions |\n| 2 | Query Recipient | Look up recipient by **phone** or **wallet_id** → get `wallet_id`, `name`, `email` |\n| 3 | Transfer | Send money using `recipient_wallet_id` from step 2 |\n| 4 | Withdraw | Cash out from your wallet (optional) |\n\n### Rules\n- **Query**: accepts phone, public `wallet_id`, or `user_number`. Cannot search your own account.\n- **Transfer**: accepts **wallet_id only** (not phone). Cannot send to yourself. Optional `note` (sender memo) and `fee`.\n- **Idempotency**: set header `Idempotency-Key` to prevent double-spend on retry.\n\nLegacy **Resolve Recipient** returns extended wallet metadata; prefer **Query Recipient** for the transfer UI.",
             "item": [
                 {
-                    "name": "Wallet Dashboard",
+                    "name": "1. Wallet Dashboard",
                     "request": {
                         "method": "GET",
                         "header": [
@@ -1926,7 +2072,7 @@
                                 "dashboard"
                             ]
                         },
-                        "description": "Returns current wallet balance, available balance, currency, status, and the most recent wallet transaction."
+                        "description": "**What:** Returns the logged-in customer's wallet snapshot.\n\n**Use when:** Opening the wallet home screen — show balance, status, and recent activity.\n\n**Response includes:**\n- `wallet` — balance, available_balance, currency, status\n- `last_transaction` — most recent tx (backward compatible)\n- `recent_transactions` — up to **5** newest transactions (newest first), each with optional `note`\n\n**Flow position:** Step 1 (before transfer) or after transfer to verify balances."
                     },
                     "response": [
                         {
@@ -1940,7 +2086,7 @@
                                     "value": "application/json"
                                 }
                             ],
-                            "body": "{\n    \"success\": true,\n    \"message\": \"Success\",\n    \"data\": {\n        \"wallet\": {\n            \"wallet_id\": \"WAL-00000001\",\n            \"user_number\": \"CSMR000001\",\n            \"currency_code\": \"SDG\",\n            \"balance\": 950,\n            \"available_balance\": 950,\n            \"status\": \"active\"\n        },\n        \"last_transaction\": {\n            \"id\": \"550e8400-e29b-41d4-a716-446655440000\",\n            \"type\": \"transfer\",\n            \"direction\": \"debit\",\n            \"amount\": 50,\n            \"balance_after\": 950,\n            \"description\": \"Transfer to friend\",\n            \"created_at\": \"2026-06-25T10:00:00+00:00\"\n        }\n    }\n}"
+                            "body": "{\n    \"success\": true,\n    \"message\": \"Success\",\n    \"data\": {\n        \"wallet\": {\n            \"wallet_id\": \"WAL-00000001\",\n            \"user_number\": \"CSMR000001\",\n            \"currency_code\": \"SDG\",\n            \"balance\": 950,\n            \"available_balance\": 950,\n            \"status\": \"active\"\n        },\n        \"last_transaction\": {\n            \"id\": \"550e8400-e29b-41d4-a716-446655440000\",\n            \"type\": \"transfer\",\n            \"direction\": \"debit\",\n            \"amount\": 50,\n            \"balance_after\": 950,\n            \"description\": \"Transfer to friend\",\n            \"note\": \"Thanks for lunch\",\n            \"created_at\": \"2026-06-25T10:00:00+00:00\"\n        },\n        \"recent_transactions\": [\n            {\n                \"id\": \"550e8400-e29b-41d4-a716-446655440000\",\n                \"type\": \"transfer\",\n                \"direction\": \"debit\",\n                \"amount\": 50,\n                \"balance_after\": 950,\n                \"description\": \"Transfer to friend\",\n                \"note\": \"Thanks for lunch\",\n                \"created_at\": \"2026-06-25T10:00:00+00:00\"\n            }\n        ]\n    }\n}"
                         }
                     ],
                     "event": [
@@ -1961,7 +2107,157 @@
                     ]
                 },
                 {
-                    "name": "Transfer by Wallet ID",
+                    "name": "2. Query Recipient",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json",
+                                "type": "text"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{customer_jwt}}",
+                                "type": "text"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/v1/customer/wallet/query?identifier={{recipient_phone}}",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "v1",
+                                "customer",
+                                "wallet",
+                                "query"
+                            ],
+                            "query": [
+                                {
+                                    "key": "identifier",
+                                    "value": "{{recipient_phone}}",
+                                    "description": "Recipient phone (+249...) OR public wallet_id (WAL-...) OR user_number"
+                                }
+                            ]
+                        },
+                        "description": "**What:** Look up another customer before sending money.\n\n**Use when:** User enters a phone number or wallet ID in the \"Send to\" screen — confirm who they are paying.\n\n**Query param:** `identifier` — recipient's phone, public `wallet_id`, or `user_number`.\n\n**Returns:** `wallet_id`, `name`, `email`, `status`, `currency_code`.\n\n**Validation:** Cannot query your own phone/wallet (422). Recipient must be active.\n\n**Flow position:** Step 2 — run before **Transfer**. Saves `recipient_wallet_id` automatically on success.\n\n**Next step:** Copy `data.wallet_id` into **Transfer** → `recipient_wallet_id`."
+                    },
+                    "response": [
+                        {
+                            "name": "Success",
+                            "status": "OK",
+                            "code": 200,
+                            "_postman_previewlanguage": "json",
+                            "header": [
+                                {
+                                    "key": "Content-Type",
+                                    "value": "application/json"
+                                }
+                            ],
+                            "body": "{\n    \"success\": true,\n    \"message\": \"Success\",\n    \"data\": {\n        \"wallet_id\": \"WAL-00000002\",\n        \"name\": \"Wallet E2E Recipient\",\n        \"email\": \"recipient@example.com\",\n        \"status\": \"active\",\n        \"currency_code\": \"SDG\"\n    }\n}"
+                        },
+                        {
+                            "name": "Self lookup rejected",
+                            "status": "Unprocessable Entity",
+                            "code": 422,
+                            "_postman_previewlanguage": "json",
+                            "header": [
+                                {
+                                    "key": "Content-Type",
+                                    "value": "application/json"
+                                }
+                            ],
+                            "body": "{\n    \"success\": false,\n    \"message\": \"You cannot use your own wallet or phone number as the recipient.\",\n    \"errors\": null,\n    \"data\": null\n}"
+                        },
+                        {
+                            "name": "Not found",
+                            "status": "Unprocessable Entity",
+                            "code": 422,
+                            "_postman_previewlanguage": "json",
+                            "header": [
+                                {
+                                    "key": "Content-Type",
+                                    "value": "application/json"
+                                }
+                            ],
+                            "body": "{\n    \"success\": false,\n    \"message\": \"Recipient wallet was not found.\",\n    \"errors\": null,\n    \"data\": null\n}"
+                        }
+                    ],
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "if (pm.response.code === 200) {",
+                                    "    const json = pm.response.json();",
+                                    "    if (json.data && json.data.wallet_id) {",
+                                    "        pm.collectionVariables.set('recipient_wallet_id', json.data.wallet_id);",
+                                    "    }",
+                                    "}"
+                                ]
+                            }
+                        }
+                    ]
+                },
+                {
+                    "name": "2b. Resolve Recipient (legacy)",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json",
+                                "type": "text"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{customer_jwt}}",
+                                "type": "text"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/v1/customer/wallet/resolve-recipient?identifier={{recipient_phone}}",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "v1",
+                                "customer",
+                                "wallet",
+                                "resolve-recipient"
+                            ],
+                            "query": [
+                                {
+                                    "key": "identifier",
+                                    "value": "{{recipient_phone}}",
+                                    "description": "Phone, wallet_id, or user_number"
+                                }
+                            ]
+                        },
+                        "description": "**What:** Extended recipient lookup (legacy endpoint).\n\n**Prefer:** **Query Recipient** (`/wallet/query`) for transfer UI — it returns `name` and `email`.\n\n**Returns:** Full wallet metadata (`recipient_wallet_id`, `owner_name`, `currency`, etc.).\n\nSame self-lookup rules as Query Recipient."
+                    },
+                    "response": [
+                        {
+                            "name": "Success",
+                            "status": "OK",
+                            "code": 200,
+                            "_postman_previewlanguage": "json",
+                            "header": [
+                                {
+                                    "key": "Content-Type",
+                                    "value": "application/json"
+                                }
+                            ],
+                            "body": "{\n    \"success\": true,\n    \"message\": \"Success\",\n    \"data\": {\n        \"recipient_wallet_id\": \"WAL-00000002\",\n        \"wallet_id\": \"WAL-00000002\",\n        \"owner_name\": \"Wallet E2E Recipient\",\n        \"user_number\": \"CSMR000002\",\n        \"status\": \"active\",\n        \"currency_code\": \"SDG\"\n    }\n}"
+                        }
+                    ]
+                },
+                {
+                    "name": "3. Transfer",
                     "request": {
                         "method": "POST",
                         "header": [
@@ -1989,7 +2285,7 @@
                         ],
                         "body": {
                             "mode": "raw",
-                            "raw": "{\n    \"recipient_wallet_id\": \"{{recipient_wallet_id}}\",\n    \"amount\": {{transfer_amount}},\n    \"description\": \"Transfer via wallet ID\"\n}",
+                            "raw": "{\n    \"recipient_wallet_id\": \"{{recipient_wallet_id}}\",\n    \"amount\": {{transfer_amount}},\n    \"fee\": 0,\n    \"description\": \"Wallet transfer\",\n    \"note\": \"{{transfer_note}}\"\n}",
                             "options": {
                                 "raw": {
                                     "language": "json"
@@ -1997,7 +2293,7 @@
                             }
                         },
                         "url": {
-                            "raw": "{{base_url}}/api/v1/customer/wallet/transfer/by-wallet-id",
+                            "raw": "{{base_url}}/api/v1/customer/wallet/transfer",
                             "host": [
                                 "{{base_url}}"
                             ],
@@ -2006,11 +2302,10 @@
                                 "v1",
                                 "customer",
                                 "wallet",
-                                "transfer",
-                                "by-wallet-id"
+                                "transfer"
                             ]
                         },
-                        "description": "Send money to another customer wallet by public wallet_id. Sender must be active with sufficient balance; recipient must be active."
+                        "description": "**What:** Send money to another customer's wallet (double-entry ledger posting).\n\n**Use when:** User confirms transfer after **Query Recipient**.\n\n**Body fields:**\n- `recipient_wallet_id` (required) — public wallet ID from query step. **Not phone.**\n- `amount` (required) — gross amount debited from sender\n- `fee` (optional) — platform fee; recipient receives `amount - fee`\n- `description` (optional) — system/ledger description\n- `note` (optional) — sender memo stored on both tx rows\n\n**Validation:** Cannot transfer to yourself. Insufficient balance → 422. Recipient must be active.\n\n**Flow position:** Step 3 — after Query Recipient. Re-run Dashboard to verify balances."
                     },
                     "response": [
                         {
@@ -2024,7 +2319,7 @@
                                     "value": "application/json"
                                 }
                             ],
-                            "body": "{\n    \"success\": true,\n    \"message\": \"Transfer completed successfully\",\n    \"data\": {\n        \"amount\": 50,\n        \"description\": \"Transfer via wallet ID\",\n        \"sender_wallet\": {\n            \"wallet_id\": \"WAL-00000001\",\n            \"balance\": 950,\n            \"available_balance\": 950,\n            \"currency_code\": \"SDG\",\n            \"status\": \"active\"\n        },\n        \"recipient\": {\n            \"name\": \"Wallet E2E Recipient\",\n            \"wallet_id\": \"WAL-00000002\"\n        },\n        \"transaction\": {\n            \"type\": \"transfer\",\n            \"direction\": \"debit\",\n            \"amount\": 50,\n            \"balance_after\": 950\n        }\n    }\n}"
+                            "body": "{\n    \"success\": true,\n    \"message\": \"Transfer completed successfully\",\n    \"data\": {\n        \"amount\": 50,\n        \"fee\": 0,\n        \"recipient_amount\": 50,\n        \"description\": \"Wallet transfer\",\n        \"note\": \"Thanks for lunch\",\n        \"sender_wallet\": {\n            \"wallet_id\": \"WAL-00000001\",\n            \"balance\": 950,\n            \"available_balance\": 950,\n            \"currency_code\": \"SDG\",\n            \"status\": \"active\"\n        },\n        \"recipient\": {\n            \"recipient_wallet_id\": \"WAL-00000002\",\n            \"wallet_id\": \"WAL-00000002\",\n            \"name\": \"Wallet E2E Recipient\"\n        },\n        \"transaction\": {\n            \"type\": \"transfer\",\n            \"direction\": \"debit\",\n            \"amount\": 50,\n            \"balance_after\": 950,\n            \"note\": \"Thanks for lunch\"\n        }\n    }\n}"
                         },
                         {
                             "name": "Insufficient balance",
@@ -2037,7 +2332,33 @@
                                     "value": "application/json"
                                 }
                             ],
-                            "body": "{\n    \"success\": false,\n    \"message\": \"Insufficient wallet balance for this transfer.\",\n    \"errors\": null,\n    \"data\": null\n}"
+                            "body": "{\n    \"success\": false,\n    \"message\": \"Insufficient wallet balance for this operation.\",\n    \"errors\": null,\n    \"data\": null\n}"
+                        },
+                        {
+                            "name": "Self transfer rejected",
+                            "status": "Unprocessable Entity",
+                            "code": 422,
+                            "_postman_previewlanguage": "json",
+                            "header": [
+                                {
+                                    "key": "Content-Type",
+                                    "value": "application/json"
+                                }
+                            ],
+                            "body": "{\n    \"success\": false,\n    \"message\": \"You cannot use your own wallet or phone number as the recipient.\",\n    \"errors\": null,\n    \"data\": null\n}"
+                        },
+                        {
+                            "name": "Phone not accepted as wallet_id",
+                            "status": "Unprocessable Entity",
+                            "code": 422,
+                            "_postman_previewlanguage": "json",
+                            "header": [
+                                {
+                                    "key": "Content-Type",
+                                    "value": "application/json"
+                                }
+                            ],
+                            "body": "{\n    \"success\": false,\n    \"message\": \"Recipient wallet was not found.\",\n    \"errors\": null,\n    \"data\": null\n}"
                         }
                     ],
                     "event": [
@@ -2055,7 +2376,7 @@
                     ]
                 },
                 {
-                    "name": "Transfer by Phone",
+                    "name": "4. Withdraw",
                     "request": {
                         "method": "POST",
                         "header": [
@@ -2082,7 +2403,7 @@
                         ],
                         "body": {
                             "mode": "raw",
-                            "raw": "{\n    \"recipient_phone\": \"{{recipient_phone}}\",\n    \"amount\": {{transfer_amount}},\n    \"description\": \"Transfer via phone number\"\n}",
+                            "raw": "{\n    \"amount\": 25,\n    \"description\": \"Cash withdrawal\"\n}",
                             "options": {
                                 "raw": {
                                     "language": "json"
@@ -2090,7 +2411,7 @@
                             }
                         },
                         "url": {
-                            "raw": "{{base_url}}/api/v1/customer/wallet/transfer/by-phone",
+                            "raw": "{{base_url}}/api/v1/customer/wallet/withdraw",
                             "host": [
                                 "{{base_url}}"
                             ],
@@ -2099,11 +2420,10 @@
                                 "v1",
                                 "customer",
                                 "wallet",
-                                "transfer",
-                                "by-phone"
+                                "withdraw"
                             ]
                         },
-                        "description": "Send money by recipient phone number. Resolves phone -> customer -> wallet automatically."
+                        "description": "**What:** Cash out from the customer's wallet back to master float (admin-side settlement).\n\n**Use when:** Customer withdraws physical cash at a station.\n\n**Body:** `amount`, optional `description`.\n\n**Flow position:** Optional step 4 — independent of peer-to-peer transfer."
                     },
                     "response": [
                         {
@@ -2117,7 +2437,7 @@
                                     "value": "application/json"
                                 }
                             ],
-                            "body": "{\n    \"success\": true,\n    \"message\": \"Transfer completed successfully\",\n    \"data\": {\n        \"amount\": 50,\n        \"description\": \"Transfer via phone number\",\n        \"sender_wallet\": {\n            \"wallet_id\": \"WAL-00000001\",\n            \"balance\": 900,\n            \"available_balance\": 900,\n            \"currency_code\": \"SDG\",\n            \"status\": \"active\"\n        },\n        \"recipient\": {\n            \"name\": \"Wallet E2E Recipient\",\n            \"wallet_id\": \"WAL-00000002\"\n        },\n        \"transaction\": {\n            \"type\": \"transfer\",\n            \"direction\": \"debit\",\n            \"amount\": 50,\n            \"balance_after\": 900\n        }\n    }\n}"
+                            "body": "{\n    \"success\": true,\n    \"message\": \"Withdrawal completed successfully\",\n    \"data\": {\n        \"amount\": 25,\n        \"description\": \"Cash withdrawal\",\n        \"wallet\": {\n            \"wallet_id\": \"WAL-00000001\",\n            \"balance\": 925,\n            \"available_balance\": 925,\n            \"currency_code\": \"SDG\",\n            \"status\": \"active\"\n        },\n        \"transaction\": {\n            \"type\": \"adjustment\",\n            \"direction\": \"debit\",\n            \"amount\": 25,\n            \"balance_after\": 925\n        }\n    }\n}"
                         }
                     ],
                     "event": [
@@ -2127,11 +2447,75 @@
                                 "type": "text/javascript",
                                 "exec": [
                                     "if (!pm.collectionVariables.get('idempotency_key')) {",
-                                    "    pm.collectionVariables.set('idempotency_key', 'pm-phone-' + Date.now());",
+                                    "    pm.collectionVariables.set('idempotency_key', 'pm-withdraw-' + Date.now());",
                                     "}"
                                 ]
                             }
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "Admin Wallets",
+            "description": "Admin wallet management under `/api/v2/admin/wallets`. Run **Admin Login** first. Master float wallet: `WAL-MASTER`.",
+            "item": [
+                {
+                    "name": "Admin Login",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json",
+                                "type": "text"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json",
+                                "type": "text"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"email\": \"{{admin_email}}\",\n    \"password\": \"{{admin_password}}\"\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
                         },
+                        "url": {
+                            "raw": "{{base_url}}/api/v2/admin/auth/login",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "v2",
+                                "admin",
+                                "auth",
+                                "login"
+                            ]
+                        },
+                        "description": "Obtain admin bearer token for wallet endpoints. Saves `admin_token` from response."
+                    },
+                    "response": [
+                        {
+                            "name": "Success",
+                            "status": "OK",
+                            "code": 200,
+                            "_postman_previewlanguage": "json",
+                            "header": [
+                                {
+                                    "key": "Content-Type",
+                                    "value": "application/json"
+                                }
+                            ],
+                            "body": "{\n    \"status\": true,\n    \"data\": {\n        \"token\": \"eyJ0eXAiOiJKV1QiLCJhbGc...\",\n        \"admin\": { \"id\": 1, \"email\": \"admin@example.com\" }\n    }\n}"
+                        }
+                    ],
+                    "event": [
                         {
                             "listen": "test",
                             "script": {
@@ -2139,12 +2523,685 @@
                                 "exec": [
                                     "if (pm.response.code === 200) {",
                                     "    const json = pm.response.json();",
-                                    "    if (json.data && json.data.recipient && json.data.recipient.wallet_id) {",
-                                    "        pm.collectionVariables.set('recipient_wallet_id', json.data.recipient.wallet_id);",
-                                    "    }",
+                                    "    const token = json.data?.token || json.data?.access_token || json.token;",
+                                    "    if (token) pm.collectionVariables.set(\"admin_token\", token);",
                                     "}"
                                 ]
                             }
+                        }
+                    ]
+                },
+                {
+                    "name": "List Wallets",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json",
+                                "type": "text"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{admin_token}}",
+                                "type": "text"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/v2/admin/wallets?search=&status=active&wallet_type=user&per_page=15",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "v2",
+                                "admin",
+                                "wallets"
+                            ],
+                            "query": [
+                                {
+                                    "key": "search",
+                                    "value": "",
+                                    "disabled": false
+                                },
+                                {
+                                    "key": "status",
+                                    "value": "active",
+                                    "disabled": false
+                                },
+                                {
+                                    "key": "wallet_type",
+                                    "value": "user",
+                                    "disabled": false
+                                },
+                                {
+                                    "key": "per_page",
+                                    "value": "15",
+                                    "disabled": false
+                                }
+                            ]
+                        },
+                        "description": "Paginated wallet list with filters."
+                    },
+                    "response": [
+                        {
+                            "name": "Success",
+                            "status": "OK",
+                            "code": 200,
+                            "_postman_previewlanguage": "json",
+                            "header": [
+                                {
+                                    "key": "Content-Type",
+                                    "value": "application/json"
+                                }
+                            ],
+                            "body": "{\n    \"status\": true,\n    \"data\": {\n        \"data\": [\n            {\n                \"id\": \"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa\",\n                \"wallet_id\": \"WAL-00000001\",\n                \"type\": \"user\",\n                \"is_master\": false,\n                \"status\": \"active\",\n                \"balance\": 250,\n                \"available_balance\": 250,\n                \"currency_code\": \"SDG\",\n                \"owner\": {\n                    \"name\": \"Wallet Owner\",\n                    \"email\": \"owner@example.com\"\n                },\n                \"summary\": {\n                    \"transaction_count\": 2,\n                    \"total_credits\": 300,\n                    \"total_debits\": 50\n                }\n            },\n            {\n                \"id\": \"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa\",\n                \"wallet_id\": \"WAL-MASTER\",\n                \"type\": \"master\",\n                \"is_master\": true,\n                \"status\": \"active\",\n                \"balance\": 250,\n                \"available_balance\": 250,\n                \"currency_code\": \"SDG\",\n                \"owner\": {\n                    \"name\": \"Master Wallet\",\n                    \"description\": \"System equity / funding pool\"\n                },\n                \"summary\": {\n                    \"transaction_count\": 2,\n                    \"total_credits\": 300,\n                    \"total_debits\": 50\n                },\n                \"customer_id\": null\n            }\n        ],\n        \"current_page\": 1,\n        \"per_page\": 15,\n        \"total\": 2,\n        \"last_page\": 1\n    }\n}"
+                        }
+                    ],
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "if (pm.response.code === 200) {",
+                                    "    const json = pm.response.json();",
+                                    "    const wallet = json.data?.wallet || json.data?.data?.[0] || json.data;",
+                                    "    if (wallet?.id) pm.collectionVariables.set(\"admin_wallet_uuid\", wallet.id);",
+                                    "    if (wallet?.wallet_id) pm.collectionVariables.set(\"admin_wallet_public_id\", wallet.wallet_id);",
+                                    "}"
+                                ]
+                            }
+                        }
+                    ]
+                },
+                {
+                    "name": "Export Wallets",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json",
+                                "type": "text"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{admin_token}}",
+                                "type": "text"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/v2/admin/wallets/export",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "v2",
+                                "admin",
+                                "wallets",
+                                "export"
+                            ]
+                        },
+                        "description": "Download wallets spreadsheet (same filters as list)."
+                    }
+                },
+                {
+                    "name": "List All Transactions",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json",
+                                "type": "text"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{admin_token}}",
+                                "type": "text"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/v2/admin/wallets/transactions?direction=debit&wallet_type=user&per_page=15",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "v2",
+                                "admin",
+                                "wallets",
+                                "transactions"
+                            ],
+                            "query": [
+                                {
+                                    "key": "direction",
+                                    "value": "debit",
+                                    "disabled": false
+                                },
+                                {
+                                    "key": "wallet_type",
+                                    "value": "user",
+                                    "disabled": false
+                                },
+                                {
+                                    "key": "per_page",
+                                    "value": "15",
+                                    "disabled": false
+                                }
+                            ]
+                        },
+                        "description": "Global wallet transactions with debit/credit signed amounts."
+                    },
+                    "response": [
+                        {
+                            "name": "Success",
+                            "status": "OK",
+                            "code": 200,
+                            "_postman_previewlanguage": "json",
+                            "header": [
+                                {
+                                    "key": "Content-Type",
+                                    "value": "application/json"
+                                }
+                            ],
+                            "body": "{\n    \"status\": true,\n    \"data\": {\n        \"data\": [\n            {\n                \"id\": \"bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb\",\n                \"type\": \"transfer\",\n                \"direction\": \"debit\",\n                \"amount\": 100,\n                \"signed_amount\": -100,\n                \"balance_after\": 150,\n                \"counterparty\": {\n                    \"wallet_id\": \"WAL-00000002\",\n                    \"owner_name\": \"Recipient\"\n                }\n            }\n        ],\n        \"current_page\": 1,\n        \"per_page\": 15,\n        \"total\": 1,\n        \"last_page\": 1\n    }\n}"
+                        }
+                    ]
+                },
+                {
+                    "name": "Export All Transactions",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json",
+                                "type": "text"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{admin_token}}",
+                                "type": "text"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/v2/admin/wallets/transactions/export",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "v2",
+                                "admin",
+                                "wallets",
+                                "transactions",
+                                "export"
+                            ]
+                        },
+                        "description": "Download transactions spreadsheet."
+                    }
+                },
+                {
+                    "name": "Record Opening Capital",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json",
+                                "type": "text"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{admin_token}}",
+                                "type": "text"
+                            },
+                            {
+                                "key": "Idempotency-Key",
+                                "value": "{{idempotency_key}}",
+                                "type": "text"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json",
+                                "type": "text"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/v2/admin/wallets/opening-capital",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "v2",
+                                "admin",
+                                "wallets",
+                                "opening-capital"
+                            ]
+                        },
+                        "description": "Seed owner equity (ledger opening capital). Optional Idempotency-Key header.",
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"amount\": 1000,\n    \"description\": \"Owner seed\"\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        }
+                    },
+                    "response": [
+                        {
+                            "name": "Success",
+                            "status": "OK",
+                            "code": 200,
+                            "_postman_previewlanguage": "json",
+                            "header": [
+                                {
+                                    "key": "Content-Type",
+                                    "value": "application/json"
+                                }
+                            ],
+                            "body": "{\n    \"status\": true,\n    \"data\": {\n        \"amount\": 1000,\n        \"description\": \"Owner seed\",\n        \"posting_reference\": \"OPENING_CAPITAL\"\n    }\n}"
+                        }
+                    ]
+                },
+                {
+                    "name": "Show Wallet",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json",
+                                "type": "text"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{admin_token}}",
+                                "type": "text"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/v2/admin/wallets/{{admin_wallet_uuid}}",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "v2",
+                                "admin",
+                                "wallets",
+                                "{{admin_wallet_uuid}}"
+                            ]
+                        },
+                        "description": "Single wallet with owner and summary."
+                    },
+                    "response": [
+                        {
+                            "name": "Success",
+                            "status": "OK",
+                            "code": 200,
+                            "_postman_previewlanguage": "json",
+                            "header": [
+                                {
+                                    "key": "Content-Type",
+                                    "value": "application/json"
+                                }
+                            ],
+                            "body": "{\n    \"status\": true,\n    \"data\": {\n        \"id\": \"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa\",\n        \"wallet_id\": \"WAL-00000001\",\n        \"type\": \"user\",\n        \"is_master\": false,\n        \"status\": \"active\",\n        \"balance\": 250,\n        \"available_balance\": 250,\n        \"currency_code\": \"SDG\",\n        \"owner\": {\n            \"name\": \"Wallet Owner\",\n            \"email\": \"owner@example.com\"\n        },\n        \"summary\": {\n            \"transaction_count\": 2,\n            \"total_credits\": 300,\n            \"total_debits\": 50\n        }\n    }\n}"
+                        }
+                    ],
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "if (pm.response.code === 200) {",
+                                    "    const json = pm.response.json();",
+                                    "    const wallet = json.data?.wallet || json.data?.data?.[0] || json.data;",
+                                    "    if (wallet?.id) pm.collectionVariables.set(\"admin_wallet_uuid\", wallet.id);",
+                                    "    if (wallet?.wallet_id) pm.collectionVariables.set(\"admin_wallet_public_id\", wallet.wallet_id);",
+                                    "}"
+                                ]
+                            }
+                        }
+                    ]
+                },
+                {
+                    "name": "Wallet Transactions",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json",
+                                "type": "text"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{admin_token}}",
+                                "type": "text"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/v2/admin/wallets/{{admin_wallet_uuid}}/transactions?per_page=15",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "v2",
+                                "admin",
+                                "wallets",
+                                "{{admin_wallet_uuid}}",
+                                "transactions"
+                            ],
+                            "query": [
+                                {
+                                    "key": "per_page",
+                                    "value": "15",
+                                    "disabled": false
+                                }
+                            ]
+                        },
+                        "description": "Paginated transactions for one wallet."
+                    },
+                    "response": [
+                        {
+                            "name": "Success",
+                            "status": "OK",
+                            "code": 200,
+                            "_postman_previewlanguage": "json",
+                            "header": [
+                                {
+                                    "key": "Content-Type",
+                                    "value": "application/json"
+                                }
+                            ],
+                            "body": "{\n    \"status\": true,\n    \"data\": {\n        \"data\": [\n            {\n                \"id\": \"bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb\",\n                \"type\": \"transfer\",\n                \"direction\": \"debit\",\n                \"amount\": 100,\n                \"signed_amount\": -100,\n                \"balance_after\": 150,\n                \"counterparty\": {\n                    \"wallet_id\": \"WAL-00000002\",\n                    \"owner_name\": \"Recipient\"\n                }\n            }\n        ],\n        \"current_page\": 1,\n        \"per_page\": 15,\n        \"total\": 1,\n        \"last_page\": 1\n    }\n}"
+                        }
+                    ]
+                },
+                {
+                    "name": "Cash In",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json",
+                                "type": "text"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{admin_token}}",
+                                "type": "text"
+                            },
+                            {
+                                "key": "Idempotency-Key",
+                                "value": "{{idempotency_key}}",
+                                "type": "text"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json",
+                                "type": "text"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/v2/admin/wallets/{{admin_wallet_uuid}}/cash-in",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "v2",
+                                "admin",
+                                "wallets",
+                                "{{admin_wallet_uuid}}",
+                                "cash-in"
+                            ]
+                        },
+                        "description": "Credit wallet from master float (user) or top-up master float directly.",
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"amount\": 200,\n    \"description\": \"Station cash-in\"\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        }
+                    },
+                    "response": [
+                        {
+                            "name": "Success",
+                            "status": "OK",
+                            "code": 200,
+                            "_postman_previewlanguage": "json",
+                            "header": [
+                                {
+                                    "key": "Content-Type",
+                                    "value": "application/json"
+                                }
+                            ],
+                            "body": "{\n    \"status\": true,\n    \"data\": {\n        \"amount\": 200,\n        \"description\": \"Station cash-in\",\n        \"posting_reference\": \"WALLET_CASH_IN\",\n        \"wallet\": {\n            \"id\": \"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa\",\n            \"wallet_id\": \"WAL-00000001\",\n            \"type\": \"user\",\n            \"is_master\": false,\n            \"status\": \"active\",\n            \"balance\": 450,\n            \"available_balance\": 250,\n            \"currency_code\": \"SDG\",\n            \"owner\": {\n                \"name\": \"Wallet Owner\",\n                \"email\": \"owner@example.com\"\n            },\n            \"summary\": {\n                \"transaction_count\": 2,\n                \"total_credits\": 300,\n                \"total_debits\": 50\n            }\n        },\n        \"transaction\": {\n            \"id\": \"cccccccc-cccc-4ccc-8ccc-cccccccccccc\",\n            \"type\": \"topup\",\n            \"direction\": \"credit\",\n            \"amount\": 200,\n            \"signed_amount\": 200,\n            \"balance_after\": 450\n        }\n    }\n}"
+                        }
+                    ]
+                },
+                {
+                    "name": "Cash Out",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json",
+                                "type": "text"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{admin_token}}",
+                                "type": "text"
+                            },
+                            {
+                                "key": "Idempotency-Key",
+                                "value": "{{idempotency_key}}",
+                                "type": "text"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json",
+                                "type": "text"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/v2/admin/wallets/{{admin_wallet_uuid}}/cash-out",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "v2",
+                                "admin",
+                                "wallets",
+                                "{{admin_wallet_uuid}}",
+                                "cash-out"
+                            ]
+                        },
+                        "description": "Debit wallet balance (returns to master float for user wallets).",
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"amount\": 50,\n    \"description\": \"Station cash-out\"\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        }
+                    },
+                    "response": [
+                        {
+                            "name": "Success",
+                            "status": "OK",
+                            "code": 200,
+                            "_postman_previewlanguage": "json",
+                            "header": [
+                                {
+                                    "key": "Content-Type",
+                                    "value": "application/json"
+                                }
+                            ],
+                            "body": "{\n    \"status\": true,\n    \"data\": {\n        \"amount\": 50,\n        \"description\": \"Station cash-in\",\n        \"posting_reference\": \"WALLET_CASH_OUT\",\n        \"wallet\": {\n            \"id\": \"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa\",\n            \"wallet_id\": \"WAL-00000001\",\n            \"type\": \"user\",\n            \"is_master\": false,\n            \"status\": \"active\",\n            \"balance\": 450,\n            \"available_balance\": 250,\n            \"currency_code\": \"SDG\",\n            \"owner\": {\n                \"name\": \"Wallet Owner\",\n                \"email\": \"owner@example.com\"\n            },\n            \"summary\": {\n                \"transaction_count\": 2,\n                \"total_credits\": 300,\n                \"total_debits\": 50\n            }\n        },\n        \"transaction\": {\n            \"id\": \"cccccccc-cccc-4ccc-8ccc-cccccccccccc\",\n            \"type\": \"topup\",\n            \"direction\": \"credit\",\n            \"amount\": 200,\n            \"signed_amount\": 200,\n            \"balance_after\": 450\n        }\n    }\n}"
+                        }
+                    ]
+                },
+                {
+                    "name": "Suspend Wallet",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json",
+                                "type": "text"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{admin_token}}",
+                                "type": "text"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/v2/admin/wallets/{{admin_wallet_uuid}}/suspend",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "v2",
+                                "admin",
+                                "wallets",
+                                "{{admin_wallet_uuid}}",
+                                "suspend"
+                            ]
+                        },
+                        "description": "Freeze a user wallet (master protected)."
+                    },
+                    "response": [
+                        {
+                            "name": "Success",
+                            "status": "OK",
+                            "code": 200,
+                            "_postman_previewlanguage": "json",
+                            "header": [
+                                {
+                                    "key": "Content-Type",
+                                    "value": "application/json"
+                                }
+                            ],
+                            "body": "{\n    \"status\": true,\n    \"data\": {\n        \"message\": \"Wallet suspended successfully.\",\n        \"wallet\": {\n            \"id\": \"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa\",\n            \"wallet_id\": \"WAL-00000001\",\n            \"type\": \"user\",\n            \"is_master\": false,\n            \"status\": \"frozen\",\n            \"balance\": 250,\n            \"available_balance\": 250,\n            \"currency_code\": \"SDG\",\n            \"owner\": {\n                \"name\": \"Wallet Owner\",\n                \"email\": \"owner@example.com\"\n            },\n            \"summary\": {\n                \"transaction_count\": 2,\n                \"total_credits\": 300,\n                \"total_debits\": 50\n            }\n        }\n    }\n}"
+                        }
+                    ]
+                },
+                {
+                    "name": "Activate Wallet",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json",
+                                "type": "text"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{admin_token}}",
+                                "type": "text"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/v2/admin/wallets/{{admin_wallet_uuid}}/activate",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "v2",
+                                "admin",
+                                "wallets",
+                                "{{admin_wallet_uuid}}",
+                                "activate"
+                            ]
+                        },
+                        "description": "Re-activate a frozen wallet."
+                    },
+                    "response": [
+                        {
+                            "name": "Success",
+                            "status": "OK",
+                            "code": 200,
+                            "_postman_previewlanguage": "json",
+                            "header": [
+                                {
+                                    "key": "Content-Type",
+                                    "value": "application/json"
+                                }
+                            ],
+                            "body": "{\n    \"status\": true,\n    \"data\": {\n        \"message\": \"Wallet activated successfully.\",\n        \"wallet\": {\n            \"id\": \"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa\",\n            \"wallet_id\": \"WAL-00000001\",\n            \"type\": \"user\",\n            \"is_master\": false,\n            \"status\": \"active\",\n            \"balance\": 250,\n            \"available_balance\": 250,\n            \"currency_code\": \"SDG\",\n            \"owner\": {\n                \"name\": \"Wallet Owner\",\n                \"email\": \"owner@example.com\"\n            },\n            \"summary\": {\n                \"transaction_count\": 2,\n                \"total_credits\": 300,\n                \"total_debits\": 50\n            }\n        }\n    }\n}"
+                        }
+                    ]
+                },
+                {
+                    "name": "Close Wallet",
+                    "request": {
+                        "method": "DELETE",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json",
+                                "type": "text"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{admin_token}}",
+                                "type": "text"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/v2/admin/wallets/{{admin_wallet_uuid}}",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "v2",
+                                "admin",
+                                "wallets",
+                                "{{admin_wallet_uuid}}"
+                            ]
+                        },
+                        "description": "Soft-close wallet (status=closed)."
+                    },
+                    "response": [
+                        {
+                            "name": "Success",
+                            "status": "OK",
+                            "code": 200,
+                            "_postman_previewlanguage": "json",
+                            "header": [
+                                {
+                                    "key": "Content-Type",
+                                    "value": "application/json"
+                                }
+                            ],
+                            "body": "{\n    \"status\": true,\n    \"data\": {\n        \"message\": \"Wallet closed successfully.\",\n        \"wallet\": {\n            \"id\": \"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa\",\n            \"wallet_id\": \"WAL-00000001\",\n            \"type\": \"user\",\n            \"is_master\": false,\n            \"status\": \"closed\",\n            \"balance\": 250,\n            \"available_balance\": 250,\n            \"currency_code\": \"SDG\",\n            \"owner\": {\n                \"name\": \"Wallet Owner\",\n                \"email\": \"owner@example.com\"\n            },\n            \"summary\": {\n                \"transaction_count\": 2,\n                \"total_credits\": 300,\n                \"total_debits\": 50\n            }\n        }\n    }\n}"
                         }
                     ]
                 }

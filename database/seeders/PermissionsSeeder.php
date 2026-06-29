@@ -43,6 +43,19 @@ class PermissionsSeeder extends Seeder
             }
         }
 
+        if (isset($adminPermissions['accounting_permissions'])) {
+            foreach ($adminPermissions['accounting_permissions'] as $category => $perms) {
+                foreach ($perms as $permName) {
+                    Permission::firstOrCreate([
+                        'name' => "accounting.{$category}.{$permName}",
+                        'guard_name' => 'admin'
+                    ], [
+                        'display_name' => ucwords(str_replace('_', ' ', $permName))
+                    ]);
+                }
+            }
+        }
+
         // Create web permissions from config
         foreach ($webPermissions as $key => $permission) {
             Permission::firstOrCreate(['name' => $key, 'guard_name' => 'web']);

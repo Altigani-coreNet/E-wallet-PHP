@@ -16,6 +16,12 @@ class LedgerService
 
     public const REF_WALLET_TRANSFER = 'WALLET_TRANSFER';
 
+    public const REF_WALLET_CASH_IN = 'WALLET_CASH_IN';
+
+    public const REF_WALLET_CASH_OUT = 'WALLET_CASH_OUT';
+
+    public const REF_OPENING_CAPITAL = 'OPENING_CAPITAL';
+
     public function account(int $code): ChartOfAccount
     {
         $account = ChartOfAccount::query()->byCode($code)->first();

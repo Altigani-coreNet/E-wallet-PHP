@@ -29,7 +29,7 @@ class AdminCustomerApiController extends Controller
     public function index(Request $request): JsonResponse
     {
         try {
-            $query = Customer::query()->with(['merchant', 'country', 'city'])->withCountry();
+            $query = Customer::query()->with(['merchant', 'country', 'city', 'wallet'])->withCountry();
 
             if ($request->filled('merchant_id')) {
                 $query->where('merchant_id', $request->merchant_id);
@@ -90,10 +90,10 @@ class AdminCustomerApiController extends Controller
         }
     }
 
-    public function show(string $uuid): JsonResponse
+    public function show(int $id): JsonResponse
     {
         try {
-            $customer = $this->findCustomer($uuid);
+            $customer = $this->findCustomer($id);
 
             return $this->jsonSuccess(AdminCustomerResource::make($customer)->resolve());
         } catch (\Throwable $exception) {
@@ -117,7 +117,7 @@ class AdminCustomerApiController extends Controller
             // Invite the customer to set their own password (email + SMS).
             $this->passwordSetupService->generateAndSend($customer);
 
-            $customer->load(['merchant', 'country', 'city']);
+            $customer->load(['merchant', 'country', 'city', 'wallet']);
 
             return $this->jsonSuccess(AdminCustomerResource::make($customer)->resolve(), 'Customer created successfully', 201);
         } catch (ValidationException $exception) {
@@ -134,10 +134,10 @@ class AdminCustomerApiController extends Controller
         }
     }
 
-    public function update(AdminCustomerUpdateRequest $request, string $uuid): JsonResponse
+    public function update(AdminCustomerUpdateRequest $request, int $id): JsonResponse
     {
         try {
-            $customer = $this->findCustomer($uuid);
+            $customer = $this->findCustomer($id);
             $data = $request->validated();
 
             if ($request->hasFile('profile_image')) {
@@ -146,7 +146,7 @@ class AdminCustomerApiController extends Controller
             }
 
             $customer = $this->customerService->update($customer, $data);
-            $customer->load(['merchant', 'country', 'city']);
+            $customer->load(['merchant', 'country', 'city', 'wallet']);
 
             return $this->jsonSuccess(AdminCustomerResource::make($customer)->resolve(), 'Customer updated successfully');
         } catch (ValidationException $exception) {
@@ -163,10 +163,10 @@ class AdminCustomerApiController extends Controller
         }
     }
 
-    public function destroy(string $uuid): JsonResponse
+    public function destroy(int $id): JsonResponse
     {
         try {
-            $customer = $this->findCustomer($uuid);
+            $customer = $this->findCustomer($id);
             $this->customerService->delete($customer);
 
             return $this->jsonSuccess(null, 'Customer deleted successfully');
@@ -181,11 +181,11 @@ class AdminCustomerApiController extends Controller
     {
         $validated = $request->validate([
             'ids' => 'required|array|min:1',
-            'ids.*' => 'uuid|exists:customers,uuid',
+            'ids.*' => 'integer|exists:customers,id',
         ]);
 
         try {
-            $deletedCount = $this->customerService->bulkDeleteByUuid($validated['ids']);
+            $deletedCount = $this->customerService->bulkDelete($validated['ids']);
 
             return $this->jsonSuccess(
                 ['deleted_count' => $deletedCount],
@@ -198,10 +198,10 @@ class AdminCustomerApiController extends Controller
         }
     }
 
-    public function updateStatus(AdminCustomerStatusRequest $request, string $uuid): JsonResponse
+    public function updateStatus(AdminCustomerStatusRequest $request, int $id): JsonResponse
     {
         try {
-            $customer = $this->findCustomer($uuid);
+            $customer = $this->findCustomer($id);
             $customer = $this->customerService->updateStatus($customer, $request->validated('status'));
 
             return $this->jsonSuccess(AdminCustomerResource::make($customer)->resolve(), 'Customer status updated successfully');
@@ -219,10 +219,10 @@ class AdminCustomerApiController extends Controller
         }
     }
 
-    public function toggleStatus(string $uuid): JsonResponse
+    public function toggleStatus(int $id): JsonResponse
     {
         try {
-            $customer = $this->findCustomer($uuid);
+            $customer = $this->findCustomer($id);
             $customer = $this->customerService->toggleStatus($customer);
 
             return $this->jsonSuccess(AdminCustomerResource::make($customer)->resolve(), 'Customer status updated successfully');
@@ -233,10 +233,10 @@ class AdminCustomerApiController extends Controller
         }
     }
 
-    public function resendPasswordInvite(string $uuid): JsonResponse
+    public function resendPasswordInvite(int $id): JsonResponse
     {
         try {
-            $customer = $this->findCustomer($uuid);
+            $customer = $this->findCustomer($id);
 
             if (! $customer->email && ! $customer->phone) {
                 return $this->jsonError('Customer has no email or phone to send the invite to', 422);
@@ -252,12 +252,12 @@ class AdminCustomerApiController extends Controller
         }
     }
 
-    private function findCustomer(string $uuid): Customer
+    private function findCustomer(int $id): Customer
     {
         return Customer::query()
-            ->with(['merchant', 'country', 'city'])
+            ->with(['merchant', 'country', 'city', 'wallet'])
             ->withCountry()
-            ->where('uuid', $uuid)
+            ->whereKey($id)
             ->firstOrFail();
     }
 

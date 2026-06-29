@@ -32,6 +32,10 @@ class CustomerJwtMiddleware
             return SuccessResponse::error('Unauthorized', 401);
         }
 
+        if (($payload->token_use ?? null) === 'refresh') {
+            return SuccessResponse::error('Unauthorized', 401);
+        }
+
         if (($payload->type ?? null) !== 'customer') {
             return SuccessResponse::error('Customer access required', 403);
         }

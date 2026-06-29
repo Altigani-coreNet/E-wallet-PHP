@@ -42,9 +42,9 @@ return Application::configure(basePath: dirname(__DIR__))
         }
 
         // Enable CORS for API routes
-        // $middleware->api(prepend: [
-        //     \Illuminate\Http\Middleware\HandleCors::class,
-        // ]);
+        $middleware->api(prepend: [
+            \Illuminate\Http\Middleware\HandleCors::class,
+        ]);
         
         // RedirectIfAuthenticated::redirectUsing(function ($request) {
         //     if (Auth::guard('admin')->check()) {

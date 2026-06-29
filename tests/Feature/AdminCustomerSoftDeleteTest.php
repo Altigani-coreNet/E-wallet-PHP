@@ -38,7 +38,7 @@ class AdminCustomerSoftDeleteTest extends CustomerAuthTestCase
         $customer->update(['email' => 'deleted-test@example.com']);
 
         $response = $this->actingAsAdminApi()
-            ->deleteJson("/api/v2/admin/customers/{$customer->uuid}");
+            ->deleteJson("/api/v2/admin/customers/{$customer->id}");
 
         $response->assertOk()
             ->assertJson([
@@ -47,9 +47,9 @@ class AdminCustomerSoftDeleteTest extends CustomerAuthTestCase
                 'message' => 'Customer deleted successfully',
             ]);
 
-        $this->assertSoftDeleted('customers', ['uuid' => $customer->uuid]);
+        $this->assertSoftDeleted('customers', ['id' => $customer->id]);
 
-        $trashed = Customer::withTrashed()->where('uuid', $customer->uuid)->firstOrFail();
+        $trashed = Customer::withTrashed()->whereKey($customer->id)->firstOrFail();
         $this->assertSame(Customer::STATUS_DELETED, $trashed->status);
         $this->assertSame("deleted_{$customer->id}_".self::TEST_PHONE, $trashed->phone);
         $this->assertSame("deleted_{$customer->id}_deleted-test@example.com", $trashed->email);
@@ -64,7 +64,7 @@ class AdminCustomerSoftDeleteTest extends CustomerAuthTestCase
         $customer = Customer::query()->where('phone', self::TEST_PHONE)->firstOrFail();
 
         $this->actingAsAdminApi()
-            ->deleteJson("/api/v2/admin/customers/{$customer->uuid}")
+            ->deleteJson("/api/v2/admin/customers/{$customer->id}")
             ->assertOk();
 
         $indexResponse = $this->actingAsAdminApi()
@@ -87,7 +87,7 @@ class AdminCustomerSoftDeleteTest extends CustomerAuthTestCase
         $customer->update(['status' => Customer::STATUS_ACTIVE]);
 
         $this->actingAsAdminApi()
-            ->deleteJson("/api/v2/admin/customers/{$customer->uuid}")
+            ->deleteJson("/api/v2/admin/customers/{$customer->id}")
             ->assertOk();
 
         $loginResponse = $this->postJson('/api/v1/customer/auth/login', [
@@ -109,7 +109,7 @@ class AdminCustomerSoftDeleteTest extends CustomerAuthTestCase
         $customer = Customer::query()->where('phone', self::TEST_PHONE)->firstOrFail();
 
         $this->actingAsAdminApi()
-            ->deleteJson("/api/v2/admin/customers/{$customer->uuid}")
+            ->deleteJson("/api/v2/admin/customers/{$customer->id}")
             ->assertOk();
 
         $reRegister = $this->registerCustomer(self::TEST_PHONE, 'NewPass1!');
@@ -124,11 +124,11 @@ class AdminCustomerSoftDeleteTest extends CustomerAuthTestCase
         ]);
 
         $newCustomer = Customer::query()->where('phone', self::TEST_PHONE)->firstOrFail();
-        $this->assertNotSame($customer->uuid, $newCustomer->uuid);
+        $this->assertNotSame($customer->id, $newCustomer->id);
         $this->assertTrue(Hash::check('NewPass1!', $newCustomer->password));
     }
 
-    public function test_bulk_delete_corrupts_and_soft_deletes_every_uuid(): void
+    public function test_bulk_delete_corrupts_and_soft_deletes_every_id(): void
     {
         $first = $this->registerCustomer('+249911111111', self::VALID_PASSWORD);
         $second = $this->registerCustomer('+249922222222', self::VALID_PASSWORD);
@@ -138,7 +138,7 @@ class AdminCustomerSoftDeleteTest extends CustomerAuthTestCase
 
         $response = $this->actingAsAdminApi()
             ->postJson('/api/v2/admin/customers/bulk-delete', [
-                'ids' => [$firstCustomer->uuid, $secondCustomer->uuid],
+                'ids' => [$firstCustomer->id, $secondCustomer->id],
             ]);
 
         $response->assertOk()
@@ -148,11 +148,11 @@ class AdminCustomerSoftDeleteTest extends CustomerAuthTestCase
                 'message' => '2 customers deleted successfully',
             ]);
 
-        $this->assertSoftDeleted('customers', ['uuid' => $firstCustomer->uuid]);
-        $this->assertSoftDeleted('customers', ['uuid' => $secondCustomer->uuid]);
+        $this->assertSoftDeleted('customers', ['id' => $firstCustomer->id]);
+        $this->assertSoftDeleted('customers', ['id' => $secondCustomer->id]);
 
-        $firstTrashed = Customer::withTrashed()->where('uuid', $firstCustomer->uuid)->firstOrFail();
-        $secondTrashed = Customer::withTrashed()->where('uuid', $secondCustomer->uuid)->firstOrFail();
+        $firstTrashed = Customer::withTrashed()->whereKey($firstCustomer->id)->firstOrFail();
+        $secondTrashed = Customer::withTrashed()->whereKey($secondCustomer->id)->firstOrFail();
 
         $this->assertSame(Customer::STATUS_DELETED, $firstTrashed->status);
         $this->assertSame(Customer::STATUS_DELETED, $secondTrashed->status);

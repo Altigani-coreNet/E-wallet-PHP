@@ -4,6 +4,7 @@ namespace App\Modules\CustomerAuth\Controllers;
 
 use App\Models\Customer;
 use App\Modules\CustomerAuth\Requests\CompleteProfileRequest;
+use App\Modules\CustomerAuth\Requests\CustomerChangePasswordRequest;
 use App\Modules\CustomerAuth\Requests\CustomerForgotPasswordRequest;
 use App\Modules\CustomerAuth\Requests\CustomerLoginRequest;
 use App\Modules\CustomerAuth\Requests\CustomerRegisterRequest;
@@ -54,14 +55,14 @@ class CustomerAuthController
 
     public function refreshToken(Request $request)
     {
-        $token = $this->extractBearerToken($request);
+        $token = $request->input('refresh_token') ?: $this->extractBearerToken($request);
 
         if (! $token) {
             return SuccessResponse::error('Unauthorized', 401);
         }
 
         try {
-            $payload = $this->jwtService->decodeForRefresh($token);
+            $payload = $this->jwtService->decodeRefreshToken($token);
         } catch (ExpiredException|SignatureInvalidException|\UnexpectedValueException) {
             return SuccessResponse::error('Unauthorized', 401);
         }
@@ -83,6 +84,15 @@ class CustomerAuthController
         $data = $this->authService->refreshToken($customer);
 
         return SuccessResponse::make($data, 'Token refreshed successfully');
+    }
+
+    public function changePassword(CustomerChangePasswordRequest $request)
+    {
+        /** @var Customer $customer */
+        $customer = Auth::guard('customer')->user();
+        $data = $this->authService->changePassword($customer, $request->validated());
+
+        return SuccessResponse::make($data, 'Password changed successfully');
     }
 
     public function profile()

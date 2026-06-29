@@ -9,6 +9,7 @@ use App\Models\Customer;
 use App\Modules\CustomerAuth\Resources\CustomerAuthResource;
 use App\Modules\CustomerAuth\Support\CustomerJwtService;
 use App\Modules\CustomerAuth\Support\OtpTokenCipher;
+use App\Services\WalletService;
 use App\Traits\HasFiles;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
@@ -26,6 +27,7 @@ class CustomerAuthService
     public function __construct(
         private readonly CustomerOtpService $otpService,
         private readonly CustomerJwtService $jwtService,
+        private readonly WalletService $walletService,
     ) {}
 
     public function register(array $data): array
@@ -146,6 +148,29 @@ class CustomerAuthService
         return $this->buildAuthResponse($customer);
     }
 
+    public function changePassword(Customer $customer, array $data): array
+    {
+        if (! Hash::check($data['current_password'], $customer->password)) {
+            throw new \Symfony\Component\HttpKernel\Exception\BadRequestHttpException(
+                'Current password is incorrect'
+            );
+        }
+
+        if (Hash::check($data['password'], $customer->password)) {
+            throw new \Symfony\Component\HttpKernel\Exception\BadRequestHttpException(
+                'New password must be different from the current password'
+            );
+        }
+
+        $customer->update([
+            'password' => Hash::make($data['password']),
+        ]);
+
+        $customer->load(['country', 'city']);
+
+        return $this->buildAuthResponse($customer->fresh(['country', 'city']));
+    }
+
     public function profile(Customer $customer): array
     {
         $customer->load(['country', 'city']);
@@ -198,6 +223,8 @@ class CustomerAuthService
         }
 
         $customer->update($updateData);
+
+        $this->walletService->createForCustomer($customer);
 
         $customer->load(['country', 'city']);
 
@@ -320,9 +347,18 @@ class CustomerAuthService
             'customer',
         );
 
+        $refresh = $this->jwtService->createRefreshToken(
+            $customer->id,
+            $customer->email ?: $customer->phone,
+            'customer',
+        );
+
         return [
             'token' => $auth['token'],
             'token_type' => $auth['tokenType'],
+            'expires_in' => $auth['expiresIn'],
+            'refresh_token' => $refresh['token'],
+            'refresh_token_expires_in' => $refresh['expiresIn'],
             'profile_completed' => (bool) $customer->profile_completed,
             'customer' => CustomerAuthResource::make($customer)->resolve(),
         ];

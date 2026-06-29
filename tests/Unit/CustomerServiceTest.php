@@ -124,14 +124,14 @@ class CustomerServiceTest extends CustomerAuthTestCase
 
         $this->customerService->delete($customer);
 
-        $trashed = Customer::withTrashed()->where('uuid', $customer->uuid)->firstOrFail();
+        $trashed = Customer::withTrashed()->whereKey($customer->id)->firstOrFail();
         $this->assertSame(Customer::STATUS_DELETED, $trashed->status);
         $this->assertSame("deleted_{$customer->id}_+249911200007", $trashed->phone);
         $this->assertSame("deleted_{$customer->id}_delete-service@example.com", $trashed->email);
         $this->assertNotNull($trashed->deleted_at);
     }
 
-    public function test_bulk_delete_by_uuid_returns_deleted_count(): void
+    public function test_bulk_delete_returns_deleted_count(): void
     {
         $first = $this->createCustomer([
             'email' => 'bulk-service-1@example.com',
@@ -142,11 +142,11 @@ class CustomerServiceTest extends CustomerAuthTestCase
             'phone' => '+249911200009',
         ]);
 
-        $deletedCount = $this->customerService->bulkDeleteByUuid([$first->uuid, $second->uuid]);
+        $deletedCount = $this->customerService->bulkDelete([$first->id, $second->id]);
 
         $this->assertSame(2, $deletedCount);
-        $this->assertSoftDeleted('customers', ['uuid' => $first->uuid]);
-        $this->assertSoftDeleted('customers', ['uuid' => $second->uuid]);
+        $this->assertSoftDeleted('customers', ['id' => $first->id]);
+        $this->assertSoftDeleted('customers', ['id' => $second->id]);
     }
 
     private function createCustomer(array $attributes = []): Customer

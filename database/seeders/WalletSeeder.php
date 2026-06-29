@@ -11,9 +11,9 @@ use Illuminate\Database\Seeder;
 /**
  * Demo wallet flow using production services only (IFRS double-entry).
  *
- * 1. Master wallet funded 1,000,000 from bank (Dr 1000 / Cr 2000)
- * 2. Master -> Jon 1,950
- * 3. Jon -> Ahmed 450
+ * 1. Operator funds the master float from the bank (Dr Bank / Cr Master)
+ * 2. Jon cash-in 1,950 (master issues e-money: Dr Master / Cr Jon)
+ * 3. Jon -> Ahmed 450 (customer-to-customer transfer)
  */
 class WalletSeeder extends Seeder
 {
@@ -23,7 +23,7 @@ class WalletSeeder extends Seeder
         $customerService = app(CustomerService::class);
 
         $master = $walletService->createMasterWallet();
-        $walletService->topUpFromBank($master, 1_000_000, 'Master wallet initial funding');
+        $walletService->cashIn($master, 1_000_000, 'Master float opening fund');
 
         $jon = $customerService->create([
             'name' => 'Jon',
@@ -48,7 +48,7 @@ class WalletSeeder extends Seeder
             return;
         }
 
-        $walletService->transfer($master->fresh(), $jonWallet, 1_950, 'Master -> Jon');
+        $walletService->cashIn($jonWallet, 1_950, 'Station cash-in for Jon');
         $walletService->transfer($jonWallet->fresh(), $ahmedWallet, 450, 'Jon -> Ahmed');
 
         $masterBalance = Wallet::query()->where('wallet_id', WalletService::MASTER_WALLET_ID)->value('balance');

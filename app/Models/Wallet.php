@@ -18,6 +18,16 @@ class Wallet extends Model
         'closed',
     ];
 
+    public const TYPE_MASTER = 'master';
+
+    public const TYPE_USER = 'user';
+
+    /** @var list<string> */
+    public const TYPES = [
+        self::TYPE_MASTER,
+        self::TYPE_USER,
+    ];
+
     protected $fillable = [
         'user_number',
         'wallet_id',
@@ -49,5 +59,16 @@ class Wallet extends Model
     public function walletTransactions(): HasMany
     {
         return $this->hasMany(WalletTransaction::class);
+    }
+
+    public function isMaster(): bool
+    {
+        return $this->customer_id === null
+            || $this->wallet_id === \App\Services\WalletService::MASTER_WALLET_ID;
+    }
+
+    public function resolveType(): string
+    {
+        return $this->isMaster() ? self::TYPE_MASTER : self::TYPE_USER;
     }
 }
