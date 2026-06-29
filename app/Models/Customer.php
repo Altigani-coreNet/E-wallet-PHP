@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Auth\Authenticatable;
 use Illuminate\Contracts\Auth\Authenticatable as AuthenticatableContract;
+use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
@@ -12,7 +13,7 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Support\Facades\Auth;
 class Customer extends Model implements AuthenticatableContract
 {
-    use Authenticatable, HasFactory, SoftDeletes;
+    use Authenticatable, HasFactory, HasUuids, SoftDeletes;
 
     public const STATUS_PENDING = 'pending';
 
@@ -102,13 +103,15 @@ class Customer extends Model implements AuthenticatableContract
         return $this->hasOne(Wallet::class);
     }
 
-    public function getCode()
+    public function getCode(): string
     {
+        $suffix = strtoupper(substr(str_replace('-', '', (string) $this->id), -8));
+
         if ($this->merchant && $this->merchant->merchant_code) {
-            return 'CSMR' . str_replace('MERCH', '', $this->merchant->merchant_code) . str_pad((string) $this->id, 6, '0', STR_PAD_LEFT);
+            return 'CSMR'.str_replace('MERCH', '', $this->merchant->merchant_code).$suffix;
         }
 
-        return 'CSMR' . str_pad((string) $this->id, 6, '0', STR_PAD_LEFT);
+        return 'CSMR'.$suffix;
     }
 
     public function isSuspended(): bool

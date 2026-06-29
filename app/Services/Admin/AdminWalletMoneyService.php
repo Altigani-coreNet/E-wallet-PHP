@@ -132,10 +132,10 @@ class AdminWalletMoneyService
         return $wallet;
     }
 
-    private function idempotencyOwnerId(string $walletUuid): int
+    private function idempotencyOwnerId(string $walletUuid): ?string
     {
         $wallet = Wallet::query()->find($walletUuid);
 
-        return (int) ($wallet?->customer_id ?? 0);
+        return $wallet?->customer_id ? (string) $wallet->customer_id : null;
     }
 }

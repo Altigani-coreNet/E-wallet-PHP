@@ -173,7 +173,7 @@ class CustomerAuthService
 
     public function profile(Customer $customer): array
     {
-        $customer->load(['country', 'city']);
+        $customer->load(['country', 'city', 'wallet']);
 
         return [
             'profile_completed' => $customer->profile_completed,
@@ -226,7 +226,7 @@ class CustomerAuthService
 
         $this->walletService->createForCustomer($customer);
 
-        $customer->load(['country', 'city']);
+        $customer->load(['country', 'city', 'wallet']);
 
         $this->sendWelcomeEmail(
             $data['email'],
@@ -236,7 +236,7 @@ class CustomerAuthService
 
         return [
             'profile_completed' => true,
-            'customer' => CustomerAuthResource::make($customer->fresh(['country', 'city']))->resolve(),
+            'customer' => CustomerAuthResource::make($customer->fresh(['country', 'city', 'wallet']))->resolve(),
         ];
     }
 
@@ -270,11 +270,11 @@ class CustomerAuthService
         }
 
         $customer->update($updateData);
-        $customer->load(['country', 'city']);
+        $customer->load(['country', 'city', 'wallet']);
 
         return [
             'profile_completed' => (bool) $customer->profile_completed,
-            'customer' => CustomerAuthResource::make($customer->fresh(['country', 'city']))->resolve(),
+            'customer' => CustomerAuthResource::make($customer->fresh(['country', 'city', 'wallet']))->resolve(),
         ];
     }
 

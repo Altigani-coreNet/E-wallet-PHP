@@ -16,7 +16,7 @@ return new class extends Migration
             $table->decimal('amount', 15, 2);
             $table->decimal('balance_after', 15, 2)->default('0.00');
             $table->string('reference')->nullable();
-            $table->unsignedBigInteger('reference_id')->nullable();
+            $table->string('reference_id', 36)->nullable();
             $table->text('description')->nullable();
             $table->integer('created_by')->default(0);
             $table->timestamps();

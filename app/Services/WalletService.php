@@ -16,6 +16,8 @@ class WalletService
 {
     public const MASTER_WALLET_ID = 'WAL-MASTER';
 
+    public const WALLET_ID_SUFFIX = '@fastpay';
+
     public const MASTER_USER_NUMBER = 'MASTER';
 
     /** @deprecated Use AccountCode::BANK */
@@ -37,20 +39,41 @@ class WalletService
             return null;
         }
 
-        return Wallet::query()->firstOrCreate(
-            ['customer_id' => $customer->id],
-            [
-                'wallet_id' => $this->generateWalletPublicId($customer),
-                'user_number' => (string) ($customer->getCode() ?: $customer->id),
-                'merchant_id' => $customer->merchant_id,
-                'currency_id' => $this->resolveDefaultCurrencyId(),
-                'currency_code' => self::DEFAULT_CURRENCY_CODE,
-                'account_id' => $liabilityAccount->id,
-                'balance' => '0.00',
-                'available_balance' => '0.00',
-                'status' => 'active',
-            ]
-        );
+        $publicId = $this->generateWalletPublicId($customer);
+
+        $existingByCustomer = Wallet::query()->where('customer_id', $customer->id)->first();
+        if ($existingByCustomer) {
+            return $existingByCustomer;
+        }
+
+        $existingByPhone = Wallet::query()->where('wallet_id', $publicId)->first();
+        if ($existingByPhone) {
+            throw new InvalidArgumentException('A wallet already exists for this phone number.');
+        }
+
+        return Wallet::query()->create([
+            'customer_id' => $customer->id,
+            'wallet_id' => $publicId,
+            'user_number' => (string) ($customer->getCode() ?: $customer->id),
+            'merchant_id' => $customer->merchant_id,
+            'currency_id' => $this->resolveDefaultCurrencyId(),
+            'currency_code' => self::DEFAULT_CURRENCY_CODE,
+            'account_id' => $liabilityAccount->id,
+            'balance' => '0.00',
+            'available_balance' => '0.00',
+            'status' => 'active',
+        ]);
+    }
+
+    public static function formatWalletPublicId(string $phone): string
+    {
+        $phone = ltrim(trim($phone), '+');
+
+        if ($phone === '') {
+            throw new InvalidArgumentException('Phone number is required for wallet ID.');
+        }
+
+        return $phone.self::WALLET_ID_SUFFIX;
     }
 
     public function createMasterWallet(): Wallet
@@ -568,14 +591,18 @@ class WalletService
         return $amount;
     }
 
-    private function walletReferenceId(Wallet $wallet): int
+    private function walletReferenceId(Wallet $wallet): string
     {
-        return (int) ($wallet->customer_id ?? 0);
+        if ($wallet->customer_id === null) {
+            return '0';
+        }
+
+        return (string) $wallet->customer_id;
     }
 
     private function generateWalletPublicId(Customer $customer): string
     {
-        return 'WAL-'.str_pad((string) $customer->id, 8, '0', STR_PAD_LEFT);
+        return self::formatWalletPublicId((string) ($customer->phone ?? ''));
     }
 
     private function resolveWalletLiabilityAccount(): ?ChartOfAccount

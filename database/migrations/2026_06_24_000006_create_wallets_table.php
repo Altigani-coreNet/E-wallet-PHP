@@ -12,7 +12,7 @@ return new class extends Migration
             $table->uuid('id')->primary();
             $table->string('user_number')->nullable();
             $table->string('wallet_id')->unique();
-            $table->unsignedBigInteger('customer_id')->nullable();
+            $table->uuid('customer_id')->nullable();
             $table->uuid('merchant_id')->nullable();
             $table->uuid('currency_id')->nullable();
             $table->string('currency_code')->default('SDG');

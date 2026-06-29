@@ -577,6 +577,10 @@ Route::prefix('v2/admin')->middleware([
 
 // Admin customer API (Payment admin dashboard)
 Route::prefix('v2/admin')->middleware(['auth:admin-api'])->group(function () {
+    Route::get('customers/export', [AdminCustomerApiController::class, 'export']);
+    Route::get('customers/export-template', [AdminCustomerApiController::class, 'exportTemplate']);
+    Route::post('customers/import-preview', [AdminCustomerApiController::class, 'importPreview']);
+    Route::post('customers/import', [AdminCustomerApiController::class, 'import']);
     Route::get('customers', [AdminCustomerApiController::class, 'index']);
     Route::get('customers/{id}', [AdminCustomerApiController::class, 'show']);
     Route::post('customers', [AdminCustomerApiController::class, 'store']);

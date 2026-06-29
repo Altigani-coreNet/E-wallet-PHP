@@ -8,6 +8,7 @@ use App\Http\Requests\AdminCustomerUpdateRequest;
 use App\Models\Customer;
 use App\Models\Merchant;
 use App\Services\CustomerService;
+use App\Support\CsvExport;
 use App\Traits\Select2Trait;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
@@ -230,7 +231,7 @@ class AdminCustomerController extends Controller
                         $customer->id,
                         $customer->name,
                         $customer->email,
-                        $customer->phone,
+                        CsvExport::asText($customer->phone),
                         optional($customer->merchant)->name,
                         optional($customer->country)->name,
                         optional($customer->created_at)?->format('Y-m-d H:i:s'),

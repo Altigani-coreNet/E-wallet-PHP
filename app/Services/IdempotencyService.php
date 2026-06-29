@@ -15,7 +15,7 @@ class IdempotencyService
      * @param  Closure(): T  $callback
      * @return T
      */
-    public function execute(int $ownerId, string $scope, ?string $idempotencyKey, Closure $callback): array
+    public function execute(int|string|null $ownerId, string $scope, ?string $idempotencyKey, Closure $callback): array
     {
         if ($idempotencyKey === null || trim($idempotencyKey) === '') {
             return $callback();

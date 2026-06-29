@@ -39,7 +39,7 @@ class LedgerService
     public function post(
         array $lines,
         string $reference,
-        int $referenceId = 0,
+        int|string $referenceId = '0',
         ?Carbon $date = null,
         int $createdBy = 0
     ): void {
@@ -83,7 +83,7 @@ class LedgerService
             $rows[] = [
                 'account_id' => (int) $accountId,
                 'reference' => $reference,
-                'reference_id' => $referenceId,
+                'reference_id' => (string) $referenceId,
                 'reference_sub_id' => (int) ($line['sub_id'] ?? $index),
                 'date' => $postingDate,
                 'debit' => $debit,

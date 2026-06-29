@@ -143,6 +143,51 @@ class WalletServiceTest extends TestCase
         $this->assertSame($wallet->id, $this->walletService->resolveRecipient($wallet->user_number)->id);
     }
 
+    public function test_wallet_public_id_is_phone_at_fastpay(): void
+    {
+        $customer = Customer::factory()->active()->create(['phone' => '+249900011122']);
+        $wallet = $this->walletService->createForCustomer($customer);
+
+        $this->assertSame('249900011122@fastpay', $wallet->wallet_id);
+    }
+
+    public function test_create_for_customer_rejects_duplicate_phone_wallet(): void
+    {
+        $phone = '+249933344455';
+        $owner = Customer::factory()->active()->create(['phone' => $phone]);
+        $other = Customer::factory()->active()->create();
+
+        $wallet = $this->walletService->createForCustomer($owner);
+        $wallet->update(['customer_id' => $other->id]);
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('A wallet already exists for this phone number.');
+
+        $this->walletService->createForCustomer($owner);
+    }
+
+    public function test_create_for_customer_is_idempotent_for_same_customer(): void
+    {
+        $customer = Customer::factory()->active()->create(['phone' => '+249955566677']);
+
+        $first = $this->walletService->createForCustomer($customer);
+        $second = $this->walletService->createForCustomer($customer);
+
+        $this->assertNotNull($first);
+        $this->assertSame($first->id, $second->id);
+        $this->assertSame(1, Wallet::query()->where('customer_id', $customer->id)->count());
+    }
+
+    public function test_create_for_customer_requires_phone(): void
+    {
+        $customer = Customer::factory()->active()->create(['phone' => '']);
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('Phone number is required for wallet ID.');
+
+        $this->walletService->createForCustomer($customer);
+    }
+
     private function fundMaster(float $amount): void
     {
         $this->walletService->cashIn($this->master, $amount, 'Fund master float');

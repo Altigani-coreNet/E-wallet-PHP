@@ -12,7 +12,7 @@ return new class extends Migration
             $table->id();
             $table->integer('account_id');
             $table->string('reference');
-            $table->integer('reference_id');
+            $table->string('reference_id', 36)->default('0');
             $table->integer('reference_sub_id')->default(0);
             $table->date('date');
             $table->decimal('credit', 15, 2)->default('0.00');

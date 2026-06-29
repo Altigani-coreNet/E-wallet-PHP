@@ -26,7 +26,7 @@ return new class extends Migration
             $table->json('payment_method_types')->nullable();
             $table->dateTime('scheduled_date')->nullable();
             $table->dateTime('expired_date')->nullable();
-            $table->unsignedBigInteger('customer_id')->nullable(); // Made nullable
+            $table->uuid('customer_id')->nullable();
             
             // Customer information fields (storing directly instead of FK)
             $table->string('customer_name')->nullable();

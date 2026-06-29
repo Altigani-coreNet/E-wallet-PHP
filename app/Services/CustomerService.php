@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\Customer;
 use App\Models\Merchant;
 use App\Repositories\CustomerRepository;
+use App\Support\CsvExport;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -209,7 +210,7 @@ class CustomerService
         });
     }
 
-    private function corruptUniqueValue(string $value, int $id, int $maxLength = 255): string
+    private function corruptUniqueValue(string $value, int|string $id, int $maxLength = 255): string
     {
         $corrupted = "deleted_{$id}_{$value}";
 
@@ -244,44 +245,30 @@ class CustomerService
 
             // Add headers
             fputcsv($file, [
-                'Name',
-                'Email',
+                'Name*',
+                'Email*',
                 'Phone',
                 'Address',
-                'Country',
                 'State',
-                'Zip'
+                'Zip',
             ]);
 
-            // Add sample data rows
             fputcsv($file, [
                 'John Doe',
                 'john.doe@example.com',
-                '+1234567890',
-                '123 Main Street, City',
-                'United States',
+                CsvExport::asText('+1234567890'),
+                '123 Main Street',
                 'California',
-                '90001'
+                '90001',
             ]);
 
             fputcsv($file, [
                 'Jane Smith',
                 'jane.smith@example.com',
-                '+1234567891',
-                '456 Oak Avenue, Town',
-                'Canada',
+                CsvExport::asText('+1234567891'),
+                '456 Oak Avenue',
                 'Ontario',
-                'M5H 2N2'
-            ]);
-
-            fputcsv($file, [
-                'Bob Johnson',
-                'bob.johnson@example.com',
-                '+1234567892',
-                '789 Pine Road, Village',
-                'United Kingdom',
-                'London',
-                'SW1A 1AA'
+                'M5H 2N2',
             ]);
 
             fclose($file);
@@ -490,7 +477,8 @@ class CustomerService
 
         foreach ($headers as $index => $header) {
             if (isset($row[$index])) {
-                $customerData[strtolower(trim($header))] = trim($row[$index]);
+                $normalizedHeader = strtolower(trim(str_replace('*', '', (string) $header)));
+                $customerData[$normalizedHeader] = trim($row[$index]);
             }
         }
 

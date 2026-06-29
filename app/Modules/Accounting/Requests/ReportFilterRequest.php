@@ -16,7 +16,7 @@ class ReportFilterRequest extends AccountingFormRequest
             'end_date' => ['nullable', 'date', 'after_or_equal:start_date'],
             'as_of_date' => ['nullable', 'date'],
             'account_id' => ['nullable', 'integer', 'exists:chart_of_accounts,id'],
-            'customer_id' => ['nullable', 'integer', 'exists:customers,id'],
+            'customer_id' => ['nullable', 'uuid', 'exists:customers,id'],
         ];
     }
 }

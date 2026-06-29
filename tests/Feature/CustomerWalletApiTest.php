@@ -284,7 +284,7 @@ class CustomerWalletApiTest extends CustomerAuthTestCase
     {
         [$sender] = $this->createFundedCustomers(500.00, 0.00);
 
-        $this->transfer($sender, 'WAL-DOES-NOT-EXIST', 50.00)
+        $this->transfer($sender, '249900000999@fastpay', 50.00)
             ->assertStatus(422)
             ->assertJsonPath('message', 'Recipient wallet was not found.');
     }

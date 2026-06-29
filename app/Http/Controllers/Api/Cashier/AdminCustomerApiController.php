@@ -10,11 +10,13 @@ use App\Http\Resources\AdminCustomerResource;
 use App\Models\Customer;
 use App\Modules\CustomerAuth\Services\CustomerPasswordSetupService;
 use App\Services\CustomerService;
+use App\Support\CsvExport;
 use App\Traits\HasFiles;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\ValidationException;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class AdminCustomerApiController extends Controller
 {
@@ -29,46 +31,7 @@ class AdminCustomerApiController extends Controller
     public function index(Request $request): JsonResponse
     {
         try {
-            $query = Customer::query()->with(['merchant', 'country', 'city', 'wallet'])->withCountry();
-
-            if ($request->filled('merchant_id')) {
-                $query->where('merchant_id', $request->merchant_id);
-            }
-
-            if ($request->filled('country_id')) {
-                $query->where('country_id', $request->country_id);
-            }
-
-            if ($request->filled('status')) {
-                $query->where('status', $request->status);
-            }
-
-            if ($request->filled('date_from') && $request->filled('date_to')) {
-                $query->whereBetween('created_at', [
-                    $request->date('date_from')->startOfDay(),
-                    $request->date('date_to')->endOfDay(),
-                ]);
-            } elseif ($request->filled('date_from')) {
-                $query->where('created_at', '>=', $request->date('date_from')->startOfDay());
-            } elseif ($request->filled('date_to')) {
-                $query->where('created_at', '<=', $request->date('date_to')->endOfDay());
-            }
-
-            $textSearch = is_array($request->search)
-                ? ($request->search['value'] ?? null)
-                : $request->get('search');
-
-            if (! empty($textSearch)) {
-                $query->where(function ($q) use ($textSearch) {
-                    $q->where('name', 'like', "%{$textSearch}%")
-                        ->orWhere('email', 'like', "%{$textSearch}%")
-                        ->orWhere('phone', 'like', "%{$textSearch}%")
-                        ->orWhereHas('merchant', function ($merchantQuery) use ($textSearch) {
-                            $merchantQuery->where('name', 'like', "%{$textSearch}%");
-                        });
-                });
-            }
-
+            $query = $this->buildFilteredQuery($request);
             $perPage = (int) $request->input('per_page', 15);
             $customers = $query->orderByDesc('created_at')->paginate($perPage);
 
@@ -90,7 +53,119 @@ class AdminCustomerApiController extends Controller
         }
     }
 
-    public function show(int $id): JsonResponse
+    public function export(Request $request): StreamedResponse|JsonResponse
+    {
+        try {
+            $query = $this->buildFilteredQuery($request);
+            $fileName = 'customers_export_'.now()->format('Y_m_d_His').'.csv';
+
+            return response()->streamDownload(function () use ($query) {
+                $handle = fopen('php://output', 'w');
+                fputcsv($handle, [
+                    'ID',
+                    'Name',
+                    'Email',
+                    'Phone',
+                    'Merchant',
+                    'Status',
+                    'Balance',
+                    'Address',
+                    'Created At',
+                ]);
+
+                $query->orderByDesc('created_at')->chunk(500, function ($customers) use ($handle) {
+                    foreach ($customers as $customer) {
+                        fputcsv($handle, [
+                            $customer->id,
+                            $customer->name,
+                            $customer->email,
+                            CsvExport::asText($customer->phone),
+                            optional($customer->merchant)->business_name ?: optional($customer->merchant)->name,
+                            $customer->status,
+                            $customer->wallet?->balance ?? 0,
+                            $customer->address,
+                            optional($customer->created_at)?->format('Y-m-d H:i:s'),
+                        ]);
+                    }
+                });
+
+                fclose($handle);
+            }, $fileName, [
+                'Content-Type' => 'text/csv',
+                'Cache-Control' => 'no-store, no-cache',
+            ]);
+        } catch (\Throwable $exception) {
+            Log::error('AdminCustomerApiController@export error: '.$exception->getMessage());
+
+            return $this->jsonError('Failed to export customers', 500);
+        }
+    }
+
+    public function exportTemplate()
+    {
+        return $this->customerService->exportTemplate();
+    }
+
+    public function importPreview(Request $request): JsonResponse
+    {
+        $request->validate([
+            'import_file' => 'required|file|mimes:xlsx,xls,csv|max:10240',
+            'merchant_id' => 'required|exists:merchants,id',
+        ]);
+
+        try {
+            $result = $this->customerService->importPreview(
+                $request->file('import_file'),
+                $request->input('merchant_id')
+            );
+
+            return response()->json([
+                'success' => true,
+                'status' => true,
+                'data' => $result['data'] ?? [],
+                'errors' => $result['errors'] ?? [],
+            ]);
+        } catch (\Throwable $exception) {
+            Log::error('AdminCustomerApiController@importPreview error: '.$exception->getMessage());
+
+            return $this->jsonError('Preview failed: '.$exception->getMessage(), 500);
+        }
+    }
+
+    public function import(Request $request): JsonResponse
+    {
+        $request->validate([
+            'import_file' => 'required|file|mimes:xlsx,xls,csv|max:10240',
+            'merchant_id' => 'required|exists:merchants,id',
+        ]);
+
+        try {
+            $result = $this->customerService->import(
+                $request->file('import_file'),
+                $request->input('merchant_id')
+            );
+
+            return response()->json([
+                'success' => true,
+                'status' => true,
+                'message' => $result['message'] ?? 'Customers imported successfully',
+                'data' => [
+                    'imported_count' => $result['imported_count'] ?? 0,
+                    'skipped_count' => $result['skipped_count'] ?? 0,
+                    'errors' => $result['errors'] ?? [],
+                ],
+                'imported_count' => $result['imported_count'] ?? 0,
+                'skipped_count' => $result['skipped_count'] ?? 0,
+                'errors' => $result['errors'] ?? [],
+            ]);
+        } catch (\Throwable $exception) {
+            Log::error('AdminCustomerApiController@import error: '.$exception->getMessage());
+
+            return $this->jsonError('Import failed: '.$exception->getMessage(), 500);
+        }
+    }
+
+    public function show(string $id): JsonResponse
     {
         try {
             $customer = $this->findCustomer($id);
@@ -134,7 +209,7 @@ class AdminCustomerApiController extends Controller
         }
     }
 
-    public function update(AdminCustomerUpdateRequest $request, int $id): JsonResponse
+    public function update(AdminCustomerUpdateRequest $request, string $id): JsonResponse
     {
         try {
             $customer = $this->findCustomer($id);
@@ -163,7 +238,7 @@ class AdminCustomerApiController extends Controller
         }
     }
 
-    public function destroy(int $id): JsonResponse
+    public function destroy(string $id): JsonResponse
     {
         try {
             $customer = $this->findCustomer($id);
@@ -181,7 +256,7 @@ class AdminCustomerApiController extends Controller
     {
         $validated = $request->validate([
             'ids' => 'required|array|min:1',
-            'ids.*' => 'integer|exists:customers,id',
+            'ids.*' => 'uuid|exists:customers,id',
         ]);
 
         try {
@@ -198,7 +273,7 @@ class AdminCustomerApiController extends Controller
         }
     }
 
-    public function updateStatus(AdminCustomerStatusRequest $request, int $id): JsonResponse
+    public function updateStatus(AdminCustomerStatusRequest $request, string $id): JsonResponse
     {
         try {
             $customer = $this->findCustomer($id);
@@ -219,7 +294,7 @@ class AdminCustomerApiController extends Controller
         }
     }
 
-    public function toggleStatus(int $id): JsonResponse
+    public function toggleStatus(string $id): JsonResponse
     {
         try {
             $customer = $this->findCustomer($id);
@@ -233,7 +308,7 @@ class AdminCustomerApiController extends Controller
         }
     }
 
-    public function resendPasswordInvite(int $id): JsonResponse
+    public function resendPasswordInvite(string $id): JsonResponse
     {
         try {
             $customer = $this->findCustomer($id);
@@ -252,7 +327,53 @@ class AdminCustomerApiController extends Controller
         }
     }
 
-    private function findCustomer(int $id): Customer
+    private function buildFilteredQuery(Request $request)
+    {
+        $query = Customer::query()->with(['merchant', 'country', 'city', 'wallet'])->withCountry();
+
+        if ($request->filled('merchant_id')) {
+            $query->where('merchant_id', $request->merchant_id);
+        }
+
+        if ($request->filled('country_id')) {
+            $query->where('country_id', $request->country_id);
+        }
+
+        if ($request->filled('status')) {
+            $query->where('status', $request->status);
+        }
+
+        if ($request->filled('date_from') && $request->filled('date_to')) {
+            $query->whereBetween('created_at', [
+                $request->date('date_from')->startOfDay(),
+                $request->date('date_to')->endOfDay(),
+            ]);
+        } elseif ($request->filled('date_from')) {
+            $query->where('created_at', '>=', $request->date('date_from')->startOfDay());
+        } elseif ($request->filled('date_to')) {
+            $query->where('created_at', '<=', $request->date('date_to')->endOfDay());
+        }
+
+        $textSearch = is_array($request->search)
+            ? ($request->search['value'] ?? null)
+            : $request->get('search');
+
+        if (! empty($textSearch)) {
+            $query->where(function ($q) use ($textSearch) {
+                $q->where('name', 'like', "%{$textSearch}%")
+                    ->orWhere('email', 'like', "%{$textSearch}%")
+                    ->orWhere('phone', 'like', "%{$textSearch}%")
+                    ->orWhereHas('merchant', function ($merchantQuery) use ($textSearch) {
+                        $merchantQuery->where('name', 'like', "%{$textSearch}%")
+                            ->orWhere('business_name', 'like', "%{$textSearch}%");
+                    });
+            });
+        }
+
+        return $query;
+    }
+
+    private function findCustomer(string $id): Customer
     {
         return Customer::query()
             ->with(['merchant', 'country', 'city', 'wallet'])

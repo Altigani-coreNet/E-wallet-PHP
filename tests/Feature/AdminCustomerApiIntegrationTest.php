@@ -47,7 +47,7 @@ class AdminCustomerApiIntegrationTest extends CustomerAuthTestCase
         $response->assertCreated()
             ->assertJsonPath('success', true)
             ->assertJsonPath('data.status', Customer::STATUS_PENDING)
-            ->assertJsonPath('data.id', fn ($id) => is_int($id) || (is_string($id) && $id !== ''));
+            ->assertJsonPath('data.id', fn ($id) => is_string($id) && \Illuminate\Support\Str::isUuid($id));
 
         $this->assertDatabaseHas('customers', [
             'email' => 'pending@example.com',

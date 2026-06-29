@@ -15,7 +15,7 @@ return new class extends Migration
             $table->uuid('id')->primary();
             $table->string('user_number')->nullable();
             $table->string('wallet_id')->unique();
-            $table->unsignedBigInteger('customer_id')->nullable();
+            $table->uuid('customer_id')->nullable();
             $table->uuid('merchant_id')->nullable();
             $table->uuid('currency_id')->nullable();
             $table->string('currency_code')->default('SDG');
@@ -39,7 +39,7 @@ return new class extends Migration
             $table->decimal('amount', 15, 2);
             $table->decimal('balance_after', 15, 2)->default('0.00');
             $table->string('reference')->nullable();
-            $table->unsignedBigInteger('reference_id')->nullable();
+            $table->string('reference_id', 36)->nullable();
             $table->text('description')->nullable();
             $table->integer('created_by')->default(0);
             $table->timestamps();
@@ -57,7 +57,7 @@ return new class extends Migration
 
         Schema::create('wallets', function (Blueprint $table) {
             $table->id();
-            $table->unsignedBigInteger('customer_id')->nullable();
+            $table->uuid('customer_id')->nullable();
             $table->uuid('merchant_id')->nullable();
             $table->uuid('currency_id')->nullable();
             $table->string('currency_code')->default('SDG');

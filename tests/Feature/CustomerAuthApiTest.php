@@ -151,6 +151,11 @@ class CustomerAuthApiTest extends CustomerAuthTestCase
             'profile_completed' => false,
             'status' => Customer::STATUS_PENDING,
         ]);
+
+        $customerId = $response->json('data.customer.id');
+        $this->assertNotNull($customerId);
+        $this->assertTrue(Str::isUuid((string) $customerId));
+        $this->assertSame($customerId, Customer::query()->where('phone', self::TEST_PHONE)->value('id'));
     }
 
     public function test_register_fails_without_verified_otp(): void
@@ -558,9 +563,29 @@ class CustomerAuthApiTest extends CustomerAuthTestCase
                     'customer' => [
                         'id' => $customer->id,
                         'phone' => self::TEST_PHONE,
+                        'walletId' => null,
                     ],
                 ],
             ]);
+    }
+
+    public function test_profile_returns_wallet_id_and_balance_when_wallet_exists(): void
+    {
+        $this->seed(\Database\Seeders\ChartOfAccountSeeder::class);
+
+        $customer = Customer::factory()->active()->create([
+            'phone' => self::TEST_PHONE,
+        ]);
+
+        $wallet = app(\App\Services\WalletService::class)->createForCustomer($customer);
+        $wallet->update(['balance' => '500.00', 'available_balance' => '450.00']);
+
+        $this->withCustomerToken($customer)
+            ->getJson('/api/v1/customer/profile')
+            ->assertOk()
+            ->assertJsonPath('data.customer.walletId', '249912345678@fastpay')
+            ->assertJsonPath('data.customer.balance', '500.00')
+            ->assertJsonPath('data.customer.availableBalance', '450.00');
     }
 
     public function test_can_complete_profile(): void

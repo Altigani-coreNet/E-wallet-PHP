@@ -24,7 +24,7 @@ class FinancialReportService
     /**
      * @return array<string, mixed>
      */
-    public function ledger(?int $accountId, ?int $customerId, string $startDate, string $endDate): array
+    public function ledger(?int $accountId, ?string $customerId, string $startDate, string $endDate): array
     {
         $query = TransactionLine::query()
             ->join('chart_of_accounts', 'chart_of_accounts.id', '=', 'transaction_lines.account_id')
@@ -59,7 +59,7 @@ class FinancialReportService
             ->get();
 
         $customerIds = $lines->pluck('reference_id')
-            ->filter(fn ($id) => (int) $id > 0)
+            ->filter(fn ($id) => filled($id) && (string) $id !== '0')
             ->unique()
             ->values();
 
@@ -115,7 +115,7 @@ class FinancialReportService
                 'account_name' => $line->account_name,
                 'name' => $this->resolveCounterpartyName($line, $customers),
                 'reference' => $line->reference,
-                'reference_id' => (int) $line->reference_id,
+                'reference_id' => (string) $line->reference_id,
                 'transaction_type' => $this->transactionTypeLabel($line),
                 'date' => $line->date?->format('Y-m-d') ?? (string) $line->date,
                 'debit' => $debit,
@@ -140,7 +140,7 @@ class FinancialReportService
     }
 
     /**
-     * @return list<array{id: int, name: string}>
+     * @return list<array{id: string, name: string}>
      */
     public function ledgerCustomers(): array
     {
@@ -158,7 +158,7 @@ class FinancialReportService
     /**
      * @return \Symfony\Component\HttpFoundation\BinaryFileResponse
      */
-    public function exportLedger(?int $accountId, ?int $customerId, string $startDate, string $endDate)
+    public function exportLedger(?int $accountId, ?string $customerId, string $startDate, string $endDate)
     {
         $payload = $this->ledger($accountId, $customerId, $startDate, $endDate);
 
@@ -211,7 +211,7 @@ class FinancialReportService
     /**
      * Hook: extend join/whereIn when customer linkage changes.
      */
-    private function applyCustomerFilter(Builder $query, ?int $customerId): void
+    private function applyCustomerFilter(Builder $query, ?string $customerId): void
     {
         if ($customerId) {
             $query->where('transaction_lines.reference_id', $customerId);
@@ -237,9 +237,9 @@ class FinancialReportService
      */
     private function resolveCounterpartyName(object $line, $customers): ?string
     {
-        $referenceId = (int) ($line->reference_id ?? 0);
+        $referenceId = (string) ($line->reference_id ?? '0');
 
-        if ($referenceId === 0) {
+        if ($referenceId === '' || $referenceId === '0') {
             return 'Master Wallet';
         }
 

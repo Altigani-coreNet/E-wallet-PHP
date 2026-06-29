@@ -31,7 +31,7 @@ class AccountingService
         }
 
         return $this->idempotencyService->execute(
-            0,
+            null,
             self::SCOPE_OPENING_CAPITAL,
             $idempotencyKey,
             function () use ($amount, $description, $createdBy) {
@@ -41,7 +41,7 @@ class AccountingService
                         ['account_code' => AccountCode::OWNER_EQUITY, 'credit' => $amount, 'sub_id' => 1],
                     ],
                     LedgerService::REF_OPENING_CAPITAL,
-                    0,
+                    '0',
                     createdBy: $createdBy
                 );
 

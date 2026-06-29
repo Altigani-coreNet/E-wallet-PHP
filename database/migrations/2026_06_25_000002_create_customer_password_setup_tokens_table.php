@@ -10,7 +10,7 @@ return new class extends Migration
     {
         Schema::create('customer_password_setup_tokens', function (Blueprint $table) {
             $table->id();
-            $table->unsignedBigInteger('customer_id');
+            $table->uuid('customer_id');
             $table->string('token')->index();
             $table->timestamp('expires_at');
             $table->timestamp('used_at')->nullable();

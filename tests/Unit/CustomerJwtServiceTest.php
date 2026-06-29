@@ -26,7 +26,10 @@ class CustomerJwtServiceTest extends TestCase
 
     public function test_create_token_includes_access_token_use_and_expires_in(): void
     {
-        $result = $this->jwtService->createToken(42, 'customer@example.com');
+        $result = $this->jwtService->createToken(
+            '550e8400-e29b-41d4-a716-446655440000',
+            'customer@example.com'
+        );
 
         $this->assertArrayHasKey('token', $result);
         $this->assertSame('Bearer', $result['tokenType']);
@@ -34,7 +37,7 @@ class CustomerJwtServiceTest extends TestCase
 
         $payload = JWT::decode($result['token'], new Key(config('services.jwt.secret'), 'HS256'));
 
-        $this->assertSame('42', $payload->sub);
+        $this->assertSame('550e8400-e29b-41d4-a716-446655440000', $payload->sub);
         $this->assertSame('customer@example.com', $payload->email);
         $this->assertSame('customer', $payload->type);
         $this->assertSame('access', $payload->token_use);
@@ -42,14 +45,17 @@ class CustomerJwtServiceTest extends TestCase
 
     public function test_create_refresh_token_includes_refresh_token_use_and_expires_in(): void
     {
-        $result = $this->jwtService->createRefreshToken(42, 'customer@example.com');
+        $result = $this->jwtService->createRefreshToken(
+            '550e8400-e29b-41d4-a716-446655440000',
+            'customer@example.com'
+        );
 
         $this->assertArrayHasKey('token', $result);
         $this->assertSame(2592000, $result['expiresIn']);
 
         $payload = $this->jwtService->decodeRefreshToken($result['token']);
 
-        $this->assertSame('42', $payload->sub);
+        $this->assertSame('550e8400-e29b-41d4-a716-446655440000', $payload->sub);
         $this->assertSame('customer@example.com', $payload->email);
         $this->assertSame('customer', $payload->type);
         $this->assertSame('refresh', $payload->token_use);
@@ -57,7 +63,10 @@ class CustomerJwtServiceTest extends TestCase
 
     public function test_decode_refresh_token_rejects_access_token(): void
     {
-        $access = $this->jwtService->createToken(42, 'customer@example.com');
+        $access = $this->jwtService->createToken(
+            '550e8400-e29b-41d4-a716-446655440000',
+            'customer@example.com'
+        );
 
         $this->expectException(\UnexpectedValueException::class);
         $this->expectExceptionMessage('Invalid refresh token');

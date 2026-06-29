@@ -27,7 +27,7 @@ trait AccountingTestHelpers
         float $credit,
         ?string $date = null,
         string $reference = 'TEST',
-        int $referenceId = 1,
+        int|string $referenceId = '1',
         int $referenceSubId = 0
     ): TransactionLine {
         return TransactionLine::create([
@@ -48,8 +48,8 @@ trait AccountingTestHelpers
         $liability = $this->accountByCode(WalletService::WALLET_LIABILITY_ACCOUNT_CODE);
         $date ??= now()->toDateString();
 
-        $this->postLine($bank->id, $amount, 0, $date, LedgerService::REF_WALLET_TOPUP, 1, 0);
-        $this->postLine($liability->id, 0, $amount, $date, LedgerService::REF_WALLET_TOPUP, 1, 1);
+        $this->postLine($bank->id, $amount, 0, $date, LedgerService::REF_WALLET_TOPUP, '1', 0);
+        $this->postLine($liability->id, 0, $amount, $date, LedgerService::REF_WALLET_TOPUP, '1', 1);
     }
 
     protected function firstSubTypeId(): int

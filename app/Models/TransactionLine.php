@@ -41,7 +41,7 @@ class TransactionLine extends Model
         return $this->belongsTo(ChartOfAccount::class, 'account_id');
     }
 
-    public function scopeForReference(Builder $query, string $reference, int $referenceId): Builder
+    public function scopeForReference(Builder $query, string $reference, int|string $referenceId): Builder
     {
         return $query->where('reference', $reference)
             ->where('reference_id', $referenceId);

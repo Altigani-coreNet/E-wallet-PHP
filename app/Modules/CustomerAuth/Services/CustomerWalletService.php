@@ -147,7 +147,7 @@ class CustomerWalletService
                 $wallet = $this->resolveActiveWalletForCustomer($customer);
                 $this->assertWalletIsActive($wallet, 'Your wallet is not available for withdrawal.');
 
-                $this->walletService->cashOut($wallet, $amount, $description, $customer->id);
+                $this->walletService->cashOut($wallet, $amount, $description, 0);
 
                 $wallet->refresh();
 
@@ -199,7 +199,7 @@ class CustomerWalletService
             $toWallet,
             $amount,
             $description,
-            $sender->id,
+            0,
             $fee,
             $note
         );

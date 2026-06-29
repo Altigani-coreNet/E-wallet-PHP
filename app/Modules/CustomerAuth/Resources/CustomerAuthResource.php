@@ -12,6 +12,8 @@ class CustomerAuthResource extends JsonResource
         /** @var Customer $customer */
         $customer = $this->resource;
 
+        $wallet = $customer->relationLoaded('wallet') ? $customer->wallet : null;
+
         return [
             'id' => $customer->id,
             'name' => $customer->name,
@@ -29,7 +31,11 @@ class CustomerAuthResource extends JsonResource
             'zip' => $customer->zip,
             'merchantId' => $customer->merchant_id,
             'profileCompleted' => (bool) $customer->profile_completed,
-            'balance' => number_format((float) $customer->balance, 2, '.', ''),
+            'walletId' => $wallet?->wallet_id,
+            'balance' => number_format((float) ($wallet?->balance ?? $customer->balance), 2, '.', ''),
+            'availableBalance' => $wallet !== null
+                ? number_format((float) $wallet->available_balance, 2, '.', '')
+                : null,
             'country' => $customer->relationLoaded('country') && $customer->country
                 ? [
                     'id' => $customer->country->id,

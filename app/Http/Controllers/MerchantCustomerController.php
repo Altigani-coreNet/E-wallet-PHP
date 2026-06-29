@@ -7,6 +7,7 @@ use App\Models\Country;
 use App\Models\City;
 use App\Models\PaymentByLink;
 use App\Services\CustomerService;
+use App\Support\CsvExport;
 use App\Repositories\CustomerRepository;
 use App\Traits\Select2Trait;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
@@ -322,7 +323,7 @@ class MerchantCustomerController extends Controller
                     $customer->id,
                     $customer->name,
                     $customer->email,
-                    $customer->phone,
+                    CsvExport::asText($customer->phone),
                     $customer->address,
                     $customer->city ? $customer->city->name : 'N/A',
                     $customer->state,

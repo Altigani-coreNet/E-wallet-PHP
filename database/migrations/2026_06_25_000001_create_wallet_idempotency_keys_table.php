@@ -10,7 +10,7 @@ return new class extends Migration
     {
         Schema::create('wallet_idempotency_keys', function (Blueprint $table) {
             $table->id();
-            $table->unsignedBigInteger('customer_id');
+            $table->uuid('customer_id')->nullable();
             $table->string('scope');
             $table->string('idempotency_key');
             $table->string('status')->default('completed');
