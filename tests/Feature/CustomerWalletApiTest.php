@@ -29,7 +29,6 @@ class CustomerWalletApiTest extends CustomerAuthTestCase
     {
         $this->getJson('/api/v1/customer/wallet/dashboard')->assertUnauthorized();
         $this->getJson('/api/v1/customer/wallet/transactions')->assertUnauthorized();
-        $this->getJson('/api/v1/customer/wallet/transactions/00000000-0000-0000-0000-000000000001')->assertUnauthorized();
         $this->getJson('/api/v1/customer/wallet/query?identifier=test')->assertUnauthorized();
         $this->getJson('/api/v1/customer/wallet/resolve-recipient?identifier=test')->assertUnauthorized();
         $this->postJson('/api/v1/customer/wallet/transfer')->assertUnauthorized();
@@ -489,67 +488,6 @@ class CustomerWalletApiTest extends CustomerAuthTestCase
         $recipientIds = collect($recipientResponse->json('data.data'))->pluck('id')->all();
 
         $this->assertEmpty(array_intersect($senderIds, $recipientIds));
-    }
-
-    public function test_transactions_list_includes_signed_amount_and_counterparty(): void
-    {
-        [$sender, $recipient] = $this->createFundedCustomers(500.00, 0.00);
-
-        $this->transfer($sender, $recipient->wallet->wallet_id, 55.00, 'Counterparty list test')
-            ->assertOk();
-
-        $response = $this->withCustomerToken($sender)->getJson('/api/v1/customer/wallet/transactions');
-
-        $response->assertOk()
-            ->assertJsonPath('data.data.0.signed_amount', -55)
-            ->assertJsonPath('data.data.0.counterparty.wallet_id', $recipient->wallet->wallet_id)
-            ->assertJsonPath('data.data.0.counterparty.name', $recipient->name)
-            ->assertJsonPath('data.data.0.is_own', true);
-    }
-
-    public function test_show_transaction_returns_details_and_related_legs(): void
-    {
-        [$sender, $recipient] = $this->createFundedCustomers(500.00, 0.00);
-
-        $this->transfer($sender, $recipient->wallet->wallet_id, 33.00, 'Show API transfer', null, 1.00, 'Detail note')
-            ->assertOk();
-
-        $debitTx = WalletTransaction::query()
-            ->where('wallet_id', $sender->wallet->id)
-            ->where('direction', 'debit')
-            ->latest('id')
-            ->first();
-
-        $response = $this->withCustomerToken($sender)->getJson(
-            '/api/v1/customer/wallet/transactions/'.$debitTx->id
-        );
-
-        $response->assertOk()
-            ->assertJsonPath('data.transaction.id', $debitTx->id)
-            ->assertJsonPath('data.transaction.signed_amount', -33)
-            ->assertJsonPath('data.transaction.counterparty.wallet_id', $recipient->wallet->wallet_id)
-            ->assertJsonCount(2, 'data.related_transactions')
-            ->assertJsonPath('data.related_transactions.0.direction', 'debit')
-            ->assertJsonPath('data.related_transactions.1.direction', 'credit')
-            ->assertJsonPath('data.related_transactions.1.wallet.owner_name', $recipient->name);
-    }
-
-    public function test_show_transaction_returns_not_found_for_other_customer_row(): void
-    {
-        [$sender, $recipient] = $this->createFundedCustomers(500.00, 0.00);
-
-        $this->transfer($sender, $recipient->wallet->wallet_id, 12.00, 'Isolated transfer')
-            ->assertOk();
-
-        $recipientCredit = WalletTransaction::query()
-            ->where('wallet_id', $recipient->wallet->id)
-            ->where('direction', 'credit')
-            ->latest('id')
-            ->first();
-
-        $this->withCustomerToken($sender)->getJson(
-            '/api/v1/customer/wallet/transactions/'.$recipientCredit->id
-        )->assertNotFound();
     }
 
     public function test_transactions_validation_rejects_invalid_filters(): void

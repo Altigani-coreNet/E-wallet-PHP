@@ -6,6 +6,7 @@ use App\Mail\CustomerWelcomeMail;
 use App\Models\City;
 use App\Models\Country;
 use App\Models\Customer;
+use App\Modules\CustomerAuth\Notifications\CustomerNotificationType;
 use App\Modules\CustomerAuth\Resources\CustomerAuthResource;
 use App\Modules\CustomerAuth\Support\CustomerJwtService;
 use App\Modules\CustomerAuth\Support\OtpTokenCipher;
@@ -28,6 +29,7 @@ class CustomerAuthService
         private readonly CustomerOtpService $otpService,
         private readonly CustomerJwtService $jwtService,
         private readonly WalletService $walletService,
+        private readonly CustomerSystemNotificationService $customerSystemNotificationService,
     ) {}
 
     public function register(array $data): array
@@ -168,6 +170,11 @@ class CustomerAuthService
 
         $customer->load(['country', 'city']);
 
+        $this->customerSystemNotificationService->send(
+            $customer->fresh(),
+            CustomerNotificationType::PasswordChanged,
+        );
+
         return $this->buildAuthResponse($customer->fresh(['country', 'city']));
     }
 
@@ -183,6 +190,8 @@ class CustomerAuthService
 
     public function completeProfile(Customer $customer, array $data, Request $request): array
     {
+        $wasAlreadyCompleted = (bool) $customer->profile_completed;
+
         $code = $this->normalizeCode($data['country_code'] ?? self::DEFAULT_COUNTRY_CODE);
         $country = Country::query()
             ->where('code', $code)
@@ -233,6 +242,13 @@ class CustomerAuthService
             $data['firstName'],
             $customer->phone,
         );
+
+        if (! $wasAlreadyCompleted) {
+            $this->customerSystemNotificationService->send(
+                $customer->fresh(),
+                CustomerNotificationType::ProfileCompleted,
+            );
+        }
 
         return [
             'profile_completed' => true,

@@ -97,6 +97,44 @@ class AdminWalletService
         return $paginated;
     }
 
+    /**
+     * @return array{transaction: WalletTransaction, related_transactions: Collection<int, WalletTransaction>, operation: array<string, mixed>}
+     */
+    public function showTransaction(string $id): array
+    {
+        $transaction = WalletTransaction::query()
+            ->with(['wallet.customer.merchant'])
+            ->findOrFail($id);
+
+        $transaction->setAttribute('signed_amount', $this->signedAmount($transaction));
+
+        $relatedTransactions = collect();
+
+        if ($transaction->reference !== null && $transaction->reference_id !== null) {
+            $relatedTransactions = WalletTransaction::query()
+                ->where('reference', $transaction->reference)
+                ->where('reference_id', $transaction->reference_id)
+                ->where('id', '!=', $transaction->id)
+                ->with(['wallet.customer.merchant'])
+                ->orderByRaw("CASE WHEN direction = 'debit' THEN 0 ELSE 1 END")
+                ->orderBy('created_at')
+                ->get();
+        }
+
+        $allRows = collect([$transaction])->merge($relatedTransactions);
+        $this->attachCounterparties($allRows);
+
+        return [
+            'transaction' => $transaction,
+            'related_transactions' => $relatedTransactions,
+            'operation' => [
+                'reference' => $transaction->reference,
+                'reference_id' => $transaction->reference_id,
+                'entry_count' => 1 + $relatedTransactions->count(),
+            ],
+        ];
+    }
+
     public function exportWallets(array $filters): BinaryFileResponse
     {
         $wallets = $this->walletListQuery($filters)
@@ -232,6 +270,10 @@ class AdminWalletService
                             ->orWhere('phone', 'like', "%{$search}%");
                     });
             });
+        }
+
+        if (! empty($filters['customer_id'])) {
+            $query->where('customer_id', $filters['customer_id']);
         }
 
         if (! empty($filters['merchant_id'])) {

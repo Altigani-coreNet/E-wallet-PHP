@@ -111,9 +111,11 @@ class CustomerNotificationController
         $query = DatabaseNotification::query()
             ->where('type', TestUserNotification::class)
             ->where(function ($q) {
-                $q->where('source', 'admin_management')
-                    ->orWhere('data->meta->source', 'admin_management')
-                    ->orWhere('data->source', 'admin_management');
+                foreach (['admin_management', 'system'] as $source) {
+                    $q->orWhere('source', $source)
+                        ->orWhere('data->meta->source', $source)
+                        ->orWhere('data->source', $source);
+                }
             })
             ->where(function ($q) use ($customer, $merchantId, $firstAdminId) {
                 $q->where(function ($sub) use ($customer) {

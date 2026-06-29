@@ -11,6 +11,7 @@ use App\Http\Resources\AdminWalletActionResource;
 use App\Http\Resources\AdminWalletMoneyOperationResource;
 use App\Http\Resources\AdminWalletPaginatedResource;
 use App\Http\Resources\AdminWalletResource;
+use App\Http\Resources\AdminWalletTransactionDetailResource;
 use App\Http\Resources\AdminWalletTransactionResource;
 use App\Services\Admin\AdminWalletMoneyService;
 use App\Services\Admin\AdminWalletService;
@@ -80,6 +81,17 @@ class AdminWalletController extends Controller
             );
         } catch (\Throwable $e) {
             return $this->ErrorMessage('Failed to fetch wallet transactions: '.$e->getMessage(), null, 500);
+        }
+    }
+
+    public function showTransaction(string $transactionId): JsonResponse
+    {
+        try {
+            $detail = $this->walletService->showTransaction($transactionId);
+
+            return $this->SuccessMessage(new AdminWalletTransactionDetailResource($detail));
+        } catch (\Throwable $e) {
+            return $this->ErrorMessage('Failed to fetch wallet transaction: '.$e->getMessage(), null, 500);
         }
     }
 
@@ -219,6 +231,7 @@ class AdminWalletController extends Controller
         return [
             'search' => $request->input('search'),
             'status' => $request->input('status'),
+            'customer_id' => $request->input('customer_id'),
             'merchant_id' => $request->input('merchant_id'),
             'currency_code' => $request->input('currency_code'),
             'date_from' => $request->input('date_from', $request->input('start_date')),

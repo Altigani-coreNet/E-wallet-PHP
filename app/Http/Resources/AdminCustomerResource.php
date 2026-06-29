@@ -31,6 +31,12 @@ class AdminCustomerResource extends JsonResource
             'balance' => (float) ($customer->relationLoaded('wallet') && $customer->wallet
                 ? $customer->wallet->balance
                 : 0),
+            'wallet_uuid' => $customer->relationLoaded('wallet') && $customer->wallet
+                ? $customer->wallet->id
+                : null,
+            'wallet_public_id' => $customer->relationLoaded('wallet') && $customer->wallet
+                ? $customer->wallet->wallet_id
+                : null,
             'profile_image_url' => $customer->getProfileImageApi(),
             'profile_completed' => (bool) $customer->profile_completed,
             'merchant_id' => $customer->merchant_id,

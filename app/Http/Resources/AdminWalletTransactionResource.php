@@ -33,6 +33,7 @@ class AdminWalletTransactionResource extends JsonResource
             'reference' => $transaction->reference,
             'reference_id' => $transaction->reference_id,
             'description' => $transaction->description,
+            'note' => $transaction->note,
             'created_by' => $transaction->created_by,
             'wallet' => $wallet ? [
                 'id' => $wallet->id,

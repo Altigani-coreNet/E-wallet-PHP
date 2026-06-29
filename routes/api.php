@@ -594,8 +594,9 @@ Route::prefix('v2/admin')->middleware(['auth:admin-api'])->group(function () {
     Route::prefix('wallets')->group(function () {
         Route::get('/', [\App\Http\Controllers\Api\V2\Admin\AdminWalletController::class, 'index']);
         Route::get('/export', [\App\Http\Controllers\Api\V2\Admin\AdminWalletController::class, 'export']);
-        Route::get('/transactions', [\App\Http\Controllers\Api\V2\Admin\AdminWalletController::class, 'allTransactions']);
         Route::get('/transactions/export', [\App\Http\Controllers\Api\V2\Admin\AdminWalletController::class, 'exportTransactions']);
+        Route::get('/transactions/{transactionId}', [\App\Http\Controllers\Api\V2\Admin\AdminWalletController::class, 'showTransaction']);
+        Route::get('/transactions', [\App\Http\Controllers\Api\V2\Admin\AdminWalletController::class, 'allTransactions']);
         Route::post('/opening-capital', [\App\Http\Controllers\Api\V2\Admin\AdminWalletController::class, 'openingCapital']);
         Route::get('/{id}', [\App\Http\Controllers\Api\V2\Admin\AdminWalletController::class, 'show']);
         Route::get('/{id}/transactions', [\App\Http\Controllers\Api\V2\Admin\AdminWalletController::class, 'transactions']);
@@ -923,8 +924,6 @@ Route::prefix('v1/customer')->group(function () {
         Route::post('auth/logout', [\App\Modules\CustomerAuth\Controllers\CustomerAuthController::class, 'logout']);
         Route::get('wallet/dashboard', [\App\Modules\CustomerAuth\Controllers\CustomerWalletController::class, 'dashboard']);
         Route::get('wallet/transactions', [\App\Modules\CustomerAuth\Controllers\CustomerWalletController::class, 'transactions'])
-            ->middleware('customer.active');
-        Route::get('wallet/transactions/{transaction}', [\App\Modules\CustomerAuth\Controllers\CustomerWalletController::class, 'showTransaction'])
             ->middleware('customer.active');
         Route::get('wallet/query', [\App\Modules\CustomerAuth\Controllers\CustomerWalletController::class, 'query'])
             ->middleware('customer.active');

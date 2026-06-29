@@ -48,22 +48,6 @@ class CustomerWalletController
         }
     }
 
-    public function showTransaction(string $transaction)
-    {
-        /** @var Customer $customer */
-        $customer = Auth::guard('customer')->user();
-
-        try {
-            $data = $this->walletService->showTransaction($customer, $transaction);
-
-            return SuccessResponse::make($data);
-        } catch (InvalidArgumentException $exception) {
-            return SuccessResponse::error($exception->getMessage(), 422);
-        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $exception) {
-            return SuccessResponse::error('Wallet transaction not found.', 404);
-        }
-    }
-
     public function query(CustomerWalletQueryRequest $request)
     {
         /** @var Customer $customer */

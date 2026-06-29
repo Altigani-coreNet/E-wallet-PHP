@@ -147,6 +147,34 @@ class AdminWalletApiTest extends CustomerAuthTestCase
             ->assertJsonPath('data.data.0.wallet.wallet_id', $senderWallet->wallet_id);
     }
 
+    public function test_admin_can_show_wallet_transaction_with_related_entries(): void
+    {
+        [$senderWallet, $recipientWallet] = $this->createTransferPair(500, 0);
+        $this->transferBetweenWallets($senderWallet, $recipientWallet, 100, 'Detail API test');
+
+        $listResponse = $this->actingAsAdminApi()->getJson(
+            "/api/v2/admin/wallets/{$senderWallet->id}/transactions"
+        );
+
+        $debitTransfer = collect($listResponse->json('data.data'))
+            ->first(fn ($row) => $row['type'] === 'transfer' && $row['direction'] === 'debit');
+
+        $this->assertNotNull($debitTransfer);
+
+        $detailResponse = $this->actingAsAdminApi()->getJson(
+            '/api/v2/admin/wallets/transactions/'.$debitTransfer['id']
+        );
+
+        $detailResponse->assertOk()
+            ->assertJsonPath('status', true)
+            ->assertJsonPath('data.transaction.id', $debitTransfer['id'])
+            ->assertJsonPath('data.transaction.direction', 'debit')
+            ->assertJsonPath('data.operation.entry_count', 2)
+            ->assertJsonCount(1, 'data.related_transactions')
+            ->assertJsonPath('data.related_transactions.0.direction', 'credit')
+            ->assertJsonPath('data.related_transactions.0.wallet.wallet_id', $recipientWallet->wallet_id);
+    }
+
     public function test_closed_wallets_are_excluded_from_default_index(): void
     {
         $customer = Customer::factory()->active()->create();

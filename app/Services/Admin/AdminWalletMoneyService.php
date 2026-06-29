@@ -4,6 +4,8 @@ namespace App\Services\Admin;
 
 use App\Models\Wallet;
 use App\Models\WalletTransaction;
+use App\Modules\CustomerAuth\Notifications\CustomerNotificationType;
+use App\Modules\CustomerAuth\Services\CustomerSystemNotificationService;
 use App\Services\AccountingService;
 use App\Services\IdempotencyService;
 use App\Services\LedgerService;
@@ -19,7 +21,8 @@ class AdminWalletMoneyService
     public function __construct(
         private readonly WalletService $walletService,
         private readonly AccountingService $accountingService,
-        private readonly IdempotencyService $idempotencyService
+        private readonly IdempotencyService $idempotencyService,
+        private readonly CustomerSystemNotificationService $customerSystemNotificationService,
     ) {
     }
 
@@ -49,6 +52,17 @@ class AdminWalletMoneyService
                     ->where('type', 'topup')
                     ->latest('id')
                     ->first();
+
+                if ($wallet->customer) {
+                    $this->customerSystemNotificationService->send(
+                        $wallet->customer,
+                        CustomerNotificationType::CashIn,
+                        [
+                            'amount' => round($amount, 2),
+                            'currency' => $wallet->currency_code,
+                        ],
+                    );
+                }
 
                 return [
                     'amount' => round($amount, 2),
