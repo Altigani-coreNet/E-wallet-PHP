@@ -17,6 +17,7 @@
             <file>tests/Feature/AdminCustomerApiIntegrationTest.php</file>
             <file>tests/Feature/AdminCustomerSoftDeleteTest.php</file>
             <file>tests/Unit/CustomerAuthResourceTest.php</file>
+            <file>tests/Unit/CustomerAuthServiceDeleteAccountTest.php</file>
             <file>tests/Unit/CustomerStatusTest.php</file>
             <file>tests/Unit/AdminCustomerResourceTest.php</file>
         </testsuite>

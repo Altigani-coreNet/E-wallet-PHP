@@ -5,6 +5,7 @@ namespace App\Modules\CustomerAuth\Controllers;
 use App\Models\Customer;
 use App\Modules\CustomerAuth\Requests\CompleteProfileRequest;
 use App\Modules\CustomerAuth\Requests\CustomerChangePasswordRequest;
+use App\Modules\CustomerAuth\Requests\CustomerDeleteAccountRequest;
 use App\Modules\CustomerAuth\Requests\CustomerForgotPasswordRequest;
 use App\Modules\CustomerAuth\Requests\CustomerLoginRequest;
 use App\Modules\CustomerAuth\Requests\CustomerRegisterRequest;
@@ -127,6 +128,15 @@ class CustomerAuthController
         $data = $this->authService->logout();
 
         return SuccessResponse::make($data, 'Logged out successfully');
+    }
+
+    public function deleteAccount(CustomerDeleteAccountRequest $request)
+    {
+        /** @var Customer $customer */
+        $customer = Auth::guard('customer')->user();
+        $data = $this->authService->deleteAccount($customer, $request->validated('password'));
+
+        return SuccessResponse::make($data, 'Account deleted successfully');
     }
 
     private function extractBearerToken(Request $request): ?string

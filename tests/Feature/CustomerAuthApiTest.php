@@ -852,6 +852,131 @@ class CustomerAuthApiTest extends CustomerAuthTestCase
             ]);
     }
 
+    public function test_can_delete_account_soft_deletes_and_corrupts_identifiers(): void
+    {
+        $customer = Customer::factory()->active()->create([
+            'phone' => self::TEST_PHONE,
+            'email' => 'delete-me@example.com',
+            'password' => Hash::make(self::VALID_PASSWORD),
+        ]);
+
+        $response = $this->withCustomerToken($customer)
+            ->deleteJson('/api/v1/customer/account', [
+                'password' => self::VALID_PASSWORD,
+            ]);
+
+        $response->assertOk()
+            ->assertJson([
+                'success' => true,
+                'message' => 'Account deleted successfully',
+                'data' => [
+                    'message' => 'Account deleted successfully',
+                ],
+            ]);
+
+        $this->assertSoftDeleted('customers', ['id' => $customer->id]);
+
+        $trashed = Customer::withTrashed()->whereKey($customer->id)->firstOrFail();
+        $this->assertSame(Customer::STATUS_DELETED, $trashed->status);
+        $this->assertSame("deleted_{$customer->id}_".self::TEST_PHONE, $trashed->phone);
+        $this->assertSame("deleted_{$customer->id}_delete-me@example.com", $trashed->email);
+    }
+
+    public function test_delete_account_fails_with_wrong_password(): void
+    {
+        $customer = Customer::factory()->active()->create([
+            'phone' => self::TEST_PHONE,
+            'password' => Hash::make(self::VALID_PASSWORD),
+        ]);
+
+        $this->withCustomerToken($customer)
+            ->deleteJson('/api/v1/customer/account', [
+                'password' => 'WrongPass1!',
+            ])
+            ->assertStatus(400)
+            ->assertJson([
+                'success' => false,
+                'message' => 'Password is incorrect',
+            ]);
+
+        $this->assertDatabaseHas('customers', [
+            'id' => $customer->id,
+            'phone' => self::TEST_PHONE,
+            'deleted_at' => null,
+        ]);
+    }
+
+    public function test_delete_account_requires_password(): void
+    {
+        $customer = Customer::factory()->active()->create([
+            'phone' => self::TEST_PHONE,
+            'password' => Hash::make(self::VALID_PASSWORD),
+        ]);
+
+        $this->withCustomerToken($customer)
+            ->deleteJson('/api/v1/customer/account', [])
+            ->assertStatus(422)
+            ->assertJsonValidationErrors(['password']);
+    }
+
+    public function test_login_fails_after_self_delete(): void
+    {
+        $customer = Customer::factory()->active()->create([
+            'phone' => self::TEST_PHONE,
+            'password' => Hash::make(self::VALID_PASSWORD),
+        ]);
+
+        $this->withCustomerToken($customer)
+            ->deleteJson('/api/v1/customer/account', [
+                'password' => self::VALID_PASSWORD,
+            ])
+            ->assertOk();
+
+        $this->postJson('/api/v1/customer/auth/login', [
+            'phone' => self::TEST_PHONE,
+            'password' => self::VALID_PASSWORD,
+        ])
+            ->assertUnauthorized()
+            ->assertJson([
+                'success' => false,
+            ]);
+    }
+
+    public function test_reregister_with_same_phone_succeeds_after_self_delete(): void
+    {
+        $customer = Customer::factory()->active()->create([
+            'phone' => self::TEST_PHONE,
+            'password' => Hash::make(self::VALID_PASSWORD),
+        ]);
+
+        $this->withCustomerToken($customer)
+            ->deleteJson('/api/v1/customer/account', [
+                'password' => self::VALID_PASSWORD,
+            ])
+            ->assertOk();
+
+        $otpToken = $this->verifiedSmsOtpToken(self::TEST_PHONE);
+
+        $this->postJson('/api/v1/customer/auth/register', [
+            'phone' => self::TEST_PHONE,
+            'password' => 'NewPass1!',
+            'password_confirmation' => 'NewPass1!',
+            'otp_token' => $otpToken,
+        ])
+            ->assertCreated()
+            ->assertJsonPath('success', true);
+
+        $this->assertDatabaseHas('customers', [
+            'phone' => self::TEST_PHONE,
+            'deleted_at' => null,
+            'status' => Customer::STATUS_PENDING,
+        ]);
+
+        $newCustomer = Customer::query()->where('phone', self::TEST_PHONE)->firstOrFail();
+        $this->assertNotSame($customer->id, $newCustomer->id);
+        $this->assertTrue(Hash::check('NewPass1!', $newCustomer->password));
+    }
+
     public function test_protected_routes_require_auth(): void
     {
         $this->getJson('/api/v1/customer/profile')
@@ -868,6 +993,9 @@ class CustomerAuthApiTest extends CustomerAuthTestCase
             ->assertStatus(401);
 
         $this->postJson('/api/v1/customer/auth/logout')
+            ->assertStatus(401);
+
+        $this->deleteJson('/api/v1/customer/account')
             ->assertStatus(401);
 
         $this->postJson('/api/v1/customer/password/change')

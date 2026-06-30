@@ -2,10 +2,12 @@
 
 namespace App\Modules\CustomerAuth\Controllers;
 
+use App\Exceptions\RecipientWalletException;
 use App\Models\Customer;
 use App\Modules\CustomerAuth\Requests\CustomerWalletQueryRequest;
 use App\Modules\CustomerAuth\Requests\CustomerWalletResolveRecipientRequest;
 use App\Modules\CustomerAuth\Requests\CustomerWalletTransactionsRequest;
+use App\Modules\CustomerAuth\Requests\CustomerWalletTransferOtpRequest;
 use App\Modules\CustomerAuth\Requests\CustomerWalletTransferRequest;
 use App\Modules\CustomerAuth\Requests\CustomerWalletWithdrawRequest;
 use App\Modules\CustomerAuth\Services\CustomerWalletService;
@@ -60,6 +62,8 @@ class CustomerWalletController
             );
 
             return SuccessResponse::make($data);
+        } catch (RecipientWalletException $exception) {
+            return SuccessResponse::error($exception->getMessage(), 200);
         } catch (InvalidArgumentException $exception) {
             return SuccessResponse::error($exception->getMessage(), 422);
         }
@@ -77,6 +81,30 @@ class CustomerWalletController
             );
 
             return SuccessResponse::make($data);
+        } catch (RecipientWalletException $exception) {
+            return SuccessResponse::error($exception->getMessage(), 200);
+        } catch (InvalidArgumentException $exception) {
+            return SuccessResponse::error($exception->getMessage(), 422);
+        }
+    }
+
+    public function requestTransferOtp(CustomerWalletTransferOtpRequest $request)
+    {
+        /** @var Customer $customer */
+        $customer = Auth::guard('customer')->user();
+
+        try {
+            $payload = $request->validated();
+            $idempotencyKey = $this->resolveIdempotencyKey($request);
+            if ($idempotencyKey !== null) {
+                $payload['idempotency_key'] = $idempotencyKey;
+            }
+
+            $data = $this->walletService->issueTransferOtp($customer, $payload);
+
+            return SuccessResponse::make($data, 'Transfer OTP sent successfully', 201);
+        } catch (RecipientWalletException $exception) {
+            return SuccessResponse::error($exception->getMessage(), 200);
         } catch (InvalidArgumentException $exception) {
             return SuccessResponse::error($exception->getMessage(), 422);
         }
@@ -94,10 +122,14 @@ class CustomerWalletController
                 (float) $request->validated('amount'),
                 $request->validated('description'),
                 $this->resolveIdempotencyKey($request),
-                $request->validated('note')
+                $request->validated('note'),
+                $request->validated('otp_token'),
+                (int) $request->validated('otp'),
             );
 
             return SuccessResponse::make($data, 'Transfer completed successfully');
+        } catch (RecipientWalletException $exception) {
+            return SuccessResponse::error($exception->getMessage(), 200);
         } catch (InvalidArgumentException $exception) {
             return SuccessResponse::error($exception->getMessage(), 422);
         }

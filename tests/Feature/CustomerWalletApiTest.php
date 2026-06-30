@@ -2,14 +2,17 @@
 
 namespace Tests\Feature;
 
+use App\Events\CustomerNotificationEvent;
 use App\Models\Customer;
 use App\Models\TransactionLine;
+use App\Models\WalletTransferOtp;
 use App\Models\WalletTransaction;
 use App\Modules\Accounting\Services\AccountBalanceService;
 use App\Modules\CustomerAuth\Support\CustomerJwtService;
 use App\Services\LedgerService;
 use App\Services\WalletService;
 use Database\Seeders\ChartOfAccountSeeder;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Testing\TestResponse;
 use Tests\CustomerAuthTestCase;
 
@@ -18,6 +21,8 @@ class CustomerWalletApiTest extends CustomerAuthTestCase
     protected function setUp(): void
     {
         parent::setUp();
+
+        config(['services.otp.mock_code' => 111111]);
 
         $this->seed(ChartOfAccountSeeder::class);
         // Pre-fund the master float so customer cash-ins can be issued from it.
@@ -32,6 +37,7 @@ class CustomerWalletApiTest extends CustomerAuthTestCase
         $this->getJson('/api/v1/customer/wallet/query?identifier=test')->assertUnauthorized();
         $this->getJson('/api/v1/customer/wallet/resolve-recipient?identifier=test')->assertUnauthorized();
         $this->postJson('/api/v1/customer/wallet/transfer')->assertUnauthorized();
+        $this->postJson('/api/v1/customer/wallet/transfer/otp')->assertUnauthorized();
         $this->postJson('/api/v1/customer/wallet/withdraw')->assertUnauthorized();
     }
 
@@ -107,13 +113,25 @@ class CustomerWalletApiTest extends CustomerAuthTestCase
     public function test_transfer_with_note_persists_note_on_transaction(): void
     {
         [$sender, $recipient] = $this->createFundedCustomers(500.00, 0.00);
+        $idempotencyKey = 'note-transfer-'.uniqid();
+
+        $otp = $this->requestTransferOtp(
+            $sender,
+            $recipient->wallet->wallet_id,
+            25.00,
+            'Lunch money',
+            $idempotencyKey,
+            'Thanks for dinner'
+        );
 
         $response = $this->withCustomerToken($sender)->postJson('/api/v1/customer/wallet/transfer', [
             'recipient_wallet_id' => $recipient->wallet->wallet_id,
             'amount' => 25,
             'description' => 'Lunch money',
             'note' => 'Thanks for dinner',
-        ], ['Idempotency-Key' => 'note-transfer-'.uniqid()]);
+            'otp_token' => $otp['otp_token'],
+            'otp' => 111111,
+        ], ['Idempotency-Key' => $idempotencyKey]);
 
         $response->assertOk()
             ->assertJsonPath('data.note', 'Thanks for dinner')
@@ -132,11 +150,9 @@ class CustomerWalletApiTest extends CustomerAuthTestCase
     {
         [$sender, $recipient] = $this->createFundedCustomers(500.00, 0.00);
 
-        $this->withCustomerToken($sender)->postJson('/api/v1/customer/wallet/transfer', [
-            'recipient_wallet_id' => $recipient->phone,
-            'amount' => 50,
-        ], ['Idempotency-Key' => 'phone-transfer-'.uniqid()])
-            ->assertStatus(422)
+        $this->requestTransferOtpResponse($sender, $recipient->phone, 50.00, null, 'phone-transfer-'.uniqid())
+            ->assertOk()
+            ->assertJsonPath('success', false)
             ->assertJsonPath('message', 'Recipient wallet was not found.');
     }
 
@@ -287,8 +303,9 @@ class CustomerWalletApiTest extends CustomerAuthTestCase
     {
         [$sender] = $this->createFundedCustomers(500.00, 0.00);
 
-        $this->transfer($sender, '249900000999@fastpay', 50.00)
-            ->assertStatus(422)
+        $this->requestTransferOtpResponse($sender, '249900000999@fastpay', 50.00)
+            ->assertOk()
+            ->assertJsonPath('success', false)
             ->assertJsonPath('message', 'Recipient wallet was not found.');
     }
 
@@ -298,7 +315,8 @@ class CustomerWalletApiTest extends CustomerAuthTestCase
 
         $this->withCustomerToken($sender)->getJson(
             '/api/v1/customer/wallet/resolve-recipient?identifier=+249900000999'
-        )->assertStatus(422)
+        )->assertOk()
+            ->assertJsonPath('success', false)
             ->assertJsonPath('message', 'Recipient wallet was not found.');
     }
 
@@ -307,7 +325,7 @@ class CustomerWalletApiTest extends CustomerAuthTestCase
         [$sender, $recipient] = $this->createFundedCustomers(500.00, 0.00);
         $idempotencyKey = 'transfer-test-'.uniqid();
 
-        $first = $this->transfer(
+        $otp = $this->requestTransferOtp(
             $sender,
             $recipient->wallet->wallet_id,
             120.00,
@@ -315,12 +333,24 @@ class CustomerWalletApiTest extends CustomerAuthTestCase
             $idempotencyKey
         );
 
+        $first = $this->transfer(
+            $sender,
+            $recipient->wallet->wallet_id,
+            120.00,
+            'Idempotent transfer',
+            $idempotencyKey,
+            null,
+            $otp['otp_token']
+        );
+
         $second = $this->transfer(
             $sender,
             $recipient->wallet->wallet_id,
             120.00,
             'Idempotent transfer',
-            $idempotencyKey
+            $idempotencyKey,
+            null,
+            $otp['otp_token']
         );
 
         $first->assertOk();
@@ -506,6 +536,131 @@ class CustomerWalletApiTest extends CustomerAuthTestCase
             ->assertStatus(422);
     }
 
+    public function test_transfer_otp_issues_token_and_broadcasts(): void
+    {
+        Event::fake([CustomerNotificationEvent::class]);
+
+        [$sender, $recipient] = $this->createFundedCustomers(500.00, 0.00);
+
+        $response = $this->requestTransferOtpResponse(
+            $sender,
+            $recipient->wallet->wallet_id,
+            75.00,
+            'OTP test',
+            'otp-issue-'.uniqid()
+        );
+
+        $response->assertCreated()
+            ->assertJsonPath('success', true)
+            ->assertJsonStructure(['data' => ['otp_token', 'expires_at']]);
+
+        $this->assertDatabaseHas('wallet_transfer_otps', [
+            'customer_id' => $sender->id,
+            'token' => $response->json('data.otp_token'),
+        ]);
+
+        Event::assertDispatched(CustomerNotificationEvent::class, function (CustomerNotificationEvent $event) use ($sender) {
+            return $event->targetCustomerId === (string) $sender->id
+                && ($event->meta['event_type'] ?? null) === 'transfer_otp'
+                && ($event->meta['otp_code'] ?? null) === 111111;
+        });
+    }
+
+    public function test_transfer_requires_valid_otp(): void
+    {
+        [$sender, $recipient] = $this->createFundedCustomers(500.00, 0.00);
+
+        $this->withCustomerToken($sender)->postJson('/api/v1/customer/wallet/transfer', [
+            'recipient_wallet_id' => $recipient->wallet->wallet_id,
+            'amount' => 50,
+            'otp_token' => 'missing-token',
+            'otp' => 111111,
+        ], ['Idempotency-Key' => 'no-otp-'.uniqid()])
+            ->assertStatus(422)
+            ->assertJsonPath('message', 'Invalid or expired OTP.');
+    }
+
+    public function test_transfer_succeeds_with_matching_otp(): void
+    {
+        [$sender, $recipient] = $this->createFundedCustomers(500.00, 0.00);
+        $idempotencyKey = 'verified-transfer-'.uniqid();
+
+        $otp = $this->requestTransferOtp(
+            $sender,
+            $recipient->wallet->wallet_id,
+            80.00,
+            'Verified transfer',
+            $idempotencyKey
+        );
+
+        $this->withCustomerToken($sender)->postJson('/api/v1/customer/wallet/transfer', [
+            'recipient_wallet_id' => $recipient->wallet->wallet_id,
+            'amount' => 80,
+            'description' => 'Verified transfer',
+            'otp_token' => $otp['otp_token'],
+            'otp' => 111111,
+        ], ['Idempotency-Key' => $idempotencyKey])
+            ->assertOk()
+            ->assertJsonPath('data.sender_wallet.balance', 420);
+
+        $sender->wallet->refresh();
+        $recipient->wallet->refresh();
+
+        $this->assertSame(420.0, (float) $sender->wallet->balance);
+        $this->assertSame(80.0, (float) $recipient->wallet->balance);
+    }
+
+    public function test_transfer_rejects_payload_mismatch(): void
+    {
+        [$sender, $recipient] = $this->createFundedCustomers(500.00, 0.00);
+
+        $otp = $this->requestTransferOtp($sender, $recipient->wallet->wallet_id, 100.00, 'Mismatch test');
+
+        $this->withCustomerToken($sender)->postJson('/api/v1/customer/wallet/transfer', [
+            'recipient_wallet_id' => $recipient->wallet->wallet_id,
+            'amount' => 50,
+            'description' => 'Mismatch test',
+            'otp_token' => $otp['otp_token'],
+            'otp' => 111111,
+        ], ['Idempotency-Key' => 'mismatch-'.uniqid()])
+            ->assertStatus(422)
+            ->assertJsonPath('message', 'OTP does not match this transfer.');
+
+        $sender->wallet->refresh();
+        $recipient->wallet->refresh();
+
+        $this->assertSame(500.0, (float) $sender->wallet->balance);
+        $this->assertSame(0.0, (float) $recipient->wallet->balance);
+    }
+
+    public function test_transfer_otp_single_use(): void
+    {
+        [$sender, $recipient] = $this->createFundedCustomers(500.00, 0.00);
+
+        $otp = $this->requestTransferOtp($sender, $recipient->wallet->wallet_id, 60.00, 'Single use');
+
+        $payload = [
+            'recipient_wallet_id' => $recipient->wallet->wallet_id,
+            'amount' => 60,
+            'description' => 'Single use',
+            'otp_token' => $otp['otp_token'],
+            'otp' => 111111,
+        ];
+
+        $this->withCustomerToken($sender)->postJson(
+            '/api/v1/customer/wallet/transfer',
+            $payload,
+        )->assertOk();
+
+        $this->withCustomerToken($sender)->postJson(
+            '/api/v1/customer/wallet/transfer',
+            $payload,
+        )->assertStatus(422)
+            ->assertJsonPath('message', 'Invalid or expired OTP.');
+
+        $this->assertSame(1, WalletTransferOtp::query()->whereNotNull('consumed_at')->count());
+    }
+
     /**
      * @return array{0: Customer, 1?: Customer}
      */
@@ -536,7 +691,35 @@ class CustomerWalletApiTest extends CustomerAuthTestCase
         return [$sender, $recipient];
     }
 
-    private function transfer(
+    /**
+     * @return array{otp_token: string, expires_at: string}
+     */
+    private function requestTransferOtp(
+        Customer $sender,
+        string $recipientWalletId,
+        float $amount,
+        ?string $description = null,
+        ?string $idempotencyKey = null,
+        ?string $note = null
+    ): array {
+        $response = $this->requestTransferOtpResponse(
+            $sender,
+            $recipientWalletId,
+            $amount,
+            $description,
+            $idempotencyKey,
+            $note
+        );
+
+        $response->assertCreated();
+
+        return [
+            'otp_token' => $response->json('data.otp_token'),
+            'expires_at' => $response->json('data.expires_at'),
+        ];
+    }
+
+    private function requestTransferOtpResponse(
         Customer $sender,
         string $recipientWalletId,
         float $amount,
@@ -551,11 +734,54 @@ class CustomerWalletApiTest extends CustomerAuthTestCase
 
         return $this->withCustomerToken($sender)
             ->withHeaders($headers)
+            ->postJson('/api/v1/customer/wallet/transfer/otp', array_filter([
+                'recipient_wallet_id' => $recipientWalletId,
+                'amount' => $amount,
+                'description' => $description,
+                'note' => $note,
+            ], fn ($value) => $value !== null));
+    }
+
+    private function transfer(
+        Customer $sender,
+        string $recipientWalletId,
+        float $amount,
+        ?string $description = null,
+        ?string $idempotencyKey = null,
+        ?string $note = null,
+        ?string $otpToken = null
+    ): TestResponse {
+        $headers = [];
+        if ($idempotencyKey !== null) {
+            $headers['Idempotency-Key'] = $idempotencyKey;
+        }
+
+        if ($otpToken === null) {
+            $otpResponse = $this->requestTransferOtpResponse(
+                $sender,
+                $recipientWalletId,
+                $amount,
+                $description,
+                $idempotencyKey,
+                $note
+            );
+
+            if ($otpResponse->status() !== 201) {
+                return $otpResponse;
+            }
+
+            $otpToken = $otpResponse->json('data.otp_token');
+        }
+
+        return $this->withCustomerToken($sender)
+            ->withHeaders($headers)
             ->postJson('/api/v1/customer/wallet/transfer', array_filter([
                 'recipient_wallet_id' => $recipientWalletId,
                 'amount' => $amount,
                 'description' => $description,
                 'note' => $note,
+                'otp_token' => $otpToken,
+                'otp' => 111111,
             ], fn ($value) => $value !== null));
     }
 

@@ -10,6 +10,7 @@ use App\Modules\CustomerAuth\Notifications\CustomerNotificationType;
 use App\Modules\CustomerAuth\Resources\CustomerAuthResource;
 use App\Modules\CustomerAuth\Support\CustomerJwtService;
 use App\Modules\CustomerAuth\Support\OtpTokenCipher;
+use App\Services\CustomerService;
 use App\Services\WalletService;
 use App\Traits\HasFiles;
 use Illuminate\Http\Request;
@@ -30,6 +31,7 @@ class CustomerAuthService
         private readonly CustomerJwtService $jwtService,
         private readonly WalletService $walletService,
         private readonly CustomerSystemNotificationService $customerSystemNotificationService,
+        private readonly CustomerService $customerService,
     ) {}
 
     public function register(array $data): array
@@ -144,6 +146,19 @@ class CustomerAuthService
     public function logout(): array
     {
         return ['message' => 'Logged out successfully'];
+    }
+
+    public function deleteAccount(Customer $customer, string $password): array
+    {
+        if (! $customer->password || ! Hash::check($password, $customer->password)) {
+            throw new \Symfony\Component\HttpKernel\Exception\BadRequestHttpException(
+                'Password is incorrect'
+            );
+        }
+
+        $this->customerService->softDeleteWithCorruption($customer);
+
+        return ['message' => 'Account deleted successfully'];
     }
 
     public function refreshToken(Customer $customer): array

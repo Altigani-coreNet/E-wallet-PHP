@@ -163,13 +163,25 @@ class CustomerNotificationWorkflowE2eTest extends CustomerAuthTestCase
             'phone' => '+249912345681',
         ]);
         $recipientWallet = app(WalletService::class)->createForCustomer($recipient);
+        $transferIdempotencyKey = 'workflow-transfer-'.uniqid();
+
+        $otpResponse = $this->withHeaders(['Authorization' => 'Bearer '.$authToken])
+            ->postJson('/api/v1/customer/wallet/transfer/otp', [
+                'recipient_wallet_id' => $recipientWallet->wallet_id,
+                'amount' => 100,
+                'description' => 'Workflow transfer',
+            ], ['Idempotency-Key' => $transferIdempotencyKey]);
+
+        $otpResponse->assertCreated();
 
         $this->withHeaders(['Authorization' => 'Bearer '.$authToken])
             ->postJson('/api/v1/customer/wallet/transfer', [
                 'recipient_wallet_id' => $recipientWallet->wallet_id,
                 'amount' => 100,
                 'description' => 'Workflow transfer',
-            ], ['Idempotency-Key' => 'workflow-transfer-'.uniqid()])
+                'otp_token' => $otpResponse->json('data.otp_token'),
+                'otp' => 111111,
+            ], ['Idempotency-Key' => $transferIdempotencyKey])
             ->assertOk()
             ->assertJsonPath('data.amount', 100);
 

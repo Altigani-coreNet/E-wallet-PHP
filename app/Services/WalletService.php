@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Exceptions\RecipientWalletException;
 use App\Models\ChartOfAccount;
 use App\Models\Currency;
 use App\Models\Customer;
@@ -373,20 +374,25 @@ class WalletService
             throw new InvalidArgumentException('Cannot transfer to the same wallet.');
         }
 
-        if ($from->isMaster() || $to->isMaster()) {
-            throw new InvalidArgumentException('Transfers must be between customer wallets.');
+        if ($from->isMaster()) {
+            throw new InvalidArgumentException('Cannot transfer from the master wallet.');
         }
 
         $recipientAmount = round($amount - $fee, 2);
+        $toIsMaster = $to->isMaster();
 
-        DB::transaction(function () use ($from, $to, $amount, $fee, $recipientAmount, $description, $createdBy, $note) {
+        DB::transaction(function () use ($from, $to, $amount, $fee, $recipientAmount, $toIsMaster, $description, $createdBy, $note) {
             [$fromWallet, $toWallet] = $this->lockWalletsInOrder($from, $to);
 
             $this->assertSufficientBalance($fromWallet, $amount);
 
             $lines = [
                 ['account_code' => AccountCode::CUSTOMER_LIABILITY, 'debit' => $amount, 'sub_id' => 0],
-                ['account_code' => AccountCode::CUSTOMER_LIABILITY, 'credit' => $recipientAmount, 'sub_id' => 1],
+                [
+                    'account_code' => $toIsMaster ? AccountCode::MASTER_LIABILITY : AccountCode::CUSTOMER_LIABILITY,
+                    'credit' => $recipientAmount,
+                    'sub_id' => 1,
+                ],
             ];
 
             if ($fee > 0) {
@@ -468,11 +474,11 @@ class WalletService
             ->first();
 
         if (! $wallet) {
-            throw new InvalidArgumentException('Recipient wallet was not found.');
+            throw new RecipientWalletException('Recipient wallet was not found.');
         }
 
-        if ($wallet->isMaster()) {
-            throw new InvalidArgumentException('Cannot transfer to the master wallet.');
+        if (! $wallet->isMaster() && ! $wallet->customer) {
+            throw new RecipientWalletException('Recipient wallet is not linked to a customer.');
         }
 
         if ($excludeWallet !== null && $wallet->id === $excludeWallet->id) {
@@ -497,7 +503,7 @@ class WalletService
         return [
             'recipient_wallet_id' => $wallet->wallet_id,
             'wallet_uuid' => $wallet->id,
-            'owner_name' => $customer?->name,
+            'owner_name' => $wallet->isMaster() ? 'Master Wallet' : $customer?->name,
             'wallet_id' => $wallet->wallet_id,
             'user_number' => $wallet->user_number,
             'status' => $wallet->status,

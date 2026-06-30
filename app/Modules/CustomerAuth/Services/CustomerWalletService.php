@@ -2,6 +2,7 @@
 
 namespace App\Modules\CustomerAuth\Services;
 
+use App\Exceptions\RecipientWalletException;
 use App\Models\Customer;
 use App\Models\Wallet;
 use App\Models\WalletTransaction;
@@ -21,6 +22,7 @@ class CustomerWalletService
         private readonly WalletService $walletService,
         private readonly IdempotencyService $idempotencyService,
         private readonly CustomerSystemNotificationService $customerSystemNotificationService,
+        private readonly WalletTransferOtpService $walletTransferOtpService,
     ) {
     }
 
@@ -123,12 +125,20 @@ class CustomerWalletService
             allowPhone: true,
             selfWalletContext: 'query'
         );
-        $recipient = $recipientWallet->customer;
 
-        if (! $recipient) {
-            throw new InvalidArgumentException('Recipient wallet is not linked to a customer.');
+        if ($recipientWallet->isMaster()) {
+            $this->assertWalletIsActive($recipientWallet, 'Recipient wallet is not available to receive transfers.');
+
+            return [
+                'wallet_id' => $recipientWallet->wallet_id,
+                'name' => 'Master Wallet',
+                'email' => null,
+                'status' => $recipientWallet->status,
+                'currency_code' => $recipientWallet->currency_code,
+            ];
         }
 
+        $recipient = $recipientWallet->customer;
         $this->assertRecipientCanReceive($recipient);
         $this->assertWalletIsActive($recipientWallet, 'Recipient wallet is not available to receive transfers.');
 
@@ -154,16 +164,33 @@ class CustomerWalletService
             allowPhone: true,
             selfWalletContext: 'query'
         );
-        $recipient = $recipientWallet->customer;
 
-        if (! $recipient) {
-            throw new InvalidArgumentException('Recipient wallet is not linked to a customer.');
+        if ($recipientWallet->isMaster()) {
+            $this->assertWalletIsActive($recipientWallet, 'Recipient wallet is not available to receive transfers.');
+
+            return array_merge(
+                $this->walletService->formatRecipient($recipientWallet),
+                ['owner_name' => 'Master Wallet']
+            );
         }
 
+        $recipient = $recipientWallet->customer;
         $this->assertRecipientCanReceive($recipient);
         $this->assertWalletIsActive($recipientWallet, 'Recipient wallet is not available to receive transfers.');
 
         return $this->walletService->formatRecipient($recipientWallet);
+    }
+
+    /**
+     * @param  array<string, mixed>  $payload
+     * @return array{otp_token: string, expires_at: string}
+     */
+    public function issueTransferOtp(Customer $sender, array $payload): array
+    {
+        $normalized = WalletTransferOtpService::normalizePayload($payload);
+        $this->assertTransferIntent($sender, $normalized['recipient_wallet_id'], $normalized['amount']);
+
+        return $this->walletTransferOtpService->issue($sender, $normalized);
     }
 
     public function transfer(
@@ -172,27 +199,47 @@ class CustomerWalletService
         float $amount,
         ?string $description = null,
         ?string $idempotencyKey = null,
-        ?string $note = null
+        ?string $note = null,
+        ?string $otpToken = null,
+        ?int $otpCode = null
     ): array {
+        $transferPayload = WalletTransferOtpService::normalizePayload([
+            'recipient_wallet_id' => $recipientWalletId,
+            'amount' => $amount,
+            'description' => $description,
+            'note' => $note,
+            'idempotency_key' => $idempotencyKey,
+        ]);
+
         return $this->idempotencyService->execute(
             $sender->id,
             self::SCOPE_TRANSFER,
             $idempotencyKey,
-            function () use ($sender, $recipientWalletId, $amount, $description, $note) {
-                $this->assertCustomerCanUseWallet($sender);
+            function () use ($sender, $transferPayload, $otpToken, $otpCode) {
+                $this->walletTransferOtpService->verifyAndConsume(
+                    $sender,
+                    (string) $otpToken,
+                    (int) $otpCode,
+                    $transferPayload
+                );
 
                 $fromWallet = $this->resolveActiveWalletForCustomer($sender);
-                $this->assertNotSelfIdentifier($fromWallet, $sender, $recipientWalletId);
-
                 $toWallet = $this->walletService->resolveRecipient(
-                    $recipientWalletId,
+                    $transferPayload['recipient_wallet_id'],
                     $fromWallet,
                     allowPhone: false,
                     selfWalletContext: 'transfer'
                 );
                 $toWallet->load('customer');
 
-                return $this->executeTransfer($sender, $fromWallet, $toWallet, $amount, $description, $note);
+                return $this->executeTransfer(
+                    $sender,
+                    $fromWallet,
+                    $toWallet,
+                    $transferPayload['amount'],
+                    $transferPayload['description'],
+                    $transferPayload['note']
+                );
             }
         );
     }
@@ -247,8 +294,65 @@ class CustomerWalletService
         }
 
         $recipient = $toWallet->customer;
+
+        if ($toWallet->isMaster()) {
+            $this->assertWalletIsActive($fromWallet, 'Your wallet is not available for transfers.');
+            $this->assertWalletIsActive($toWallet, 'Recipient wallet is not available to receive transfers.');
+
+            if ($fromWallet->currency_code !== $toWallet->currency_code) {
+                throw new InvalidArgumentException('Cross-currency transfers are not supported.');
+            }
+
+            $fee = $this->walletService->transferFee();
+
+            $this->walletService->transfer(
+                $fromWallet,
+                $toWallet,
+                $amount,
+                $description,
+                0,
+                $note
+            );
+
+            $fromWallet->refresh();
+            $toWallet->refresh();
+
+            $debitTransaction = WalletTransaction::query()
+                ->where('wallet_id', $fromWallet->id)
+                ->whereIn('type', ['transfer', 'payment'])
+                ->where('direction', 'debit')
+                ->latest('id')
+                ->first();
+
+            $recipientNet = round($amount - max(0, $fee), 2);
+
+            $this->customerSystemNotificationService->send(
+                $sender->fresh(),
+                CustomerNotificationType::TransferSent,
+                [
+                    'amount' => $amount,
+                    'currency' => $fromWallet->currency_code,
+                    'recipient_name' => 'Master Wallet',
+                ],
+            );
+
+            return [
+                'amount' => round($amount, 2),
+                'fee' => round(max(0, $fee), 2),
+                'recipient_amount' => $recipientNet,
+                'description' => $description,
+                'note' => $note,
+                'sender_wallet' => $this->formatWallet($fromWallet),
+                'recipient' => array_merge(
+                    $this->walletService->formatRecipient($toWallet),
+                    ['name' => 'Master Wallet', 'owner_name' => 'Master Wallet']
+                ),
+                'transaction' => $debitTransaction ? $this->formatTransaction($debitTransaction) : null,
+            ];
+        }
+
         if (! $recipient) {
-            throw new InvalidArgumentException('Recipient wallet is not linked to a customer.');
+            throw new RecipientWalletException('Recipient wallet is not linked to a customer.');
         }
 
         $this->assertRecipientCanReceive($recipient);
@@ -315,6 +419,47 @@ class CustomerWalletService
             ),
             'transaction' => $debitTransaction ? $this->formatTransaction($debitTransaction) : null,
         ];
+    }
+
+    private function assertTransferIntent(Customer $sender, string $recipientWalletId, float $amount): void
+    {
+        $this->assertCustomerCanUseWallet($sender);
+
+        $fromWallet = $this->resolveActiveWalletForCustomer($sender);
+        $this->assertNotSelfIdentifier($fromWallet, $sender, $recipientWalletId);
+
+        $toWallet = $this->walletService->resolveRecipient(
+            $recipientWalletId,
+            $fromWallet,
+            allowPhone: false,
+            selfWalletContext: 'transfer'
+        );
+        $toWallet->load('customer');
+
+        if ($toWallet->isMaster()) {
+            $this->assertWalletIsActive($fromWallet, 'Your wallet is not available for transfers.');
+            $this->assertWalletIsActive($toWallet, 'Recipient wallet is not available to receive transfers.');
+
+            if ($fromWallet->currency_code !== $toWallet->currency_code) {
+                throw new InvalidArgumentException('Cross-currency transfers are not supported.');
+            }
+        } else {
+            $recipient = $toWallet->customer;
+
+            if (! $recipient) {
+                throw new RecipientWalletException('Recipient wallet is not linked to a customer.');
+            }
+
+            $this->assertRecipientCanReceive($recipient);
+            $this->assertWalletIsActive($fromWallet, 'Your wallet is not available for transfers.');
+            $this->assertWalletIsActive($toWallet, 'Recipient wallet is not available to receive transfers.');
+
+            if ($fromWallet->currency_code !== $toWallet->currency_code) {
+                throw new InvalidArgumentException('Cross-currency transfers are not supported.');
+            }
+        }
+
+        $this->walletService->assertSufficientBalance($fromWallet, $amount);
     }
 
     /**

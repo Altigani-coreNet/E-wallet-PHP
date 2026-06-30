@@ -2,7 +2,7 @@
 
 namespace App\Modules\CustomerAuth\Requests;
 
-class CustomerWalletTransferRequest extends CustomerAuthFormRequest
+class CustomerWalletTransferOtpRequest extends CustomerAuthFormRequest
 {
     public function authorize(): bool
     {
@@ -17,8 +17,6 @@ class CustomerWalletTransferRequest extends CustomerAuthFormRequest
             'description' => ['nullable', 'string', 'max:255'],
             'note' => ['nullable', 'string', 'max:255'],
             'idempotency_key' => ['nullable', 'string', 'max:255'],
-            'otp_token' => ['required', 'string', 'max:255'],
-            'otp' => ['required', 'integer', 'digits:6', 'between:100000,999999'],
         ];
     }
 }
