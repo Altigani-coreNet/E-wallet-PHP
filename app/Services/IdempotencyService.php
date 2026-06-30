@@ -9,6 +9,9 @@ use Illuminate\Support\Facades\DB;
 
 class IdempotencyService
 {
+    /** Sentinel owner for system-scoped idempotency (opening capital, master wallet ops). */
+    public const SYSTEM_OWNER_ID = '00000000-0000-0000-0000-000000000001';
+
     /**
      * @template T of array
      *
@@ -22,9 +25,10 @@ class IdempotencyService
         }
 
         $idempotencyKey = trim($idempotencyKey);
+        $ownerKey = $this->normalizeOwnerId($ownerId);
 
         $existing = WalletIdempotencyKey::query()
-            ->where('customer_id', $ownerId)
+            ->where('customer_id', $ownerKey)
             ->where('scope', $scope)
             ->where('idempotency_key', $idempotencyKey)
             ->first();
@@ -34,9 +38,9 @@ class IdempotencyService
         }
 
         try {
-            return DB::transaction(function () use ($ownerId, $scope, $idempotencyKey, $callback) {
+            return DB::transaction(function () use ($ownerKey, $scope, $idempotencyKey, $callback) {
                 $existing = WalletIdempotencyKey::query()
-                    ->where('customer_id', $ownerId)
+                    ->where('customer_id', $ownerKey)
                     ->where('scope', $scope)
                     ->where('idempotency_key', $idempotencyKey)
                     ->lockForUpdate()
@@ -49,7 +53,7 @@ class IdempotencyService
                 $response = $callback();
 
                 WalletIdempotencyKey::create([
-                    'customer_id' => $ownerId,
+                    'customer_id' => $ownerKey,
                     'scope' => $scope,
                     'idempotency_key' => $idempotencyKey,
                     'status' => WalletIdempotencyKey::STATUS_COMPLETED,
@@ -65,7 +69,7 @@ class IdempotencyService
             }
 
             $existing = WalletIdempotencyKey::query()
-                ->where('customer_id', $ownerId)
+                ->where('customer_id', $ownerKey)
                 ->where('scope', $scope)
                 ->where('idempotency_key', $idempotencyKey)
                 ->first();
@@ -76,6 +80,18 @@ class IdempotencyService
 
             throw $exception;
         }
+    }
+
+    /**
+     * MySQL UNIQUE treats NULL as distinct per row — never persist a null owner key.
+     */
+    private function normalizeOwnerId(int|string|null $ownerId): string
+    {
+        if ($ownerId === null || $ownerId === '') {
+            return self::SYSTEM_OWNER_ID;
+        }
+
+        return (string) $ownerId;
     }
 
     private function isUniqueConstraintViolation(QueryException $exception): bool

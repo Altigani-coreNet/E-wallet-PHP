@@ -74,7 +74,10 @@ class CustomerAuthService
 
     public function login(array $data): array
     {
-        $customer = Customer::query()->where('phone', $data['phone'])->first();
+        $customer = Customer::query()
+            ->where('phone', $data['phone'])
+            ->whereNull('deleted_at')
+            ->first();
 
         if (! $customer || ! $customer->password || ! Hash::check($data['password'], $customer->password)) {
             throw new \Symfony\Component\HttpKernel\Exception\UnauthorizedHttpException(

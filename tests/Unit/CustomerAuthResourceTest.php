@@ -32,8 +32,24 @@ class CustomerAuthResourceTest extends CustomerAuthTestCase
         $this->assertNull($payload['walletId']);
         $this->assertNull($payload['availableBalance']);
         $this->assertTrue($payload['profileCompleted']);
+        $this->assertSame(Customer::STATUS_PENDING, $payload['status']);
+        $this->assertArrayNotHasKey('merchantId', $payload);
+        $this->assertArrayNotHasKey('merchantCountryId', $payload);
         $this->assertNull($payload['country']);
         $this->assertNull($payload['city']);
+    }
+
+    public function test_resource_includes_customer_status(): void
+    {
+        $customer = Customer::factory()->active()->create([
+            'phone' => '+249912345679',
+        ]);
+
+        $payload = CustomerAuthResource::make($customer)->toArray(Request::create('/'));
+
+        $this->assertSame(Customer::STATUS_ACTIVE, $payload['status']);
+        $this->assertArrayNotHasKey('merchantId', $payload);
+        $this->assertArrayNotHasKey('merchantCountryId', $payload);
     }
 
     public function test_resource_includes_wallet_id_and_balance_when_wallet_loaded(): void

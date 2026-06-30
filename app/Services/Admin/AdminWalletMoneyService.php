@@ -2,6 +2,8 @@
 
 namespace App\Services\Admin;
 
+use App\Http\Resources\AdminWalletResource;
+use App\Http\Resources\AdminWalletTransactionResource;
 use App\Models\Wallet;
 use App\Models\WalletTransaction;
 use App\Modules\CustomerAuth\Notifications\CustomerNotificationType;
@@ -64,13 +66,13 @@ class AdminWalletMoneyService
                     );
                 }
 
-                return [
-                    'amount' => round($amount, 2),
-                    'description' => $description,
-                    'wallet' => $wallet,
-                    'transaction' => $transaction,
-                    'posting_reference' => LedgerService::REF_WALLET_CASH_IN,
-                ];
+                return $this->serializeMoneyOperationResult(
+                    round($amount, 2),
+                    $description,
+                    $wallet,
+                    $transaction,
+                    LedgerService::REF_WALLET_CASH_IN,
+                );
             }
         );
     }
@@ -103,13 +105,13 @@ class AdminWalletMoneyService
                     ->latest('id')
                     ->first();
 
-                return [
-                    'amount' => round($amount, 2),
-                    'description' => $description,
-                    'wallet' => $wallet,
-                    'transaction' => $transaction,
-                    'posting_reference' => LedgerService::REF_WALLET_CASH_OUT,
-                ];
+                return $this->serializeMoneyOperationResult(
+                    round($amount, 2),
+                    $description,
+                    $wallet,
+                    $transaction,
+                    LedgerService::REF_WALLET_CASH_OUT,
+                );
             }
         );
     }
@@ -146,10 +148,35 @@ class AdminWalletMoneyService
         return $wallet;
     }
 
-    private function idempotencyOwnerId(string $walletUuid): ?string
+    private function idempotencyOwnerId(string $walletUuid): string
     {
         $wallet = Wallet::query()->find($walletUuid);
 
-        return $wallet?->customer_id ? (string) $wallet->customer_id : null;
+        if (! $wallet) {
+            return $walletUuid;
+        }
+
+        return (string) ($wallet->customer_id ?? $wallet->id);
+    }
+
+    /**
+     * @return array{amount: float, description: ?string, wallet: array, transaction: ?array, posting_reference: string}
+     */
+    private function serializeMoneyOperationResult(
+        float $amount,
+        ?string $description,
+        Wallet $wallet,
+        ?WalletTransaction $transaction,
+        string $postingReference
+    ): array {
+        return [
+            'amount' => $amount,
+            'description' => $description,
+            'wallet' => (new AdminWalletResource($wallet))->resolve(),
+            'transaction' => $transaction
+                ? (new AdminWalletTransactionResource($transaction))->resolve()
+                : null,
+            'posting_reference' => $postingReference,
+        ];
     }
 }

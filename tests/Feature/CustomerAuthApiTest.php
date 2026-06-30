@@ -156,6 +156,8 @@ class CustomerAuthApiTest extends CustomerAuthTestCase
         $this->assertNotNull($customerId);
         $this->assertTrue(Str::isUuid((string) $customerId));
         $this->assertSame($customerId, Customer::query()->where('phone', self::TEST_PHONE)->value('id'));
+        $this->assertSame(Customer::STATUS_PENDING, $response->json('data.customer.status'));
+        $this->assertCustomerAuthPayloadExcludesMerchantFields($response->json('data.customer'));
     }
 
     public function test_register_fails_without_verified_otp(): void
@@ -248,12 +250,15 @@ class CustomerAuthApiTest extends CustomerAuthTestCase
                     'customer' => [
                         'id' => $customer->id,
                         'phone' => self::TEST_PHONE,
+                        'status' => Customer::STATUS_ACTIVE,
                     ],
                 ],
             ])
             ->assertJsonStructure([
                 'data' => ['token', 'refresh_token'],
             ]);
+
+        $this->assertCustomerAuthPayloadExcludesMerchantFields($response->json('data.customer'));
     }
 
     public function test_login_fails_with_invalid_credentials(): void
@@ -563,10 +568,13 @@ class CustomerAuthApiTest extends CustomerAuthTestCase
                     'customer' => [
                         'id' => $customer->id,
                         'phone' => self::TEST_PHONE,
+                        'status' => Customer::STATUS_PENDING,
                         'walletId' => null,
                     ],
                 ],
             ]);
+
+        $this->assertCustomerAuthPayloadExcludesMerchantFields($response->json('data.customer'));
     }
 
     public function test_profile_returns_wallet_id_and_balance_when_wallet_exists(): void
@@ -1027,6 +1035,17 @@ class CustomerAuthApiTest extends CustomerAuthTestCase
         return $this->withHeaders([
             'Authorization' => 'Bearer '.$auth['token'],
         ]);
+    }
+
+    /**
+     * @param  array<string, mixed>|null  $customerPayload
+     */
+    private function assertCustomerAuthPayloadExcludesMerchantFields(?array $customerPayload): void
+    {
+        $this->assertIsArray($customerPayload);
+        $this->assertArrayHasKey('status', $customerPayload);
+        $this->assertArrayNotHasKey('merchantId', $customerPayload);
+        $this->assertArrayNotHasKey('merchantCountryId', $customerPayload);
     }
 
     /**
