@@ -80,4 +80,70 @@ class WalletAccountingReconciliationTest extends CustomerAuthTestCase
             round($bankBalance - 1000, 2)
         );
     }
+
+    public function test_bill_payment_and_settlement_keep_system_balanced(): void
+    {
+        app(AccountingService::class)->recordOpeningCapital(1000, 'Opening equity');
+
+        $master = Wallet::query()->where('wallet_id', WalletService::MASTER_WALLET_ID)->firstOrFail();
+        app(WalletService::class)->cashIn($master, 200, 'Fund master float');
+
+        $customer = Customer::factory()->active()->create();
+        $wallet = app(WalletService::class)->createForCustomer($customer);
+        app(WalletService::class)->cashIn($wallet, 200, 'Buy balance');
+
+        $catalog = $this->seedBillPaymentCatalog();
+        config(['services.wallet.bill_payment_fee' => 2]);
+
+        $fee = app(WalletService::class)->billPaymentFee();
+        app(WalletService::class)->billPay(
+            $wallet,
+            $catalog['payable'],
+            100,
+            $fee,
+            'Electricity bill',
+            'lifecycle-bill-001'
+        );
+
+        $balanceService = app(AccountBalanceService::class);
+        $this->assertTrue($balanceService->isSystemBalanced());
+
+        $bankBeforeSettle = $balanceService->balance(
+            (int) \App\Models\ChartOfAccount::query()->byCode(AccountCode::BANK)->value('id')
+        );
+
+        app(\App\Services\ProviderSettlementService::class)->settle($catalog['partner'], 100);
+
+        $wallet->refresh();
+        $this->assertSame(98.0, (float) $wallet->balance);
+        $this->assertTrue($balanceService->isSystemBalanced());
+
+        $bankAfterSettle = $balanceService->balance(
+            (int) \App\Models\ChartOfAccount::query()->byCode(AccountCode::BANK)->value('id')
+        );
+        $this->assertSame(100.0, round($bankBeforeSettle - $bankAfterSettle, 2));
+        $this->assertSame(0.0, $balanceService->balance((int) $catalog['payable']->id));
+    }
+
+    /**
+     * @return array{partner: \App\Models\Partner, payable: \App\Models\ChartOfAccount}
+     */
+    private function seedBillPaymentCatalog(): array
+    {
+        $partner = \App\Models\Partner::query()->create([
+            'id' => (string) \Illuminate\Support\Str::uuid(),
+            'name' => 'Electricity Co',
+            'email' => 'elec-'. \Illuminate\Support\Str::random(6).'@example.com',
+            'merchant_code' => 'MRC_'. \Illuminate\Support\Str::random(8),
+            'is_active' => true,
+            'status' => 'approved',
+        ]);
+
+        $payable = app(\App\Services\PartnerPayableAccountService::class)->allocateForPartner($partner);
+
+        return [
+            'partner' => $partner->fresh(),
+            'payable' => $payable,
+        ];
+    }
 }

@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Branch;
 use App\Models\ChangeRequest;
+use App\Models\Customer;
 use App\Models\Merchant;
 use App\Services\ChangeRequestFormatter;
 use App\Services\ChangeRequestService;
@@ -35,7 +36,7 @@ class AdminChangeRequestController extends Controller
             $counts = ChangeRequest::query()
                 ->selectRaw('changeable_type, COUNT(*) as aggregate')
                 ->where('status', 'pending')
-                ->whereIn('changeable_type', [Merchant::class, Branch::class])
+                ->whereIn('changeable_type', [Merchant::class, Branch::class, Customer::class])
                 ->groupBy('changeable_type')
                 ->pluck('aggregate', 'changeable_type')
                 ->map(fn ($count) => (int) $count)
@@ -43,12 +44,14 @@ class AdminChangeRequestController extends Controller
 
             $merchantCount = $counts[Merchant::class] ?? 0;
             $branchCount = $counts[Branch::class] ?? 0;
-            $total = $merchantCount + $branchCount;
+            $customerCount = $counts[Customer::class] ?? 0;
+            $total = $merchantCount + $branchCount + $customerCount;
 
             return $this->SuccessMessage([
                 'pending' => [
                     'merchant' => $merchantCount,
                     'branch' => $branchCount,
+                    'customer' => $customerCount,
                     'total' => $total,
                 ],
             ]);
@@ -109,7 +112,7 @@ class AdminChangeRequestController extends Controller
                         ->orWhere('moderation_note', 'like', "%{$search}%")
                         ->orWhereHasMorph(
                             'changeable',
-                            [Merchant::class, Branch::class],
+                            [Merchant::class, Branch::class, Customer::class],
                             function ($changeableQuery, $type) use ($search) {
                                 if ($type === Merchant::class) {
                                     $changeableQuery->where(function ($merchantQuery) use ($search) {
@@ -118,6 +121,12 @@ class AdminChangeRequestController extends Controller
                                     });
                                 } elseif ($type === Branch::class) {
                                     $changeableQuery->where('name', 'like', "%{$search}%");
+                                } elseif ($type === Customer::class) {
+                                    $changeableQuery->where(function ($customerQuery) use ($search) {
+                                        $customerQuery->where('name', 'like', "%{$search}%")
+                                            ->orWhere('email', 'like', "%{$search}%")
+                                            ->orWhere('phone', 'like', "%{$search}%");
+                                    });
                                 } else {
                                     $changeableQuery->where('name', 'like', "%{$search}%");
                                 }
@@ -229,8 +238,11 @@ class AdminChangeRequestController extends Controller
             'merchants' => Merchant::class,
             'branch' => Branch::class,
             'branches' => Branch::class,
+            'customer' => Customer::class,
+            'customers' => Customer::class,
             Merchant::class => Merchant::class,
             Branch::class => Branch::class,
+            Customer::class => Customer::class,
         ];
 
         return $map[$normalized] ?? ($map[$type] ?? null);

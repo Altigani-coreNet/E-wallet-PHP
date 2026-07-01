@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\ChartOfAccount;
 use App\Models\TransactionLine;
 use Carbon\Carbon;
+use Illuminate\Support\Str;
 use RuntimeException;
 
 /**
@@ -21,6 +22,10 @@ class LedgerService
     public const REF_WALLET_CASH_OUT = 'WALLET_CASH_OUT';
 
     public const REF_OPENING_CAPITAL = 'OPENING_CAPITAL';
+
+    public const REF_BILL_PAYMENT = 'BILL_PAYMENT';
+
+    public const REF_PROVIDER_SETTLEMENT = 'PROVIDER_SETTLEMENT';
 
     public function account(int $code): ChartOfAccount
     {
@@ -41,11 +46,14 @@ class LedgerService
         string $reference,
         int|string $referenceId = '0',
         ?Carbon $date = null,
-        int $createdBy = 0
+        int $createdBy = 0,
+        ?string $operationId = null
     ): void {
         if ($lines === []) {
             throw new RuntimeException('Ledger entry must contain at least one line.');
         }
+
+        $operationId ??= (string) Str::uuid();
 
         $postingDate = ($date ?? now())->toDateString();
         $totalDebit = 0.0;
@@ -84,6 +92,7 @@ class LedgerService
                 'account_id' => (int) $accountId,
                 'reference' => $reference,
                 'reference_id' => (string) $referenceId,
+                'operation_id' => $operationId,
                 'reference_sub_id' => (int) ($line['sub_id'] ?? $index),
                 'date' => $postingDate,
                 'debit' => $debit,

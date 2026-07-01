@@ -6,6 +6,7 @@ use App\Models\Branch;
 use App\Models\ChangeRequest;
 use App\Models\City;
 use App\Models\Country;
+use App\Models\Customer;
 use App\Models\Merchant;
 use App\Models\User;
 use Illuminate\Support\Facades\Storage;
@@ -39,6 +40,7 @@ class ChangeRequestFormatter
             'created_at' => optional($changeRequest->created_at)->toISOString(),
             'approved_at' => optional($changeRequest->approved_at)->toISOString(),
             'rejected_at' => optional($changeRequest->rejected_at)->toISOString(),
+            'changed_fields' => $this->summarizePayloadFields($changeRequest->payload ?? []),
         ];
     }
 
@@ -102,6 +104,10 @@ class ChangeRequestFormatter
             return $changeable->name;
         }
 
+        if ($changeable instanceof Customer) {
+            return $changeable->name;
+        }
+
         return $changeable->name ?? $changeable->title ?? null;
     }
 
@@ -110,6 +116,7 @@ class ChangeRequestFormatter
         $map = [
             Merchant::class => 'Merchant',
             Branch::class => 'Branch',
+            Customer::class => 'Customer',
         ];
 
         return $map[$changeRequest->changeable_type] ?? class_basename($changeRequest->changeable_type ?? '');
@@ -120,6 +127,7 @@ class ChangeRequestFormatter
         $map = [
             Merchant::class => 'merchant',
             Branch::class => 'branch',
+            Customer::class => 'customer',
         ];
 
         return $map[$changeRequest->changeable_type] ?? strtolower(class_basename($changeRequest->changeable_type ?? 'unknown'));
@@ -202,6 +210,9 @@ class ChangeRequestFormatter
             'tax_certification' => 'Tax Certificate',
             'trade_license' => 'Trade License',
             'user_id_document' => 'ID Document',
+            'birth_date' => 'Date of Birth',
+            'gender' => 'Gender',
+            'profile_image' => 'Profile Photo',
         ];
 
         return $fieldMappings[$fieldName] ?? ucfirst(str_replace('_', ' ', $fieldName));
@@ -249,7 +260,8 @@ class ChangeRequestFormatter
     protected function getRequestType(array $payload): string
     {
         if (isset($payload['company_logo']) || isset($payload['tax_certification']) ||
-            isset($payload['trade_license']) || isset($payload['user_id_document'])) {
+            isset($payload['trade_license']) || isset($payload['user_id_document']) ||
+            isset($payload['profile_image'])) {
             return 'Attachments';
         }
 
@@ -315,7 +327,13 @@ class ChangeRequestFormatter
     }
     protected function isAttachmentField(string $fieldName): bool
     {
-        return in_array($fieldName, ['company_logo', 'tax_certification', 'trade_license', 'user_id_document'], true);
+        return in_array($fieldName, [
+            'company_logo',
+            'tax_certification',
+            'trade_license',
+            'user_id_document',
+            'profile_image',
+        ], true);
     }
 
     protected function resolveAttachmentUrl($value): ?string
@@ -335,6 +353,25 @@ class ChangeRequestFormatter
         }
 
         return asset(Storage::url($path));
+    }
+
+    /**
+     * @param  array<string, mixed>  $payload
+     * @return list<string>
+     */
+    protected function summarizePayloadFields(array $payload): array
+    {
+        $fields = [];
+
+        foreach ($payload as $key => $value) {
+            if (Str::startsWith($key, '__')) {
+                continue;
+            }
+
+            $fields[] = $this->mapFieldName($key);
+        }
+
+        return $fields;
     }
 }
 

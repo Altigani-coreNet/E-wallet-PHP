@@ -582,6 +582,10 @@ Route::prefix('v2/admin')->middleware(['auth:admin-api'])->group(function () {
     Route::post('customers/import-preview', [AdminCustomerApiController::class, 'importPreview']);
     Route::post('customers/import', [AdminCustomerApiController::class, 'import']);
     Route::get('customers', [AdminCustomerApiController::class, 'index']);
+    Route::get('customers/kyc/pending', [\App\Http\Controllers\Api\Cashier\AdminCustomerKycController::class, 'pending']);
+    Route::get('customers/kyc/events', [\App\Http\Controllers\Api\Cashier\AdminCustomerKycController::class, 'events']);
+    Route::get('customers/kyc/events/{logId}', [\App\Http\Controllers\Api\Cashier\AdminCustomerKycController::class, 'eventShow']);
+    Route::get('customers/kyc/queue-counts', [\App\Http\Controllers\Api\Cashier\AdminCustomerKycController::class, 'queueCounts']);
     Route::get('customers/{id}/wallet', [AdminCustomerApiController::class, 'wallet']);
     Route::get('customers/{id}/transactions', [AdminCustomerApiController::class, 'transactions']);
     Route::get('customers/{id}', [AdminCustomerApiController::class, 'show']);
@@ -590,6 +594,13 @@ Route::prefix('v2/admin')->middleware(['auth:admin-api'])->group(function () {
     Route::delete('customers/{id}', [AdminCustomerApiController::class, 'destroy']);
     Route::post('customers/bulk-delete', [AdminCustomerApiController::class, 'bulkDelete']);
     Route::post('customers/{id}/status', [AdminCustomerApiController::class, 'updateStatus']);
+    Route::post('customers/{id}/approve', [AdminCustomerApiController::class, 'approve']);
+    Route::post('customers/{id}/reject', [AdminCustomerApiController::class, 'reject']);
+    Route::get('customers/{id}/logs', [AdminCustomerApiController::class, 'logs']);
+    Route::get('customers/{id}/change-requests', [AdminCustomerApiController::class, 'changeRequests']);
+    Route::get('customers/{id}/change-requests/{changeRequest}', [AdminCustomerApiController::class, 'changeRequestDetail']);
+    Route::post('customers/{id}/change-requests/{changeRequest}/approve', [AdminCustomerApiController::class, 'approveChangeRequest']);
+    Route::post('customers/{id}/change-requests/{changeRequest}/reject', [AdminCustomerApiController::class, 'rejectChangeRequest']);
     Route::post('customers/{id}/toggle-status', [AdminCustomerApiController::class, 'toggleStatus']);
     Route::post('customers/{id}/resend-password-invite', [AdminCustomerApiController::class, 'resendPasswordInvite']);
 
@@ -628,6 +639,11 @@ Route::prefix('v2/admin')->middleware(['auth:admin-api'])->group(function () {
         Route::get('reports/profit-loss/export', [\App\Modules\Accounting\Controllers\ReportController::class, 'profitLossExport']);
         Route::get('reports/profit-loss', [\App\Modules\Accounting\Controllers\ReportController::class, 'profitLoss']);
         Route::get('reports/trial-balance', [\App\Modules\Accounting\Controllers\ReportController::class, 'trialBalance']);
+    });
+
+    Route::prefix('provider-settlements')->group(function () {
+        Route::get('/', [\App\Http\Controllers\Api\V2\Admin\AdminProviderSettlementController::class, 'index']);
+        Route::post('/', [\App\Http\Controllers\Api\V2\Admin\AdminProviderSettlementController::class, 'store']);
     });
 });
 
@@ -921,6 +937,8 @@ Route::prefix('v1/customer')->group(function () {
 
     Route::middleware('customer.jwt')->group(function () {
         Route::get('profile', [\App\Modules\CustomerAuth\Controllers\CustomerAuthController::class, 'profile']);
+        Route::get('profile/rejected-fields', [\App\Modules\CustomerAuth\Controllers\CustomerProfileController::class, 'rejectedFields']);
+        Route::post('profile/update-rejected-fields', [\App\Modules\CustomerAuth\Controllers\CustomerProfileController::class, 'updateRejectedFields']);
         Route::post('profile/complete', [\App\Modules\CustomerAuth\Controllers\CustomerAuthController::class, 'completeProfile']);
         Route::post('profile/update', [\App\Modules\CustomerAuth\Controllers\CustomerAuthController::class, 'updateProfile']);
         Route::post('password/change', [\App\Modules\CustomerAuth\Controllers\CustomerAuthController::class, 'changePassword']);
@@ -938,6 +956,10 @@ Route::prefix('v1/customer')->group(function () {
         Route::post('wallet/transfer', [\App\Modules\CustomerAuth\Controllers\CustomerWalletController::class, 'transfer'])
             ->middleware('customer.active');
         Route::post('wallet/withdraw', [\App\Modules\CustomerAuth\Controllers\CustomerWalletController::class, 'withdraw'])
+            ->middleware('customer.active');
+        Route::post('wallet/bill-payment/otp', [\App\Modules\CustomerAuth\Controllers\CustomerWalletController::class, 'requestBillPaymentOtp'])
+            ->middleware('customer.active');
+        Route::post('wallet/bill-payment', [\App\Modules\CustomerAuth\Controllers\CustomerWalletController::class, 'billPayment'])
             ->middleware('customer.active');
         Route::get('banners', [\App\Modules\CustomerAuth\Controllers\CustomerBannerController::class, 'index']);
         // One-shot customer catalog for client-side navigation:

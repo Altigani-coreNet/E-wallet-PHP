@@ -1,6 +1,6 @@
 # Bill & Service Payment — Accounting Workflow Plan
 
-> Status: **Planned** (not yet implemented in `WalletService` / `LedgerService`)
+> Status: **Implemented** (WalletService billPay, ProviderSettlementService, customer bill-payment API, admin settlement)
 > Parent doc: [`ACCOUNTING_WORKFLOW_PLAN.md`](ACCOUNTING_WORKFLOW_PLAN.md) (sections 5.7–5.9, 11)
 > Audience: backend engineers and accounting reviewers validating debit/credit entries.
 

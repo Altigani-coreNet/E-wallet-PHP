@@ -106,6 +106,10 @@ class CustomerPasswordSetupService
             $updates['status'] = Customer::STATUS_ACTIVE;
         }
 
+        if ($customer->status === Customer::STATUS_REJECTED) {
+            unset($updates['status']);
+        }
+
         $customer->update($updates);
 
         $token->forceFill(['used_at' => now()])->save();

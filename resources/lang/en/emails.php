@@ -163,6 +163,24 @@ return [
     'merchant_rejection_thanks' => 'Thank you for your interest in our platform.',
     'merchant_rejection_regards' => 'Best regards,',
 
+    // Customer rejection
+    'customer_rejection_subject' => 'Account application status update',
+    'customer_rejection_title' => 'Application status update',
+    'customer_rejection_greeting' => 'Dear :name,',
+    'customer_rejection_intro' => 'We regret to inform you that your wallet account application could not be approved at this time.',
+    'customer_rejection_reason_title' => 'Reason for rejection',
+    'customer_rejection_reapply' => 'Please sign in to your account, review the flagged fields, update your profile, and resubmit for review.',
+    'customer_rejection_thanks' => 'Thank you for your interest in our platform.',
+    'customer_rejection_regards' => 'Best regards,',
+
+    // Customer approval
+    'customer_approval_subject' => 'Your wallet account has been approved',
+    'customer_approval_title' => 'Account approved',
+    'customer_approval_greeting' => 'Dear :name,',
+    'customer_approval_intro' => 'Great news! Your wallet account has been approved. You can now use all wallet features including transfers and bill payments.',
+    'customer_approval_thanks' => 'Thank you for choosing our platform.',
+    'customer_approval_regards' => 'Best regards,',
+
     // Merchant registration confirmation
     'merchant_registration_confirmation_subject' => 'Registration received — :app',
     'merchant_registration_confirmation_title' => 'Registration received',

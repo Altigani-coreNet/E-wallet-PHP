@@ -93,5 +93,6 @@ return [
     */
     'wallet' => [
         'transfer_fee' => (float) env('WALLET_TRANSFER_FEE', 2),
+        'bill_payment_fee' => (float) env('WALLET_BILL_PAYMENT_FEE', 0),
     ],
 ];

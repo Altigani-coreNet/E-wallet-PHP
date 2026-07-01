@@ -53,6 +53,7 @@ class Partner extends Model
         'add_type',
         'parent_id',
         'is_parent',
+        'account_id',
     ];
 
     protected $casts = [
@@ -69,6 +70,11 @@ class Partner extends Model
     public function user()
     {
         return $this->belongsTo(User::class);
+    }
+
+    public function chartOfAccount()
+    {
+        return $this->belongsTo(ChartOfAccount::class, 'account_id');
     }
 
     public function attachments()

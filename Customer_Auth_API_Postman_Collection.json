@@ -1,8 +1,8 @@
 {
     "info": {
-        "_postman_id": "customer-auth-api-2026",
-        "name": "Customer Auth API",
-        "description": "End-customer authentication, onboarding, wallet transfers (IFRS double-entry), banners, services catalog, and notifications for Fast Pay SoftPOS (`/api/v1/customer`).\n\n## Auth\nRegister/login/reset/refresh/change-password return `token`, `refresh_token`, `expires_in`, and `refresh_token_expires_in`. Use `POST /auth/refresh-token` with body `{ \"refresh_token\": \"...\" }` to rotate the pair. Change password: `POST /password/change` (Bearer access token required).\n\nDev OTP mock: set `OTP_MOCK_CODE=111111`. JWT config: `JWT_EXPIRES_IN` (access, default 7d), `JWT_REFRESH_EXPIRES_IN` (refresh, default 30d).\n\n## Customer wallet transfer flow (recommended order)\n1. **Login** — `POST /auth/login` → saves `customer_jwt`\n2. **Dashboard** — `GET /wallet/dashboard` → balance + last 5 transactions\n3. **Query recipient** — `GET /wallet/query?identifier=<phone|wallet_id>` → returns recipient `wallet_id`, `name`, `email` (cannot query your own account)\n4. **Request transfer OTP** — `POST /wallet/transfer/otp` with the same transfer payload → returns `otp_token` (SMS stub + WebSocket push with code; code not in HTTP body)\n5. **Transfer** — `POST /wallet/transfer` with the **same payload** plus `otp_token` and `otp` (use `otp_code` collection var, default `111111` in dev)\n6. **Withdraw** (optional) — `POST /wallet/withdraw` to cash out to master float\n\nUse the same `Idempotency-Key` on both OTP request and transfer when retrying. Run wallet folder requests top-to-bottom for a full demo. `recipient_wallet_id` is auto-saved from **Query Recipient**; `transfer_otp_token` is auto-saved from **Request Transfer OTP**.\n\nAdmin **Wallets** folder: `/api/v2/admin/wallets` (list, transactions, cash-in/out, opening capital). Seed: `php artisan db:seed --class=WalletE2eSeeder` (master `WAL-MASTER`).",
+        "_postman_id": "e-wallet-project-2026",
+        "name": "E Wallet Project",
+        "description": "End-customer authentication, onboarding, wallet transfers (IFRS double-entry), banners, services catalog, and notifications for Fast Pay SoftPOS (`/api/v1/customer`).\n\n## Auth\nRegister/login/reset/refresh/change-password return `token`, `refresh_token`, `expires_in`, and `refresh_token_expires_in`. Use `POST /auth/refresh-token` with body `{ \"refresh_token\": \"...\" }` to rotate the pair. Change password: `POST /password/change` (Bearer access token required). Delete account: `DELETE /account` with body `{ \"password\": \"...\" }` — soft-deletes and corrupts phone/email (Bearer access token required).\n\nDev OTP mock: set `OTP_MOCK_CODE=111111`. JWT config: `JWT_EXPIRES_IN` (access, default 7d), `JWT_REFRESH_EXPIRES_IN` (refresh, default 30d).\n\n## Customer wallet transfer flow (recommended order)\n1. **Login** — `POST /auth/login` → saves `customer_jwt`\n2. **Dashboard** — `GET /wallet/dashboard` → balance + last 5 transactions\n3. **Query recipient** — `GET /wallet/query?identifier=<phone|wallet_id>` → returns recipient `wallet_id`, `name`, `email` (cannot query your own account)\n4. **Request transfer OTP** — `POST /wallet/transfer/otp` with the same transfer payload → returns `otp_token` (SMS stub + WebSocket push with code; code not in HTTP body)\n5. **Transfer** — `POST /wallet/transfer` with the **same payload** plus `otp_token` and `otp` (use `otp_code` collection var, default `111111` in dev)\n6. **Withdraw** (optional) — `POST /wallet/withdraw` to cash out to master float\n\n## Customer bill payment flow (recommended order)\n1. **Login** — `POST /auth/login` → saves `customer_jwt`\n2. **Services Catalog** — `GET /services/catalog` → saves `service_id`, `product_id`, `partner_id` from first billable service\n3. **Wallet Dashboard** — confirm balance covers `amount + fee`\n4. **Request bill payment OTP** — `POST /wallet/bill-payment/otp` with exact payload → saves `bill_payment_otp_token`\n5. **Pay bill** — `POST /wallet/bill-payment` with the **same payload** plus `otp_token` and `otp` (dev: `111111`)\n6. **Admin settle provider** (optional) — `POST /api/v2/admin/provider-settlements` after bill payments accrue partner payables\n\nUse the same `Idempotency-Key` on both bill-payment OTP and pay when retrying. Accounting: bill pay posts **DR 2000 Customer / CR 21xx Provider Payable** (+ optional fee to 4000); settlement posts **DR 21xx / CR 1000 Bank**.\n\nUse the same `Idempotency-Key` on both OTP request and transfer when retrying. Run wallet folder requests top-to-bottom for a full demo. `recipient_wallet_id` is auto-saved from **Query Recipient**; `transfer_otp_token` is auto-saved from **Request Transfer OTP**.\n\nAdmin **Wallets** folder: `/api/v2/admin/wallets` (list, transactions, cash-in/out, opening capital). Seed: `php artisan db:seed --class=WalletE2eSeeder` (master `WAL-MASTER`).\n\n## KYC folder\nUse the **KYC** folder for admin reject/approve, change requests, event logs, and customer resubmit flows. Variables: `customer_id`, `change_request_id`, `customer_national_id`. See `CUSTOMER_REJECTION_WORKFLOW_PRD.md`.",
         "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
     },
     "variable": [
@@ -112,6 +112,31 @@
             "type": "string"
         },
         {
+            "key": "product_id",
+            "value": "",
+            "type": "string"
+        },
+        {
+            "key": "bill_payment_amount",
+            "value": "100",
+            "type": "string"
+        },
+        {
+            "key": "bill_payment_description",
+            "value": "Electricity bill",
+            "type": "string"
+        },
+        {
+            "key": "bill_payment_otp_token",
+            "value": "",
+            "type": "string"
+        },
+        {
+            "key": "bill_payment_idempotency_key",
+            "value": "",
+            "type": "string"
+        },
+        {
             "key": "sender_wallet_id",
             "value": "",
             "type": "string"
@@ -139,6 +164,26 @@
         {
             "key": "admin_wallet_public_id",
             "value": "WAL-MASTER",
+            "type": "string"
+        },
+        {
+            "key": "customer_id",
+            "value": "",
+            "type": "string"
+        },
+        {
+            "key": "change_request_id",
+            "value": "",
+            "type": "string"
+        },
+        {
+            "key": "customer_national_id",
+            "value": "NID-123456789",
+            "type": "string"
+        },
+        {
+            "key": "customer_first_name",
+            "value": "Ahmed",
             "type": "string"
         }
     ],
@@ -583,7 +628,7 @@
                                     "value": "application/json"
                                 }
                             ],
-                            "body": "{\n    \"success\": true,\n    \"message\": \"Registration successful\",\n    \"data\": {\n        \"token\": \"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.example\",\n        \"token_type\": \"Bearer\",\n        \"expires_in\": 604800,\n        \"refresh_token\": \"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.refresh\",\n        \"refresh_token_expires_in\": 2592000,\n        \"profile_completed\": false,\n        \"customer\": {\n            \"id\": 1,\n            \"name\": \"Ahmed\",\n            \"email\": \"ahmed@example.com\",\n            \"phone\": \"+249912345678\",\n            \"birthDate\": \"1990-05-15T00:00:00+00:00\",\n            \"gender\": \"male\",\n            \"address\": null,\n            \"countryId\": \"00000000-0000-4000-8000-000000000001\",\n            \"merchantCountryId\": null,\n            \"cityId\": \"10000000-0000-4000-8000-000000000001\",\n            \"state\": null,\n            \"zip\": null,\n            \"merchantId\": null,\n            \"profileCompleted\": true,\n            \"balance\": \"0.00\",\n            \"country\": {\n                \"id\": \"00000000-0000-4000-8000-000000000001\",\n                \"name\": \"Sudan\",\n                \"code\": \"249\"\n            },\n            \"city\": {\n                \"id\": \"10000000-0000-4000-8000-000000000001\",\n                \"name\": \"Khartoum\"\n            },\n            \"createdAt\": \"2026-06-23T10:00:00+00:00\",\n            \"updatedAt\": \"2026-06-23T10:30:00+00:00\"\n        }\n    }\n}"
+                            "body": "{\n    \"success\": true,\n    \"message\": \"Registration successful\",\n    \"data\": {\n        \"token\": \"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.example\",\n        \"token_type\": \"Bearer\",\n        \"expires_in\": 604800,\n        \"refresh_token\": \"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.refresh\",\n        \"refresh_token_expires_in\": 2592000,\n        \"profile_completed\": false,\n        \"customer\": {\n            \"id\": \"00000000-0000-4000-8000-000000000001\",\n            \"name\": \"\",\n            \"email\": \"\",\n            \"phone\": \"+249912345678\",\n            \"birthDate\": null,\n            \"gender\": null,\n            \"nationalId\": null,\n            \"profileImage\": null,\n            \"address\": null,\n            \"countryId\": null,\n            \"cityId\": null,\n            \"state\": null,\n            \"zip\": null,\n            \"status\": \"pending\",\n            \"profileCompleted\": false,\n            \"balance\": \"0.00\",\n            \"country\": {\n                \"id\": \"00000000-0000-4000-8000-000000000001\",\n                \"name\": \"Sudan\",\n                \"code\": \"249\"\n            },\n            \"city\": {\n                \"id\": \"10000000-0000-4000-8000-000000000001\",\n                \"name\": \"Khartoum\"\n            },\n            \"createdAt\": \"2026-06-23T10:00:00+00:00\",\n            \"updatedAt\": \"2026-06-23T10:30:00+00:00\"\n        }\n    }\n}"
                         },
                         {
                             "name": "Error",
@@ -613,7 +658,8 @@
                                     "    if (json.data && json.data.refresh_token) {",
                                     "        pm.collectionVariables.set('customer_refresh_token', json.data.refresh_token);",
                                     "    }",
-                                    "}"
+                                    "}",
+                                    "    if (json.data?.customer?.id) pm.collectionVariables.set('customer_id', json.data.customer.id);"
                                 ]
                             }
                         }
@@ -671,7 +717,7 @@
                                     "value": "application/json"
                                 }
                             ],
-                            "body": "{\n    \"success\": true,\n    \"message\": \"Login successful\",\n    \"data\": {\n        \"token\": \"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.example\",\n        \"token_type\": \"Bearer\",\n        \"expires_in\": 604800,\n        \"refresh_token\": \"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.refresh\",\n        \"refresh_token_expires_in\": 2592000,\n        \"profile_completed\": true,\n        \"customer\": {\n            \"id\": 1,\n            \"name\": \"Ahmed\",\n            \"email\": \"ahmed@example.com\",\n            \"phone\": \"+249912345678\",\n            \"birthDate\": \"1990-05-15T00:00:00+00:00\",\n            \"gender\": \"male\",\n            \"address\": null,\n            \"countryId\": \"00000000-0000-4000-8000-000000000001\",\n            \"merchantCountryId\": null,\n            \"cityId\": \"10000000-0000-4000-8000-000000000001\",\n            \"state\": null,\n            \"zip\": null,\n            \"merchantId\": null,\n            \"profileCompleted\": true,\n            \"balance\": \"0.00\",\n            \"country\": {\n                \"id\": \"00000000-0000-4000-8000-000000000001\",\n                \"name\": \"Sudan\",\n                \"code\": \"249\"\n            },\n            \"city\": {\n                \"id\": \"10000000-0000-4000-8000-000000000001\",\n                \"name\": \"Khartoum\"\n            },\n            \"createdAt\": \"2026-06-23T10:00:00+00:00\",\n            \"updatedAt\": \"2026-06-23T10:30:00+00:00\"\n        }\n    }\n}"
+                            "body": "{\n    \"success\": true,\n    \"message\": \"Login successful\",\n    \"data\": {\n        \"token\": \"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.example\",\n        \"token_type\": \"Bearer\",\n        \"expires_in\": 604800,\n        \"refresh_token\": \"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.refresh\",\n        \"refresh_token_expires_in\": 2592000,\n        \"profile_completed\": true,\n        \"customer\": {\n            \"id\": 1,\n            \"name\": \"Ahmed\",\n            \"email\": \"ahmed@example.com\",\n            \"phone\": \"+249912345678\",\n            \"birthDate\": \"1990-05-15T00:00:00+00:00\",\n            \"gender\": \"male\",\n            \"address\": null,\n            \"countryId\": \"00000000-0000-4000-8000-000000000001\",\n            \"cityId\": \"10000000-0000-4000-8000-000000000001\",\n            \"state\": null,\n            \"zip\": null,\n            \"status\": \"active\",\n            \"profileCompleted\": true,\n            \"balance\": \"0.00\",\n            \"country\": {\n                \"id\": \"00000000-0000-4000-8000-000000000001\",\n                \"name\": \"Sudan\",\n                \"code\": \"249\"\n            },\n            \"city\": {\n                \"id\": \"10000000-0000-4000-8000-000000000001\",\n                \"name\": \"Khartoum\"\n            },\n            \"createdAt\": \"2026-06-23T10:00:00+00:00\",\n            \"updatedAt\": \"2026-06-23T10:30:00+00:00\"\n        }\n    }\n}"
                         },
                         {
                             "name": "Error",
@@ -701,7 +747,8 @@
                                     "    if (json.data && json.data.refresh_token) {",
                                     "        pm.collectionVariables.set('customer_refresh_token', json.data.refresh_token);",
                                     "    }",
-                                    "}"
+                                    "}",
+                                    "    if (json.data?.customer?.id) pm.collectionVariables.set('customer_id', json.data.customer.id);"
                                 ]
                             }
                         }
@@ -831,7 +878,7 @@
                                     "value": "application/json"
                                 }
                             ],
-                            "body": "{\n    \"success\": true,\n    \"message\": \"Password reset successfully\",\n    \"data\": {\n        \"token\": \"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.example\",\n        \"token_type\": \"Bearer\",\n        \"expires_in\": 604800,\n        \"refresh_token\": \"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.refresh\",\n        \"refresh_token_expires_in\": 2592000,\n        \"profile_completed\": true,\n        \"customer\": {\n            \"id\": 1,\n            \"name\": \"Ahmed\",\n            \"email\": \"ahmed@example.com\",\n            \"phone\": \"+249912345678\",\n            \"birthDate\": \"1990-05-15T00:00:00+00:00\",\n            \"gender\": \"male\",\n            \"address\": null,\n            \"countryId\": \"00000000-0000-4000-8000-000000000001\",\n            \"merchantCountryId\": null,\n            \"cityId\": \"10000000-0000-4000-8000-000000000001\",\n            \"state\": null,\n            \"zip\": null,\n            \"merchantId\": null,\n            \"profileCompleted\": true,\n            \"balance\": \"0.00\",\n            \"country\": {\n                \"id\": \"00000000-0000-4000-8000-000000000001\",\n                \"name\": \"Sudan\",\n                \"code\": \"249\"\n            },\n            \"city\": {\n                \"id\": \"10000000-0000-4000-8000-000000000001\",\n                \"name\": \"Khartoum\"\n            },\n            \"createdAt\": \"2026-06-23T10:00:00+00:00\",\n            \"updatedAt\": \"2026-06-23T10:30:00+00:00\"\n        }\n    }\n}"
+                            "body": "{\n    \"success\": true,\n    \"message\": \"Password reset successfully\",\n    \"data\": {\n        \"token\": \"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.example\",\n        \"token_type\": \"Bearer\",\n        \"expires_in\": 604800,\n        \"refresh_token\": \"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.refresh\",\n        \"refresh_token_expires_in\": 2592000,\n        \"profile_completed\": true,\n        \"customer\": {\n            \"id\": 1,\n            \"name\": \"Ahmed\",\n            \"email\": \"ahmed@example.com\",\n            \"phone\": \"+249912345678\",\n            \"birthDate\": \"1990-05-15T00:00:00+00:00\",\n            \"gender\": \"male\",\n            \"address\": null,\n            \"countryId\": \"00000000-0000-4000-8000-000000000001\",\n            \"cityId\": \"10000000-0000-4000-8000-000000000001\",\n            \"state\": null,\n            \"zip\": null,\n            \"status\": \"active\",\n            \"profileCompleted\": true,\n            \"balance\": \"0.00\",\n            \"country\": {\n                \"id\": \"00000000-0000-4000-8000-000000000001\",\n                \"name\": \"Sudan\",\n                \"code\": \"249\"\n            },\n            \"city\": {\n                \"id\": \"10000000-0000-4000-8000-000000000001\",\n                \"name\": \"Khartoum\"\n            },\n            \"createdAt\": \"2026-06-23T10:00:00+00:00\",\n            \"updatedAt\": \"2026-06-23T10:30:00+00:00\"\n        }\n    }\n}"
                         },
                         {
                             "name": "Error",
@@ -1012,7 +1059,7 @@
                                     "value": "application/json"
                                 }
                             ],
-                            "body": "{\n    \"success\": true,\n    \"message\": \"Token refreshed successfully\",\n    \"data\": {\n        \"token\": \"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.example\",\n        \"token_type\": \"Bearer\",\n        \"expires_in\": 604800,\n        \"refresh_token\": \"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.refresh\",\n        \"refresh_token_expires_in\": 2592000,\n        \"profile_completed\": true,\n        \"customer\": {\n            \"id\": 1,\n            \"name\": \"Ahmed\",\n            \"email\": \"ahmed@example.com\",\n            \"phone\": \"+249912345678\",\n            \"birthDate\": \"1990-05-15T00:00:00+00:00\",\n            \"gender\": \"male\",\n            \"address\": null,\n            \"countryId\": \"00000000-0000-4000-8000-000000000001\",\n            \"merchantCountryId\": null,\n            \"cityId\": \"10000000-0000-4000-8000-000000000001\",\n            \"state\": null,\n            \"zip\": null,\n            \"merchantId\": null,\n            \"profileCompleted\": true,\n            \"balance\": \"0.00\",\n            \"country\": {\n                \"id\": \"00000000-0000-4000-8000-000000000001\",\n                \"name\": \"Sudan\",\n                \"code\": \"249\"\n            },\n            \"city\": {\n                \"id\": \"10000000-0000-4000-8000-000000000001\",\n                \"name\": \"Khartoum\"\n            },\n            \"createdAt\": \"2026-06-23T10:00:00+00:00\",\n            \"updatedAt\": \"2026-06-23T10:30:00+00:00\"\n        }\n    }\n}"
+                            "body": "{\n    \"success\": true,\n    \"message\": \"Token refreshed successfully\",\n    \"data\": {\n        \"token\": \"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.example\",\n        \"token_type\": \"Bearer\",\n        \"expires_in\": 604800,\n        \"refresh_token\": \"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.refresh\",\n        \"refresh_token_expires_in\": 2592000,\n        \"profile_completed\": true,\n        \"customer\": {\n            \"id\": 1,\n            \"name\": \"Ahmed\",\n            \"email\": \"ahmed@example.com\",\n            \"phone\": \"+249912345678\",\n            \"birthDate\": \"1990-05-15T00:00:00+00:00\",\n            \"gender\": \"male\",\n            \"address\": null,\n            \"countryId\": \"00000000-0000-4000-8000-000000000001\",\n            \"cityId\": \"10000000-0000-4000-8000-000000000001\",\n            \"state\": null,\n            \"zip\": null,\n            \"status\": \"active\",\n            \"profileCompleted\": true,\n            \"balance\": \"0.00\",\n            \"country\": {\n                \"id\": \"00000000-0000-4000-8000-000000000001\",\n                \"name\": \"Sudan\",\n                \"code\": \"249\"\n            },\n            \"city\": {\n                \"id\": \"10000000-0000-4000-8000-000000000001\",\n                \"name\": \"Khartoum\"\n            },\n            \"createdAt\": \"2026-06-23T10:00:00+00:00\",\n            \"updatedAt\": \"2026-06-23T10:30:00+00:00\"\n        }\n    }\n}"
                         },
                         {
                             "name": "Error",
@@ -1112,6 +1159,119 @@
                             "body": "{\n    \"success\": false,\n    \"message\": \"Unauthorized\",\n    \"errors\": null,\n    \"data\": null\n}"
                         }
                     ]
+                },
+                {
+                    "name": "Delete Account",
+                    "request": {
+                        "method": "DELETE",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json",
+                                "type": "text"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json",
+                                "type": "text"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{customer_jwt}}",
+                                "type": "text"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"password\": \"{{customer_password}}\"\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/api/v1/customer/account",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "v1",
+                                "customer",
+                                "account"
+                            ]
+                        },
+                        "description": "Soft-delete the authenticated customer account. Corrupts phone/email to free unique constraints, sets `status` to `deleted`, and sets `deleted_at`. Requires current password. Discard JWT after success. The same phone can register again afterward."
+                    },
+                    "response": [
+                        {
+                            "name": "Success",
+                            "status": "OK",
+                            "code": 200,
+                            "_postman_previewlanguage": "json",
+                            "header": [
+                                {
+                                    "key": "Content-Type",
+                                    "value": "application/json"
+                                }
+                            ],
+                            "body": "{\n    \"success\": true,\n    \"message\": \"Account deleted successfully\",\n    \"data\": {\n        \"message\": \"Account deleted successfully\"\n    }\n}"
+                        },
+                        {
+                            "name": "Wrong password",
+                            "status": "Bad Request",
+                            "code": 400,
+                            "_postman_previewlanguage": "json",
+                            "header": [
+                                {
+                                    "key": "Content-Type",
+                                    "value": "application/json"
+                                }
+                            ],
+                            "body": "{\n    \"success\": false,\n    \"message\": \"Password is incorrect\",\n    \"errors\": null,\n    \"data\": null\n}"
+                        },
+                        {
+                            "name": "Unauthorized",
+                            "status": "Unauthorized",
+                            "code": 401,
+                            "_postman_previewlanguage": "json",
+                            "header": [
+                                {
+                                    "key": "Content-Type",
+                                    "value": "application/json"
+                                }
+                            ],
+                            "body": "{\n    \"success\": false,\n    \"message\": \"Unauthorized\",\n    \"errors\": null,\n    \"data\": null\n}"
+                        },
+                        {
+                            "name": "Validation error",
+                            "status": "Unprocessable Entity",
+                            "code": 422,
+                            "_postman_previewlanguage": "json",
+                            "header": [
+                                {
+                                    "key": "Content-Type",
+                                    "value": "application/json"
+                                }
+                            ],
+                            "body": "{\n    \"success\": false,\n    \"message\": \"The password field is required.\",\n    \"errors\": {\n        \"password\": [\n            \"The password field is required.\"\n        ]\n    },\n    \"data\": null\n}"
+                        }
+                    ],
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "if (pm.response.code === 200) {",
+                                    "    pm.collectionVariables.set('customer_jwt', '');",
+                                    "    pm.collectionVariables.set('customer_refresh_token', '');",
+                                    "}"
+                                ]
+                            }
+                        }
+                    ]
                 }
             ]
         },
@@ -1164,7 +1324,7 @@
                                     "value": "application/json"
                                 }
                             ],
-                            "body": "{\n    \"success\": true,\n    \"message\": \"Success\",\n    \"data\": {\n        \"profile_completed\": true,\n        \"customer\": {\n            \"id\": 1,\n            \"name\": \"Ahmed\",\n            \"email\": \"ahmed@example.com\",\n            \"phone\": \"+249912345678\",\n            \"birthDate\": \"1990-05-15T00:00:00+00:00\",\n            \"gender\": \"male\",\n            \"address\": null,\n            \"countryId\": \"00000000-0000-4000-8000-000000000001\",\n            \"merchantCountryId\": null,\n            \"cityId\": \"10000000-0000-4000-8000-000000000001\",\n            \"state\": null,\n            \"zip\": null,\n            \"merchantId\": null,\n            \"profileCompleted\": true,\n            \"balance\": \"0.00\",\n            \"country\": {\n                \"id\": \"00000000-0000-4000-8000-000000000001\",\n                \"name\": \"Sudan\",\n                \"code\": \"249\"\n            },\n            \"city\": {\n                \"id\": \"10000000-0000-4000-8000-000000000001\",\n                \"name\": \"Khartoum\"\n            },\n            \"createdAt\": \"2026-06-23T10:00:00+00:00\",\n            \"updatedAt\": \"2026-06-23T10:30:00+00:00\"\n        }\n    }\n}"
+                            "body": "{\n    \"success\": true,\n    \"message\": \"Success\",\n    \"data\": {\n        \"profile_completed\": true,\n        \"customer\": {\n            \"id\": 1,\n            \"name\": \"Ahmed\",\n            \"email\": \"ahmed@example.com\",\n            \"phone\": \"+249912345678\",\n            \"birthDate\": \"1990-05-15T00:00:00+00:00\",\n            \"gender\": \"male\",\n            \"address\": null,\n            \"countryId\": \"00000000-0000-4000-8000-000000000001\",\n            \"cityId\": \"10000000-0000-4000-8000-000000000001\",\n            \"state\": null,\n            \"zip\": null,\n            \"status\": \"active\",\n            \"profileCompleted\": true,\n            \"balance\": \"0.00\",\n            \"country\": {\n                \"id\": \"00000000-0000-4000-8000-000000000001\",\n                \"name\": \"Sudan\",\n                \"code\": \"249\"\n            },\n            \"city\": {\n                \"id\": \"10000000-0000-4000-8000-000000000001\",\n                \"name\": \"Khartoum\"\n            },\n            \"createdAt\": \"2026-06-23T10:00:00+00:00\",\n            \"updatedAt\": \"2026-06-23T10:30:00+00:00\"\n        }\n    }\n}"
                         },
                         {
                             "name": "Error",
@@ -1265,7 +1425,7 @@
                                     "value": "application/json"
                                 }
                             ],
-                            "body": "{\n    \"success\": true,\n    \"message\": \"Profile completed successfully\",\n    \"data\": {\n        \"profile_completed\": true,\n        \"customer\": {\n            \"id\": 1,\n            \"name\": \"Ahmed\",\n            \"email\": \"ahmed@example.com\",\n            \"phone\": \"+249912345678\",\n            \"birthDate\": \"1990-05-15T00:00:00+00:00\",\n            \"gender\": \"male\",\n            \"address\": null,\n            \"countryId\": \"00000000-0000-4000-8000-000000000001\",\n            \"merchantCountryId\": null,\n            \"cityId\": \"10000000-0000-4000-8000-000000000001\",\n            \"state\": null,\n            \"zip\": null,\n            \"merchantId\": null,\n            \"profileCompleted\": true,\n            \"balance\": \"0.00\",\n            \"country\": {\n                \"id\": \"00000000-0000-4000-8000-000000000001\",\n                \"name\": \"Sudan\",\n                \"code\": \"249\"\n            },\n            \"city\": {\n                \"id\": \"10000000-0000-4000-8000-000000000001\",\n                \"name\": \"Khartoum\"\n            },\n            \"createdAt\": \"2026-06-23T10:00:00+00:00\",\n            \"updatedAt\": \"2026-06-23T10:30:00+00:00\"\n        }\n    }\n}"
+                            "body": "{\n    \"success\": true,\n    \"message\": \"Profile completed successfully\",\n    \"data\": {\n        \"profile_completed\": true,\n        \"customer\": {\n            \"id\": 1,\n            \"name\": \"Ahmed\",\n            \"email\": \"ahmed@example.com\",\n            \"phone\": \"+249912345678\",\n            \"birthDate\": \"1990-05-15T00:00:00+00:00\",\n            \"gender\": \"male\",\n            \"address\": null,\n            \"countryId\": \"00000000-0000-4000-8000-000000000001\",\n            \"cityId\": \"10000000-0000-4000-8000-000000000001\",\n            \"state\": null,\n            \"zip\": null,\n            \"status\": \"active\",\n            \"profileCompleted\": true,\n            \"balance\": \"0.00\",\n            \"country\": {\n                \"id\": \"00000000-0000-4000-8000-000000000001\",\n                \"name\": \"Sudan\",\n                \"code\": \"249\"\n            },\n            \"city\": {\n                \"id\": \"10000000-0000-4000-8000-000000000001\",\n                \"name\": \"Khartoum\"\n            },\n            \"createdAt\": \"2026-06-23T10:00:00+00:00\",\n            \"updatedAt\": \"2026-06-23T10:30:00+00:00\"\n        }\n    }\n}"
                         },
                         {
                             "name": "Error",
@@ -1361,7 +1521,7 @@
                                     "value": "application/json"
                                 }
                             ],
-                            "body": "{\n    \"success\": true,\n    \"message\": \"Profile updated successfully\",\n    \"data\": {\n        \"profile_completed\": true,\n        \"customer\": {\n            \"id\": 1,\n            \"name\": \"Ahmed\",\n            \"email\": \"ahmed@example.com\",\n            \"phone\": \"+249912345678\",\n            \"birthDate\": \"1990-05-15T00:00:00+00:00\",\n            \"gender\": \"male\",\n            \"profileImage\": \"http://193.123.83.134:91/customer_profile_images/1710000000.jpg\",\n            \"address\": null,\n            \"countryId\": \"00000000-0000-4000-8000-000000000001\",\n            \"merchantCountryId\": null,\n            \"cityId\": \"10000000-0000-4000-8000-000000000001\",\n            \"state\": null,\n            \"zip\": null,\n            \"merchantId\": null,\n            \"profileCompleted\": true,\n            \"balance\": \"0.00\",\n            \"country\": {\n                \"id\": \"00000000-0000-4000-8000-000000000001\",\n                \"name\": \"Sudan\",\n                \"code\": \"249\"\n            },\n            \"city\": {\n                \"id\": \"10000000-0000-4000-8000-000000000001\",\n                \"name\": \"Khartoum\"\n            },\n            \"createdAt\": \"2026-06-23T10:00:00+00:00\",\n            \"updatedAt\": \"2026-06-23T10:30:00+00:00\"\n        }\n    }\n}"
+                            "body": "{\n    \"success\": true,\n    \"message\": \"Profile updated successfully\",\n    \"data\": {\n        \"profile_completed\": true,\n        \"customer\": {\n            \"id\": 1,\n            \"name\": \"Ahmed\",\n            \"email\": \"ahmed@example.com\",\n            \"phone\": \"+249912345678\",\n            \"birthDate\": \"1990-05-15T00:00:00+00:00\",\n            \"gender\": \"male\",\n            \"profileImage\": \"http://193.123.83.134:91/customer_profile_images/1710000000.jpg\",\n            \"address\": null,\n            \"countryId\": \"00000000-0000-4000-8000-000000000001\",\n            \"cityId\": \"10000000-0000-4000-8000-000000000001\",\n            \"state\": null,\n            \"zip\": null,\n            \"status\": \"active\",\n            \"profileCompleted\": true,\n            \"balance\": \"0.00\",\n            \"country\": {\n                \"id\": \"00000000-0000-4000-8000-000000000001\",\n                \"name\": \"Sudan\",\n                \"code\": \"249\"\n            },\n            \"city\": {\n                \"id\": \"10000000-0000-4000-8000-000000000001\",\n                \"name\": \"Khartoum\"\n            },\n            \"createdAt\": \"2026-06-23T10:00:00+00:00\",\n            \"updatedAt\": \"2026-06-23T10:30:00+00:00\"\n        }\n    }\n}"
                         },
                         {
                             "name": "Error",
@@ -1450,6 +1610,671 @@
             ]
         },
         {
+            "name": "KYC",
+            "description": "Customer KYC lifecycle: register → complete profile → admin reject/approve → resubmit rejected fields → active customer change requests → audit event logs.\n\n**Recommended order (Customer):**\n1. OTP → Register (saves `customer_jwt`, `customer_id`)\n2. Complete Profile (multipart; requires `nationalId`, passport file in dev)\n3. If rejected: Get Rejected Fields → Update Rejected Fields\n4. If active: Update Profile → creates change request (`requesting_updated`)\n\n**Recommended order (Admin):**\n1. Admin Login (saves `admin_token`)\n2. Reject Customer or Approve Customer\n3. Get Customer Logs / List Change Requests\n4. Approve or Reject Change Request\n\nPermissions: `approve_customers`, `reject_customers`, `view_customers`. Dev OTP: `OTP_MOCK_CODE=111111`.",
+            "item": [
+                {
+                    "name": "Customer Flow",
+                    "description": "Customer JWT endpoints under `/api/v1/customer`. Run OTP + Register first.",
+                    "item": [
+                        {
+                            "name": "1. Complete Profile (KYC Submit)",
+                            "request": {
+                                "method": "POST",
+                                "header": [
+                                    {
+                                        "key": "Accept",
+                                        "value": "application/json",
+                                        "type": "text"
+                                    },
+                                    {
+                                        "key": "Authorization",
+                                        "value": "Bearer {{customer_jwt}}",
+                                        "type": "text"
+                                    }
+                                ],
+                                "body": {
+                                    "mode": "formdata",
+                                    "formdata": [
+                                        {
+                                            "key": "firstName",
+                                            "value": "{{customer_first_name}}",
+                                            "type": "text"
+                                        },
+                                        {
+                                            "key": "nationalId",
+                                            "value": "{{customer_national_id}}",
+                                            "type": "text"
+                                        },
+                                        {
+                                            "key": "email",
+                                            "value": "{{customer_email}}",
+                                            "type": "text"
+                                        },
+                                        {
+                                            "key": "birthDate",
+                                            "value": "1990-05-15",
+                                            "type": "text"
+                                        },
+                                        {
+                                            "key": "gender",
+                                            "value": "male",
+                                            "type": "text"
+                                        },
+                                        {
+                                            "key": "cityId",
+                                            "value": "{{city_id}}",
+                                            "type": "text"
+                                        },
+                                        {
+                                            "key": "country_code",
+                                            "value": "{{country_code}}",
+                                            "type": "text"
+                                        },
+                                        {
+                                            "key": "picture",
+                                            "type": "file",
+                                            "src": [],
+                                            "description": "Profile photo"
+                                        },
+                                        {
+                                            "key": "passport",
+                                            "type": "file",
+                                            "src": [],
+                                            "description": "Passport document (required)"
+                                        }
+                                    ]
+                                },
+                                "url": {
+                                    "raw": "{{base_url}}/api/v1/customer/profile/complete",
+                                    "host": [
+                                        "{{base_url}}"
+                                    ],
+                                    "path": [
+                                        "api",
+                                        "v1",
+                                        "customer",
+                                        "profile",
+                                        "complete"
+                                    ]
+                                },
+                                "description": "First-time KYC submission. Logs `profile_completed` event. Creates wallet."
+                            },
+                            "event": [
+                                {
+                                    "listen": "test",
+                                    "script": {
+                                        "type": "text/javascript",
+                                        "exec": [
+                                            "if (pm.response.code === 200) {",
+                                            "    const json = pm.response.json();",
+                                            "    const customer = json.data?.customer;",
+                                            "    if (customer?.id) pm.collectionVariables.set('customer_id', customer.id);",
+                                            "}"
+                                        ]
+                                    }
+                                }
+                            ]
+                        },
+                        {
+                            "name": "2. Get Profile (KYC Status)",
+                            "request": {
+                                "method": "GET",
+                                "header": [
+                                    {
+                                        "key": "Accept",
+                                        "value": "application/json",
+                                        "type": "text"
+                                    },
+                                    {
+                                        "key": "Authorization",
+                                        "value": "Bearer {{customer_jwt}}",
+                                        "type": "text"
+                                    }
+                                ],
+                                "url": {
+                                    "raw": "{{base_url}}/api/v1/customer/profile",
+                                    "host": [
+                                        "{{base_url}}"
+                                    ],
+                                    "path": [
+                                        "api",
+                                        "v1",
+                                        "customer",
+                                        "profile"
+                                    ]
+                                },
+                                "description": "Returns `profile_completed`, `has_pending_change`, and latest `rejection` when status is rejected."
+                            },
+                            "event": [
+                                {
+                                    "listen": "test",
+                                    "script": {
+                                        "type": "text/javascript",
+                                        "exec": [
+                                            "if (pm.response.code === 200) {",
+                                            "    const json = pm.response.json();",
+                                            "    const customer = json.data?.customer;",
+                                            "    if (customer?.id) pm.collectionVariables.set('customer_id', customer.id);",
+                                            "}"
+                                        ]
+                                    }
+                                }
+                            ]
+                        },
+                        {
+                            "name": "3. Get Rejected Fields",
+                            "request": {
+                                "method": "GET",
+                                "header": [
+                                    {
+                                        "key": "Accept",
+                                        "value": "application/json",
+                                        "type": "text"
+                                    },
+                                    {
+                                        "key": "Authorization",
+                                        "value": "Bearer {{customer_jwt}}",
+                                        "type": "text"
+                                    }
+                                ],
+                                "url": {
+                                    "raw": "{{base_url}}/api/v1/customer/profile/rejected-fields",
+                                    "host": [
+                                        "{{base_url}}"
+                                    ],
+                                    "path": [
+                                        "api",
+                                        "v1",
+                                        "customer",
+                                        "profile",
+                                        "rejected-fields"
+                                    ]
+                                },
+                                "description": "Available when customer `status=rejected`. Returns flagged invalid fields and missing attachments."
+                            }
+                        },
+                        {
+                            "name": "4. Update Rejected Fields (Resubmit)",
+                            "request": {
+                                "method": "POST",
+                                "header": [
+                                    {
+                                        "key": "Accept",
+                                        "value": "application/json",
+                                        "type": "text"
+                                    },
+                                    {
+                                        "key": "Authorization",
+                                        "value": "Bearer {{customer_jwt}}",
+                                        "type": "text"
+                                    }
+                                ],
+                                "body": {
+                                    "mode": "formdata",
+                                    "formdata": [
+                                        {
+                                            "key": "name",
+                                            "value": "Corrected Name",
+                                            "type": "text",
+                                            "description": "Send only fields flagged in rejection"
+                                        }
+                                    ]
+                                },
+                                "url": {
+                                    "raw": "{{base_url}}/api/v1/customer/profile/update-rejected-fields",
+                                    "host": [
+                                        "{{base_url}}"
+                                    ],
+                                    "path": [
+                                        "api",
+                                        "v1",
+                                        "customer",
+                                        "profile",
+                                        "update-rejected-fields"
+                                    ]
+                                },
+                                "description": "Fixes flagged fields → `status=pending`. Logs `profile_resubmitted` with field-level message."
+                            }
+                        },
+                        {
+                            "name": "5. Update Profile (Active → Change Request)",
+                            "request": {
+                                "method": "POST",
+                                "header": [
+                                    {
+                                        "key": "Accept",
+                                        "value": "application/json",
+                                        "type": "text"
+                                    },
+                                    {
+                                        "key": "Authorization",
+                                        "value": "Bearer {{customer_jwt}}",
+                                        "type": "text"
+                                    }
+                                ],
+                                "body": {
+                                    "mode": "formdata",
+                                    "formdata": [
+                                        {
+                                            "key": "firstName",
+                                            "value": "Updated Name",
+                                            "type": "text"
+                                        },
+                                        {
+                                            "key": "birthDate",
+                                            "value": "1991-07-14",
+                                            "type": "text"
+                                        },
+                                        {
+                                            "key": "gender",
+                                            "value": "female",
+                                            "type": "text"
+                                        },
+                                        {
+                                            "key": "cityId",
+                                            "value": "{{city_id}}",
+                                            "type": "text"
+                                        },
+                                        {
+                                            "key": "country_code",
+                                            "value": "{{country_code}}",
+                                            "type": "text"
+                                        }
+                                    ]
+                                },
+                                "url": {
+                                    "raw": "{{base_url}}/api/v1/customer/profile/update",
+                                    "host": [
+                                        "{{base_url}}"
+                                    ],
+                                    "path": [
+                                        "api",
+                                        "v1",
+                                        "customer",
+                                        "profile",
+                                        "update"
+                                    ]
+                                },
+                                "description": "When `status=active`, creates pending change request and sets `requesting_updated`. Logs `change_request_submitted`."
+                            }
+                        }
+                    ]
+                },
+                {
+                    "name": "Admin Review",
+                    "description": "Admin bearer token (`admin_token`). Run **Admin Login** first (also in Admin Wallets folder).",
+                    "item": [
+                        {
+                            "name": "1. Admin Login",
+                            "request": {
+                                "method": "POST",
+                                "header": [
+                                    {
+                                        "key": "Accept",
+                                        "value": "application/json",
+                                        "type": "text"
+                                    },
+                                    {
+                                        "key": "Content-Type",
+                                        "value": "application/json",
+                                        "type": "text"
+                                    }
+                                ],
+                                "body": {
+                                    "mode": "raw",
+                                    "raw": "{\n    \"email\": \"{{admin_email}}\",\n    \"password\": \"{{admin_password}}\"\n}",
+                                    "options": {
+                                        "raw": {
+                                            "language": "json"
+                                        }
+                                    }
+                                },
+                                "url": {
+                                    "raw": "{{base_url}}/api/v2/admin/auth/login",
+                                    "host": [
+                                        "{{base_url}}"
+                                    ],
+                                    "path": [
+                                        "api",
+                                        "v2",
+                                        "admin",
+                                        "auth",
+                                        "login"
+                                    ]
+                                },
+                                "description": "Saves `admin_token` for KYC admin endpoints."
+                            },
+                            "event": [
+                                {
+                                    "listen": "test",
+                                    "script": {
+                                        "type": "text/javascript",
+                                        "exec": [
+                                            "if (pm.response.code === 200) {",
+                                            "    const json = pm.response.json();",
+                                            "    const token = json.data?.token || json.data?.access_token || json.token;",
+                                            "    if (token) pm.collectionVariables.set('admin_token', token);",
+                                            "}"
+                                        ]
+                                    }
+                                }
+                            ]
+                        },
+                        {
+                            "name": "2. Approve Customer (KYC)",
+                            "request": {
+                                "method": "POST",
+                                "header": [
+                                    {
+                                        "key": "Accept",
+                                        "value": "application/json",
+                                        "type": "text"
+                                    },
+                                    {
+                                        "key": "Authorization",
+                                        "value": "Bearer {{admin_token}}",
+                                        "type": "text"
+                                    }
+                                ],
+                                "url": {
+                                    "raw": "{{base_url}}/api/v2/admin/customers/{{customer_id}}/approve",
+                                    "host": [
+                                        "{{base_url}}"
+                                    ],
+                                    "path": [
+                                        "api",
+                                        "v2",
+                                        "admin",
+                                        "customers",
+                                        "{{customer_id}}",
+                                        "approve"
+                                    ]
+                                },
+                                "description": "Approves `pending` or `rejected` customer → `active`. Logs `approved` event with detailed message."
+                            }
+                        },
+                        {
+                            "name": "3. Reject Customer (KYC)",
+                            "request": {
+                                "method": "POST",
+                                "header": [
+                                    {
+                                        "key": "Accept",
+                                        "value": "application/json",
+                                        "type": "text"
+                                    },
+                                    {
+                                        "key": "Content-Type",
+                                        "value": "application/json",
+                                        "type": "text"
+                                    },
+                                    {
+                                        "key": "Authorization",
+                                        "value": "Bearer {{admin_token}}",
+                                        "type": "text"
+                                    }
+                                ],
+                                "body": {
+                                    "mode": "raw",
+                                    "raw": "{\n    \"rejection_reason\": \"Full name must be corrected and resubmitted for KYC verification purposes.\",\n    \"invalid_fields\": [\"name\"],\n    \"missing_attachments\": []\n}",
+                                    "options": {
+                                        "raw": {
+                                            "language": "json"
+                                        }
+                                    }
+                                },
+                                "url": {
+                                    "raw": "{{base_url}}/api/v2/admin/customers/{{customer_id}}/reject",
+                                    "host": [
+                                        "{{base_url}}"
+                                    ],
+                                    "path": [
+                                        "api",
+                                        "v2",
+                                        "admin",
+                                        "customers",
+                                        "{{customer_id}}",
+                                        "reject"
+                                    ]
+                                },
+                                "description": "Rejects `pending` or `requesting_updated` customer. `invalid_fields`: name, email, phone, national_id, birth_date, gender, country, city. `missing_attachments`: profile_image, passport_document."
+                            }
+                        },
+                        {
+                            "name": "4. Get Customer Event Logs",
+                            "request": {
+                                "method": "GET",
+                                "header": [
+                                    {
+                                        "key": "Accept",
+                                        "value": "application/json",
+                                        "type": "text"
+                                    },
+                                    {
+                                        "key": "Authorization",
+                                        "value": "Bearer {{admin_token}}",
+                                        "type": "text"
+                                    }
+                                ],
+                                "url": {
+                                    "raw": "{{base_url}}/api/v2/admin/customers/{{customer_id}}/logs?page=1&per_page=15&search=",
+                                    "host": [
+                                        "{{base_url}}"
+                                    ],
+                                    "path": [
+                                        "api",
+                                        "v2",
+                                        "admin",
+                                        "customers",
+                                        "{{customer_id}}",
+                                        "logs"
+                                    ],
+                                    "query": [
+                                        {
+                                            "key": "page",
+                                            "value": "1"
+                                        },
+                                        {
+                                            "key": "per_page",
+                                            "value": "15"
+                                        },
+                                        {
+                                            "key": "search",
+                                            "value": "",
+                                            "description": "Search action or message"
+                                        }
+                                    ]
+                                },
+                                "description": "Paginated audit trail (newest first). Each item includes `action`, `label`, `text`, `time`, `metadata.message`."
+                            }
+                        },
+                        {
+                            "name": "5. List Change Requests",
+                            "request": {
+                                "method": "GET",
+                                "header": [
+                                    {
+                                        "key": "Accept",
+                                        "value": "application/json",
+                                        "type": "text"
+                                    },
+                                    {
+                                        "key": "Authorization",
+                                        "value": "Bearer {{admin_token}}",
+                                        "type": "text"
+                                    }
+                                ],
+                                "url": {
+                                    "raw": "{{base_url}}/api/v2/admin/customers/{{customer_id}}/change-requests",
+                                    "host": [
+                                        "{{base_url}}"
+                                    ],
+                                    "path": [
+                                        "api",
+                                        "v2",
+                                        "admin",
+                                        "customers",
+                                        "{{customer_id}}",
+                                        "change-requests"
+                                    ]
+                                },
+                                "description": "Formatted summaries with `changed_fields`, status, requester. Saves first pending `change_request_id`."
+                            },
+                            "event": [
+                                {
+                                    "listen": "test",
+                                    "script": {
+                                        "type": "text/javascript",
+                                        "exec": [
+                                            "if (pm.response.code === 200) {",
+                                            "    const json = pm.response.json();",
+                                            "    const list = json.data || [];",
+                                            "    const pending = list.find((cr) => cr.status === 'pending') || list[0];",
+                                            "    if (pending?.id) pm.collectionVariables.set('change_request_id', String(pending.id));",
+                                            "}"
+                                        ]
+                                    }
+                                }
+                            ]
+                        },
+                        {
+                            "name": "6. Get Change Request Detail",
+                            "request": {
+                                "method": "GET",
+                                "header": [
+                                    {
+                                        "key": "Accept",
+                                        "value": "application/json",
+                                        "type": "text"
+                                    },
+                                    {
+                                        "key": "Authorization",
+                                        "value": "Bearer {{admin_token}}",
+                                        "type": "text"
+                                    }
+                                ],
+                                "url": {
+                                    "raw": "{{base_url}}/api/v2/admin/customers/{{customer_id}}/change-requests/{{change_request_id}}",
+                                    "host": [
+                                        "{{base_url}}"
+                                    ],
+                                    "path": [
+                                        "api",
+                                        "v2",
+                                        "admin",
+                                        "customers",
+                                        "{{customer_id}}",
+                                        "change-requests",
+                                        "{{change_request_id}}"
+                                    ]
+                                },
+                                "description": "Field diff: `changes.{Field}.current` vs `changes.{Field}.requested`."
+                            }
+                        },
+                        {
+                            "name": "7. Approve Change Request",
+                            "request": {
+                                "method": "POST",
+                                "header": [
+                                    {
+                                        "key": "Accept",
+                                        "value": "application/json",
+                                        "type": "text"
+                                    },
+                                    {
+                                        "key": "Content-Type",
+                                        "value": "application/json",
+                                        "type": "text"
+                                    },
+                                    {
+                                        "key": "Authorization",
+                                        "value": "Bearer {{admin_token}}",
+                                        "type": "text"
+                                    }
+                                ],
+                                "body": {
+                                    "mode": "raw",
+                                    "raw": "{\n    \"moderation_note\": \"Approved after reviewing profile changes.\"\n}",
+                                    "options": {
+                                        "raw": {
+                                            "language": "json"
+                                        }
+                                    }
+                                },
+                                "url": {
+                                    "raw": "{{base_url}}/api/v2/admin/customers/{{customer_id}}/change-requests/{{change_request_id}}/approve",
+                                    "host": [
+                                        "{{base_url}}"
+                                    ],
+                                    "path": [
+                                        "api",
+                                        "v2",
+                                        "admin",
+                                        "customers",
+                                        "{{customer_id}}",
+                                        "change-requests",
+                                        "{{change_request_id}}",
+                                        "approve"
+                                    ]
+                                },
+                                "description": "Applies payload to customer → `active`. Logs `change_request_approved` with field-level message."
+                            }
+                        },
+                        {
+                            "name": "8. Reject Change Request",
+                            "request": {
+                                "method": "POST",
+                                "header": [
+                                    {
+                                        "key": "Accept",
+                                        "value": "application/json",
+                                        "type": "text"
+                                    },
+                                    {
+                                        "key": "Content-Type",
+                                        "value": "application/json",
+                                        "type": "text"
+                                    },
+                                    {
+                                        "key": "Authorization",
+                                        "value": "Bearer {{admin_token}}",
+                                        "type": "text"
+                                    }
+                                ],
+                                "body": {
+                                    "mode": "raw",
+                                    "raw": "{\n    \"moderation_note\": \"Requested changes are not acceptable.\"\n}",
+                                    "options": {
+                                        "raw": {
+                                            "language": "json"
+                                        }
+                                    }
+                                },
+                                "url": {
+                                    "raw": "{{base_url}}/api/v2/admin/customers/{{customer_id}}/change-requests/{{change_request_id}}/reject",
+                                    "host": [
+                                        "{{base_url}}"
+                                    ],
+                                    "path": [
+                                        "api",
+                                        "v2",
+                                        "admin",
+                                        "customers",
+                                        "{{customer_id}}",
+                                        "change-requests",
+                                        "{{change_request_id}}",
+                                        "reject"
+                                    ]
+                                },
+                                "description": "Rejects pending change request; customer returns to `active` without applying fields. Logs `change_request_rejected`."
+                            }
+                        }
+                    ]
+                }
+            ]
+        },
+        {
             "name": "Services Catalog",
             "item": [
                 {
@@ -1503,7 +2328,7 @@
                                 }
                             ]
                         },
-                        "description": "Full customer catalog: categories -> services -> products -> product_forms -> fields. Same payload shape as merchant `/api/v1/merchant/services/catalog`."
+                        "description": "Full customer catalog: categories -> services -> products -> product_forms -> fields. Same payload shape as merchant `/api/v1/merchant/services/catalog`.\n\n**Bill payment:** On success, auto-saves `service_id`, `product_id`, and `partner_id` from the first service with products — use these in **Request Bill Payment OTP** and **Pay Bill**."
                     },
                     "response": [
                         {
@@ -1529,10 +2354,20 @@
                                     "if (pm.response.code === 200) {",
                                     "    const json = pm.response.json();",
                                     "    const categories = json.data && json.data.categories;",
-                                    "    if (Array.isArray(categories) && categories.length > 0) {",
-                                    "        const services = categories[0].services;",
-                                    "        if (Array.isArray(services) && services.length > 0 && services[0].id) {",
-                                    "            pm.collectionVariables.set('service_id', services[0].id);",
+                                    "    if (Array.isArray(categories)) {",
+                                    "        outer: for (const category of categories) {",
+                                    "            const services = category.services;",
+                                    "            if (!Array.isArray(services)) continue;",
+                                    "            for (const service of services) {",
+                                    "                if (!service || !service.id) continue;",
+                                    "                pm.collectionVariables.set('service_id', service.id);",
+                                    "                if (service.partner_id) pm.collectionVariables.set('partner_id', service.partner_id);",
+                                    "                const products = service.products;",
+                                    "                if (Array.isArray(products) && products.length > 0 && products[0].id) {",
+                                    "                    pm.collectionVariables.set('product_id', products[0].id);",
+                                    "                    break outer;",
+                                    "                }",
+                                    "            }",
                                     "        }",
                                     "    }",
                                     "}"
@@ -2046,7 +2881,7 @@
         },
         {
             "name": "Wallet",
-            "description": "## Customer wallet API\n\nBearer token required (`customer_jwt`). Customer must be **active** for query/transfer/withdraw.\n\n### Recommended flow\n```\nDashboard → Query Recipient → Request Transfer OTP → Transfer → Dashboard (verify)\n```\n\n| Step | Request | Purpose |\n|------|---------|--------|\n| 1 | Wallet Dashboard | See balance + last 5 transactions |\n| 2 | Query Recipient | Look up recipient by **phone** or **wallet_id** → get `wallet_id`, `name`, `email` |\n| 3 | Request Transfer OTP | Send OTP for the exact transfer payload; saves `transfer_otp_token` |\n| 4 | Transfer | Confirm with `otp_token` + `otp`; same payload as step 3 |\n| 5 | Withdraw | Cash out from your wallet (optional) |\n\n### Rules\n- **Query**: accepts phone, public `wallet_id`, or `user_number`. Cannot search your own account.\n- **Transfer OTP**: validates recipient and balance before sending code. Code delivered via SMS stub + WebSocket (`event_type: transfer_otp`); not returned in HTTP response.\n- **Transfer**: accepts **wallet_id only** (not phone). Requires `otp_token` + `otp`. Optional `note`. Payload must match OTP step exactly (including `Idempotency-Key` if used).\n- **Idempotency**: set header `Idempotency-Key` on OTP request and transfer to prevent double-spend on retry.\n\nLegacy **Resolve Recipient** returns extended wallet metadata; prefer **Query Recipient** for the transfer UI.",
+            "description": "## Customer wallet API\n\nBearer token required (`customer_jwt`). Customer must be **active** for query/transfer/withdraw/bill-payment.\n\n### Peer-to-peer transfer flow\n```\nDashboard → Query Recipient → Request Transfer OTP → Transfer → Dashboard (verify)\n```\n\n| Step | Request | Purpose |\n|------|---------|--------|\n| 1 | Wallet Dashboard | See balance + last 5 transactions |\n| 2 | Query Recipient | Look up recipient by **phone** or **wallet_id** |\n| 3 | Request Transfer OTP | Send OTP for the exact transfer payload; saves `transfer_otp_token` |\n| 4 | Transfer | Confirm with `otp_token` + `otp`; same payload as step 3 |\n| 5 | Withdraw | Cash out from your wallet (optional) |\n\n### Bill payment flow\n```\nServices Catalog → Dashboard → Request Bill Payment OTP → Pay Bill → Dashboard (verify)\n```\n\n| Step | Request | Purpose |\n|------|---------|--------|\n| A | Services Catalog (folder) | Pick `service_id`, `product_id`, `partner_id` |\n| B | Request Bill Payment OTP | Validate balance + issue OTP; saves `bill_payment_otp_token` |\n| C | Pay Bill | Partner API + ledger posting after OTP confirm |\n\n**Bill payment rules:** Partner must have `account_id` (payable COA 21xx). Payload on OTP and pay must match exactly (`service_id`, `product_id`, `amount`, `service_payload`, `description`, `Idempotency-Key`). Dev OTP mock: `111111`. Partner API failure returns **502** with no ledger debit.\n\n### General rules\n- **Query**: accepts phone, public `wallet_id`, or `user_number`. Cannot search your own account.\n- **Transfer OTP**: code via SMS stub + WebSocket (`event_type: transfer_otp`); bill payment uses `event_type: bill_payment_otp`.\n- **Idempotency**: set header `Idempotency-Key` on OTP + confirm requests to prevent double-spend on retry.\n\nLegacy **Resolve Recipient** returns extended wallet metadata; prefer **Query Recipient** for the transfer UI.",
             "item": [
                 {
                     "name": "1. Wallet Dashboard",
@@ -2600,6 +3435,233 @@
                                 "exec": [
                                     "if (!pm.collectionVariables.get('idempotency_key')) {",
                                     "    pm.collectionVariables.set('idempotency_key', 'pm-withdraw-' + Date.now());",
+                                    "}"
+                                ]
+                            }
+                        }
+                    ]
+                },
+                {
+                    "name": "6. Request Bill Payment OTP",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json",
+                                "type": "text"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json",
+                                "type": "text"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{customer_jwt}}",
+                                "type": "text"
+                            },
+                            {
+                                "key": "Idempotency-Key",
+                                "value": "{{bill_payment_idempotency_key}}",
+                                "type": "text",
+                                "description": "Optional. Use the same key on Pay Bill to bind OTP and idempotent retry."
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"service_id\": \"{{service_id}}\",\n    \"product_id\": \"{{product_id}}\",\n    \"amount\": {{bill_payment_amount}},\n    \"service_payload\": {\n        \"account_number\": \"1234567890\",\n        \"phone_number\": \"+249912345678\"\n    },\n    \"description\": \"{{bill_payment_description}}\"\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/api/v1/customer/wallet/bill-payment/otp",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "v1",
+                                "customer",
+                                "wallet",
+                                "bill-payment",
+                                "otp"
+                            ]
+                        },
+                        "description": "**What:** Request OTP before paying a bill/service from the wallet.\n\n**Use when:** Customer confirms bill details on review screen — triggers OTP (SMS stub + WebSocket `bill_payment_otp`).\n\n**Prerequisites:** Run **Services Catalog** first to populate `service_id` and `product_id`. Partner must have payable account (`account_id`). Customer wallet must cover `amount + fee`.\n\n**Body fields:**\n- `service_id` (required, uuid)\n- `product_id` (required, uuid)\n- `amount` (required, min 0.01)\n- `service_payload` (optional object — e.g. account/phone fields from product form)\n- `description` (optional)\n\n**Returns:** `otp_token`, `expires_at` (10 min). OTP code not in HTTP body — use dev mock `otp_code` (`111111`).\n\n**Next step:** **Pay Bill** with the **identical** payload + `otp_token` + `otp`."
+                    },
+                    "response": [
+                        {
+                            "name": "Success",
+                            "status": "Created",
+                            "code": 201,
+                            "_postman_previewlanguage": "json",
+                            "header": [
+                                {
+                                    "key": "Content-Type",
+                                    "value": "application/json"
+                                }
+                            ],
+                            "body": "{\n    \"success\": true,\n    \"message\": \"Bill payment OTP sent successfully\",\n    \"data\": {\n        \"otp_token\": \"64-char-random-token-example\",\n        \"expires_at\": \"2026-06-30T12:10:00+00:00\"\n    }\n}"
+                        },
+                        {
+                            "name": "Insufficient balance",
+                            "status": "Unprocessable Entity",
+                            "code": 422,
+                            "_postman_previewlanguage": "json",
+                            "header": [
+                                {
+                                    "key": "Content-Type",
+                                    "value": "application/json"
+                                }
+                            ],
+                            "body": "{\n    \"success\": false,\n    \"message\": \"Insufficient wallet balance for this bill payment.\",\n    \"errors\": null,\n    \"data\": null\n}"
+                        },
+                        {
+                            "name": "Provider not configured",
+                            "status": "Unprocessable Entity",
+                            "code": 422,
+                            "_postman_previewlanguage": "json",
+                            "header": [
+                                {
+                                    "key": "Content-Type",
+                                    "value": "application/json"
+                                }
+                            ],
+                            "body": "{\n    \"success\": false,\n    \"message\": \"Bill payment is not available for this provider.\",\n    \"errors\": null,\n    \"data\": null\n}"
+                        }
+                    ],
+                    "event": [
+                        {
+                            "listen": "prerequest",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "if (!pm.collectionVariables.get('bill_payment_idempotency_key')) {",
+                                    "    pm.collectionVariables.set('bill_payment_idempotency_key', 'bill-' + Date.now());",
+                                    "}"
+                                ]
+                            }
+                        },
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "if (pm.response.code === 201) {",
+                                    "    const json = pm.response.json();",
+                                    "    if (json.data && json.data.otp_token) {",
+                                    "        pm.collectionVariables.set('bill_payment_otp_token', json.data.otp_token);",
+                                    "    }",
+                                    "}"
+                                ]
+                            }
+                        }
+                    ]
+                },
+                {
+                    "name": "7. Pay Bill",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json",
+                                "type": "text"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json",
+                                "type": "text"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{customer_jwt}}",
+                                "type": "text"
+                            },
+                            {
+                                "key": "Idempotency-Key",
+                                "value": "{{bill_payment_idempotency_key}}",
+                                "type": "text",
+                                "description": "Must match Request Bill Payment OTP when used."
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"service_id\": \"{{service_id}}\",\n    \"product_id\": \"{{product_id}}\",\n    \"amount\": {{bill_payment_amount}},\n    \"service_payload\": {\n        \"account_number\": \"1234567890\",\n        \"phone_number\": \"+249912345678\"\n    },\n    \"description\": \"{{bill_payment_description}}\",\n    \"otp_token\": \"{{bill_payment_otp_token}}\",\n    \"otp\": {{otp_code}}\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/api/v1/customer/wallet/bill-payment",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "v1",
+                                "customer",
+                                "wallet",
+                                "bill-payment"
+                            ]
+                        },
+                        "description": "**What:** Pay a bill/service from wallet after OTP verification.\n\n**Flow:** Validates OTP → calls partner API → on success posts ledger (**DR 2000 Customer / CR 21xx Provider Payable**, optional fee to 4000) and debits wallet.\n\n**Body fields:** Same as **Request Bill Payment OTP** plus:\n- `otp_token` (required) — from OTP step\n- `otp` (required) — 6-digit code (dev: `111111`)\n\n**Success response:** `amount`, `fee`, `total_debited`, `wallet`, `bill_payment` (status `completed`), `transaction` (type `bill_payment`).\n\n**Errors:**\n- 422 — validation, insufficient balance, OTP mismatch, provider without payable account\n- 502 — partner API failed (no ledger debit; `wallet_bill_payments` row marked `failed`)\n\n**Accounting follow-up:** Admin settles accrued payables via **Admin Provider Settlements → Settle Provider Payable**."
+                    },
+                    "response": [
+                        {
+                            "name": "Success",
+                            "status": "OK",
+                            "code": 200,
+                            "_postman_previewlanguage": "json",
+                            "header": [
+                                {
+                                    "key": "Content-Type",
+                                    "value": "application/json"
+                                }
+                            ],
+                            "body": "{\n    \"success\": true,\n    \"message\": \"Bill payment completed successfully\",\n    \"data\": {\n        \"amount\": 100,\n        \"fee\": 0,\n        \"total_debited\": 100,\n        \"wallet\": {\n            \"wallet_id\": \"WAL-00000001\",\n            \"balance\": 900,\n            \"available_balance\": 900,\n            \"currency_code\": \"SDG\",\n            \"status\": \"active\"\n        },\n        \"bill_payment\": {\n            \"id\": 1,\n            \"status\": \"completed\",\n            \"partner_reference\": \"MOCK-REF-001\",\n            \"service_id\": \"660e8400-e29b-41d4-a716-446655440001\",\n            \"partner_id\": \"770e8400-e29b-41d4-a716-446655440002\"\n        },\n        \"transaction\": {\n            \"type\": \"bill_payment\",\n            \"direction\": \"debit\",\n            \"amount\": 100,\n            \"balance_after\": 900,\n            \"description\": \"Electricity bill\"\n        }\n    }\n}"
+                        },
+                        {
+                            "name": "OTP payload mismatch",
+                            "status": "Unprocessable Entity",
+                            "code": 422,
+                            "_postman_previewlanguage": "json",
+                            "header": [
+                                {
+                                    "key": "Content-Type",
+                                    "value": "application/json"
+                                }
+                            ],
+                            "body": "{\n    \"success\": false,\n    \"message\": \"OTP does not match this bill payment.\",\n    \"errors\": null,\n    \"data\": null\n}"
+                        },
+                        {
+                            "name": "Partner API failure",
+                            "status": "Bad Gateway",
+                            "code": 502,
+                            "_postman_previewlanguage": "json",
+                            "header": [
+                                {
+                                    "key": "Content-Type",
+                                    "value": "application/json"
+                                }
+                            ],
+                            "body": "{\n    \"success\": false,\n    \"message\": \"Partner API failed.\",\n    \"errors\": null,\n    \"data\": null\n}"
+                        }
+                    ],
+                    "event": [
+                        {
+                            "listen": "prerequest",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "if (!pm.collectionVariables.get('bill_payment_idempotency_key')) {",
+                                    "    pm.collectionVariables.set('bill_payment_idempotency_key', 'bill-' + Date.now());",
                                     "}"
                                 ]
                             }
@@ -3354,6 +4416,173 @@
                                 }
                             ],
                             "body": "{\n    \"status\": true,\n    \"data\": {\n        \"message\": \"Wallet closed successfully.\",\n        \"wallet\": {\n            \"id\": \"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa\",\n            \"wallet_id\": \"WAL-00000001\",\n            \"type\": \"user\",\n            \"is_master\": false,\n            \"status\": \"closed\",\n            \"balance\": 250,\n            \"available_balance\": 250,\n            \"currency_code\": \"SDG\",\n            \"owner\": {\n                \"name\": \"Wallet Owner\",\n                \"email\": \"owner@example.com\"\n            },\n            \"summary\": {\n                \"transaction_count\": 2,\n                \"total_credits\": 300,\n                \"total_debits\": 50\n            }\n        }\n    }\n}"
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "Admin Provider Settlements",
+            "description": "Settle accrued third-party provider payables (21xx) to bank (1000) after customer bill payments.\n\n**Permission:** `settle_provider_payables`\n\n**Recommended flow:**\n1. **Admin Login** (Admin Wallets folder) → `admin_token`\n2. **List Provider Payables** → pick `partner_id` with balance > 0\n3. **Settle Provider Payable** → posts **DR 21xx / CR 1000 Bank**\n\nRun customer **Pay Bill** first to accrue payable balance on the partner account.",
+            "item": [
+                {
+                    "name": "List Provider Payables",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json",
+                                "type": "text"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{admin_token}}",
+                                "type": "text"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/v2/admin/provider-settlements?search=",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "v2",
+                                "admin",
+                                "provider-settlements"
+                            ],
+                            "query": [
+                                {
+                                    "key": "search",
+                                    "value": "",
+                                    "description": "Optional filter by partner name"
+                                }
+                            ]
+                        },
+                        "description": "List approved partners with linked payable accounts and current payable balance (credit balance on 21xx)."
+                    },
+                    "response": [
+                        {
+                            "name": "Success",
+                            "status": "OK",
+                            "code": 200,
+                            "_postman_previewlanguage": "json",
+                            "header": [
+                                {
+                                    "key": "Content-Type",
+                                    "value": "application/json"
+                                }
+                            ],
+                            "body": "{\n    \"status\": true,\n    \"data\": {\n        \"data\": [\n            {\n                \"partner_id\": \"770e8400-e29b-41d4-a716-446655440002\",\n                \"partner_name\": \"Sudani Telecom Partner\",\n                \"account_id\": 15,\n                \"account_code\": 2110,\n                \"account_name\": \"Provider Payable — Sudani Telecom Partner\",\n                \"payable_balance\": 100\n            }\n        ]\n    }\n}"
+                        }
+                    ],
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "if (pm.response.code === 200) {",
+                                    "    const json = pm.response.json();",
+                                    "    const rows = json.data && json.data.data;",
+                                    "    if (Array.isArray(rows) && rows.length > 0 && rows[0].partner_id) {",
+                                    "        pm.collectionVariables.set('partner_id', rows[0].partner_id);",
+                                    "    }",
+                                    "}"
+                                ]
+                            }
+                        }
+                    ]
+                },
+                {
+                    "name": "Settle Provider Payable",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json",
+                                "type": "text"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json",
+                                "type": "text"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{admin_token}}",
+                                "type": "text"
+                            },
+                            {
+                                "key": "Idempotency-Key",
+                                "value": "{{idempotency_key}}",
+                                "type": "text"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"partner_id\": \"{{partner_id}}\",\n    \"amount\": {{bill_payment_amount}},\n    \"description\": \"Settlement to provider\"\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/api/v2/admin/provider-settlements",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "v2",
+                                "admin",
+                                "provider-settlements"
+                            ]
+                        },
+                        "description": "Pay down a provider payable balance from bank.\n\n**Body:**\n- `partner_id` (required, uuid)\n- `amount` (required) — cannot exceed current payable balance\n- `description` (optional)\n\n**Accounting:** DR partner payable (21xx) / CR bank (1000). Posting reference: `PROVIDER_SETTLEMENT`."
+                    },
+                    "response": [
+                        {
+                            "name": "Success",
+                            "status": "OK",
+                            "code": 200,
+                            "_postman_previewlanguage": "json",
+                            "header": [
+                                {
+                                    "key": "Content-Type",
+                                    "value": "application/json"
+                                }
+                            ],
+                            "body": "{\n    \"status\": true,\n    \"data\": {\n        \"partner_id\": \"770e8400-e29b-41d4-a716-446655440002\",\n        \"amount\": 100,\n        \"description\": \"Settlement to provider\",\n        \"payable_balance_after\": 0,\n        \"bank_balance_after\": 900,\n        \"posting_reference\": \"PROVIDER_SETTLEMENT\"\n    }\n}"
+                        },
+                        {
+                            "name": "Exceeds payable balance",
+                            "status": "Unprocessable Entity",
+                            "code": 422,
+                            "_postman_previewlanguage": "json",
+                            "header": [
+                                {
+                                    "key": "Content-Type",
+                                    "value": "application/json"
+                                }
+                            ],
+                            "body": "{\n    \"status\": false,\n    \"message\": \"Settlement amount exceeds provider payable balance.\",\n    \"data\": null\n}"
+                        }
+                    ],
+                    "event": [
+                        {
+                            "listen": "prerequest",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "if (!pm.collectionVariables.get('idempotency_key')) {",
+                                    "    pm.collectionVariables.set('idempotency_key', 'settle-' + Date.now());",
+                                    "}"
+                                ]
+                            }
                         }
                     ]
                 }

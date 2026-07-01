@@ -110,18 +110,7 @@ class AdminWalletService
 
         $transaction->setAttribute('signed_amount', $this->signedAmount($transaction));
 
-        $relatedTransactions = collect();
-
-        if ($transaction->reference !== null && $transaction->reference_id !== null) {
-            $relatedTransactions = WalletTransaction::query()
-                ->where('reference', $transaction->reference)
-                ->where('reference_id', $transaction->reference_id)
-                ->where('id', '!=', $transaction->id)
-                ->with(['wallet.customer.merchant'])
-                ->orderByRaw("CASE WHEN direction = 'debit' THEN 0 ELSE 1 END")
-                ->orderBy('created_at')
-                ->get();
-        }
+        $relatedTransactions = $this->relatedTransactionsFor($transaction);
 
         $allRows = collect([$transaction])->merge($relatedTransactions);
         $this->attachCounterparties($allRows);
@@ -132,6 +121,7 @@ class AdminWalletService
             'operation' => [
                 'reference' => $transaction->reference,
                 'reference_id' => $transaction->reference_id,
+                'operation_id' => $transaction->operation_id,
                 'entry_count' => 1 + $relatedTransactions->count(),
             ],
         ];
@@ -384,6 +374,58 @@ class AdminWalletService
     }
 
     /**
+     * Other wallet legs posted in the same operation (e.g. transfer debit ↔ credit).
+     */
+    private function relatedTransactionsFor(WalletTransaction $transaction): Collection
+    {
+        if ($transaction->operation_id) {
+            return WalletTransaction::query()
+                ->where('operation_id', $transaction->operation_id)
+                ->where('id', '!=', $transaction->id)
+                ->with(['wallet.customer.merchant'])
+                ->orderByRaw("CASE WHEN direction = 'debit' THEN 0 ELSE 1 END")
+                ->orderBy('created_at')
+                ->get();
+        }
+
+        if ($transaction->reference === null || $transaction->reference_id === null) {
+            return collect();
+        }
+
+        $createdAt = $transaction->created_at;
+        if ($createdAt === null) {
+            return collect();
+        }
+
+        $oppositeDirection = $transaction->direction === 'debit' ? 'credit' : 'debit';
+
+        $baseQuery = WalletTransaction::query()
+            ->where('id', '!=', $transaction->id)
+            ->where('reference', $transaction->reference)
+            ->where('reference_id', $transaction->reference_id)
+            ->where('direction', $oppositeDirection)
+            ->where('wallet_id', '!=', $transaction->wallet_id)
+            ->with(['wallet.customer.merchant'])
+            ->orderByRaw("CASE WHEN direction = 'debit' THEN 0 ELSE 1 END")
+            ->orderBy('created_at');
+
+        $sameMoment = (clone $baseQuery)
+            ->where('created_at', $createdAt)
+            ->get();
+
+        if ($sameMoment->isNotEmpty()) {
+            return $sameMoment;
+        }
+
+        return $baseQuery
+            ->whereBetween('created_at', [
+                $createdAt->copy()->subSeconds(self::COUNTERPARTY_PAIR_WINDOW_SECONDS),
+                $createdAt->copy()->addSeconds(self::COUNTERPARTY_PAIR_WINDOW_SECONDS),
+            ])
+            ->get();
+    }
+
+    /**
      * Best-effort counterparty resolution for transfer rows.
      * Transfers store two rows (debit/credit) without explicit from_wallet/to_wallet columns.
      */
@@ -397,28 +439,11 @@ class AdminWalletService
 
         if ($transferTransactions->isNotEmpty()) {
             foreach ($transferTransactions as $transaction) {
-                $createdAt = $transaction->created_at;
-                if (! $createdAt) {
+                if (! $transaction->created_at) {
                     continue;
                 }
 
-                $oppositeDirection = $transaction->direction === 'debit' ? 'credit' : 'debit';
-
-                $counterpartyTx = WalletTransaction::query()
-                    ->where('id', '!=', $transaction->id)
-                    ->where('type', 'transfer')
-                    ->where('reference', $transaction->reference)
-                    ->where('reference_id', $transaction->reference_id)
-                    ->where('amount', $transaction->amount)
-                    ->where('direction', $oppositeDirection)
-                    ->where('wallet_id', '!=', $transaction->wallet_id)
-                    ->whereBetween('created_at', [
-                        $createdAt->copy()->subSeconds(self::COUNTERPARTY_PAIR_WINDOW_SECONDS),
-                        $createdAt->copy()->addSeconds(self::COUNTERPARTY_PAIR_WINDOW_SECONDS),
-                    ])
-                    ->with(['wallet.customer.merchant'])
-                    ->orderBy('created_at')
-                    ->first();
+                $counterpartyTx = $this->relatedTransactionsFor($transaction)->first();
 
                 if ($counterpartyTx) {
                     $counterpartyMap[$transaction->id] = $this->formatCounterparty($counterpartyTx);

@@ -4,7 +4,10 @@ namespace Tests\Feature;
 
 use App\Models\Admin;
 use App\Models\Customer;
+use App\Models\TransactionLine;
 use App\Models\Wallet;
+use App\Models\WalletTransaction;
+use App\Services\LedgerService;
 use Database\Seeders\ChartOfAccountSeeder;
 use Laravel\Passport\Passport;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
@@ -173,6 +176,75 @@ class AdminWalletApiTest extends CustomerAuthTestCase
             ->assertJsonCount(1, 'data.related_transactions')
             ->assertJsonPath('data.related_transactions.0.direction', 'credit')
             ->assertJsonPath('data.related_transactions.0.wallet.wallet_id', $recipientWallet->wallet_id);
+
+        $this->assertNotNull($detailResponse->json('data.transaction.operation_id'));
+        $this->assertSame(
+            $detailResponse->json('data.transaction.operation_id'),
+            $detailResponse->json('data.operation.operation_id')
+        );
+        $this->assertSame(
+            $detailResponse->json('data.transaction.operation_id'),
+            $detailResponse->json('data.related_transactions.0.operation_id')
+        );
+    }
+
+    public function test_admin_transaction_detail_shows_only_same_operation_counterpart(): void
+    {
+        [$senderWallet, $recipientWallet] = $this->createTransferPair(1000, 0);
+        $this->transferBetweenWallets($senderWallet, $recipientWallet, 100, 'First transfer');
+        $this->transferBetweenWallets($senderWallet, $recipientWallet, 50, 'Second transfer');
+
+        $listResponse = $this->actingAsAdminApi()->getJson(
+            "/api/v2/admin/wallets/{$senderWallet->id}/transactions"
+        );
+
+        $firstDebit = collect($listResponse->json('data.data'))
+            ->first(fn ($row) => $row['type'] === 'transfer'
+                && $row['direction'] === 'debit'
+                && $row['description'] === 'First transfer');
+
+        $this->assertNotNull($firstDebit);
+
+        $detailResponse = $this->actingAsAdminApi()->getJson(
+            '/api/v2/admin/wallets/transactions/'.$firstDebit['id']
+        );
+
+        $detailResponse->assertOk()
+            ->assertJsonPath('data.operation.entry_count', 2)
+            ->assertJsonCount(1, 'data.related_transactions')
+            ->assertJsonPath('data.related_transactions.0.direction', 'credit')
+            ->assertJsonPath('data.related_transactions.0.amount', 100)
+            ->assertJsonPath('data.related_transactions.0.description', 'First transfer');
+
+        $this->assertNotNull($detailResponse->json('data.transaction.operation_id'));
+        $this->assertSame(
+            $detailResponse->json('data.transaction.operation_id'),
+            $detailResponse->json('data.related_transactions.0.operation_id')
+        );
+    }
+
+    public function test_transfer_shares_operation_id_on_wallet_and_ledger_rows(): void
+    {
+        [$senderWallet, $recipientWallet] = $this->createTransferPair(500, 0);
+        $this->transferBetweenWallets($senderWallet, $recipientWallet, 75, 'Operation id test');
+
+        $walletRows = WalletTransaction::query()
+            ->where('reference', LedgerService::REF_WALLET_TRANSFER)
+            ->where('description', 'Operation id test')
+            ->orderBy('direction')
+            ->get();
+
+        $this->assertCount(2, $walletRows);
+        $operationId = $walletRows->first()->operation_id;
+        $this->assertNotNull($operationId);
+        $this->assertTrue($walletRows->every(fn (WalletTransaction $row) => $row->operation_id === $operationId));
+
+        $ledgerRows = TransactionLine::query()
+            ->where('operation_id', $operationId)
+            ->get();
+
+        $this->assertGreaterThanOrEqual(2, $ledgerRows->count());
+        $this->assertTrue($ledgerRows->every(fn (TransactionLine $line) => $line->operation_id === $operationId));
     }
 
     public function test_closed_wallets_are_excluded_from_default_index(): void

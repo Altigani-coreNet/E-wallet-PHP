@@ -15,6 +15,13 @@ final class AccountCode
 
     public const MASTER_LIABILITY = 2050;
 
+    /** Control account — not used for postings; per-partner payables use 2110–2199. */
+    public const PROVIDER_PAYABLE_CONTROL = 2100;
+
+    public const PROVIDER_PAYABLE_MIN = 2110;
+
+    public const PROVIDER_PAYABLE_MAX = 2199;
+
     public const FEES_TAX_PAYABLE = 2900;
 
     public const OWNER_EQUITY = 3000;

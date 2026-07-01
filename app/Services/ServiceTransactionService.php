@@ -6,10 +6,13 @@ use App\Models\Product;
 use App\Models\ProductServiceForm;
 use App\Models\ServiceTransaction;
 use App\Models\Transaction;
-use Illuminate\Support\Facades\Http;
 
 class ServiceTransactionService
 {
+    public function __construct(private readonly PartnerApiClient $partnerApiClient)
+    {
+    }
+
     /**
      * Execute service-side logic and register service transaction details.
      */
@@ -60,25 +63,17 @@ class ServiceTransactionService
             'service_payload' => is_array($servicePayload) ? $servicePayload : [],
         ];
 
-        try {
-            $response = Http::timeout(30)->acceptJson()->post($serviceUrl, $outboundPayload);
+        $response = $this->partnerApiClient->post($serviceUrl, $outboundPayload);
 
-            $record->update([
-                'service_url' => $serviceUrl,
-                'service_response' => [
-                    'status_code' => $response->status(),
-                    'body' => $response->json() ?? $response->body(),
-                ],
-                'status' => $response->successful() ? 'completed' : 'failed',
-                'error_message' => $response->successful() ? null : 'Service endpoint returned non-success status.',
-            ]);
-        } catch (\Throwable $e) {
-            $record->update([
-                'service_url' => $serviceUrl,
-                'status' => 'failed',
-                'error_message' => $e->getMessage(),
-            ]);
-        }
+        $record->update([
+            'service_url' => $serviceUrl,
+            'service_response' => [
+                'status_code' => $response->statusCode,
+                'body' => $response->body,
+            ],
+            'status' => $response->successful ? 'completed' : 'failed',
+            'error_message' => $response->errorMessage,
+        ]);
 
         return $record->fresh();
     }
@@ -98,4 +93,3 @@ class ServiceTransactionService
         return $product?->serviceForms?->sortBy('id')->first();
     }
 }
-

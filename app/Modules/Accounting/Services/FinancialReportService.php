@@ -24,14 +24,14 @@ class FinancialReportService
     /**
      * @return array<string, mixed>
      */
-    public function ledger(?int $accountId, ?string $customerId, string $startDate, string $endDate): array
+    public function ledger(?int $accountId, ?string $customerId, string $startDate, string $endDate, ?string $startTime = null, ?string $endTime = null): array
     {
         $query = TransactionLine::query()
             ->join('chart_of_accounts', 'chart_of_accounts.id', '=', 'transaction_lines.account_id')
             ->join('chart_of_account_types', 'chart_of_account_types.id', '=', 'chart_of_accounts.type')
-            ->where('chart_of_accounts.created_by', 0)
-            ->whereDate('transaction_lines.date', '>=', $startDate)
-            ->whereDate('transaction_lines.date', '<=', $endDate);
+            ->where('chart_of_accounts.created_by', 0);
+
+        $this->applyLedgerDateTimeFilters($query, $startDate, $endDate, $startTime, $endTime);
 
         if ($accountId) {
             $query->where('transaction_lines.account_id', $accountId);
@@ -47,6 +47,7 @@ class FinancialReportService
                 'transaction_lines.reference_id',
                 'transaction_lines.reference_sub_id',
                 'transaction_lines.date',
+                'transaction_lines.created_at',
                 'transaction_lines.debit',
                 'transaction_lines.credit',
                 'chart_of_accounts.code as account_code',
@@ -65,7 +66,8 @@ class FinancialReportService
 
         $customers = Customer::query()
             ->whereIn('id', $customerIds)
-            ->pluck('name', 'id');
+            ->get(['id', 'name'])
+            ->mapWithKeys(fn (Customer $customer) => [(string) $customer->id => $customer->name]);
 
         $accountIds = $lines->pluck('account_id')->unique();
         $openingSums = TransactionLine::query()
@@ -117,7 +119,7 @@ class FinancialReportService
                 'reference' => $line->reference,
                 'reference_id' => (string) $line->reference_id,
                 'transaction_type' => $this->transactionTypeLabel($line),
-                'date' => $line->date?->format('Y-m-d') ?? (string) $line->date,
+                'date' => $this->formatLedgerRowDate($line),
                 'debit' => $debit,
                 'credit' => $credit,
                 'balance' => round($runningByAccount[$aid], 2),
@@ -128,6 +130,10 @@ class FinancialReportService
             'filter' => [
                 'start_date' => $startDate,
                 'end_date' => $endDate,
+                'start_time' => $startTime,
+                'end_time' => $endTime,
+                'start_datetime' => $this->combineLedgerDateTime($startDate, $startTime),
+                'end_datetime' => $this->combineLedgerDateTime($endDate, $endTime),
                 'account_id' => $accountId,
                 'customer_id' => $customerId,
             ],
@@ -158,13 +164,15 @@ class FinancialReportService
     /**
      * @return \Symfony\Component\HttpFoundation\BinaryFileResponse
      */
-    public function exportLedger(?int $accountId, ?string $customerId, string $startDate, string $endDate)
+    public function exportLedger(?int $accountId, ?string $customerId, string $startDate, string $endDate, ?string $startTime = null, ?string $endTime = null)
     {
-        $payload = $this->ledger($accountId, $customerId, $startDate, $endDate);
+        $payload = $this->ledger($accountId, $customerId, $startDate, $endDate, $startTime, $endTime);
 
         $spreadsheet = new Spreadsheet();
         $sheet = $spreadsheet->getActiveSheet();
         $sheet->setTitle('Ledger Summary');
+
+        $rangeLabel = $this->formatLedgerDateTimeRange($startDate, $endDate, $startTime, $endTime);
 
         $sheet->mergeCells('A1:G1');
         $sheet->setCellValue('A1', 'Ledger Summary Report - '.date('Y-m-d H:i'));
@@ -172,7 +180,7 @@ class FinancialReportService
         $sheet->getStyle('A1')->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
 
         $sheet->mergeCells('A2:G2');
-        $sheet->setCellValue('A2', 'Date Range: '.$startDate.' to '.$endDate);
+        $sheet->setCellValue('A2', 'Date Range: '.$rangeLabel);
         $sheet->getStyle('A2')->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
 
         $headers = ['Account Name', 'Name', 'Transaction Type', 'Transaction Date', 'Debit', 'Credit', 'Balance'];
@@ -216,6 +224,66 @@ class FinancialReportService
         if ($customerId) {
             $query->where('transaction_lines.reference_id', $customerId);
         }
+    }
+
+    private function applyLedgerDateTimeFilters(
+        Builder $query,
+        string $startDate,
+        string $endDate,
+        ?string $startTime,
+        ?string $endTime
+    ): void {
+        $query->whereDate('transaction_lines.date', '>=', $startDate)
+            ->whereDate('transaction_lines.date', '<=', $endDate);
+
+        if ($startTime) {
+            $query->where(function (Builder $dateTimeQuery) use ($startDate, $startTime) {
+                $dateTimeQuery->whereDate('transaction_lines.date', '>', $startDate)
+                    ->orWhere(function (Builder $boundaryQuery) use ($startDate, $startTime) {
+                        $boundaryQuery->whereDate('transaction_lines.date', '=', $startDate)
+                            ->whereTime('transaction_lines.created_at', '>=', $startTime);
+                    });
+            });
+        }
+
+        if ($endTime) {
+            $query->where(function (Builder $dateTimeQuery) use ($endDate, $endTime) {
+                $dateTimeQuery->whereDate('transaction_lines.date', '<', $endDate)
+                    ->orWhere(function (Builder $boundaryQuery) use ($endDate, $endTime) {
+                        $boundaryQuery->whereDate('transaction_lines.date', '=', $endDate)
+                            ->whereTime('transaction_lines.created_at', '<=', $endTime);
+                    });
+            });
+        }
+    }
+
+    private function formatLedgerDateTimeRange(
+        string $startDate,
+        string $endDate,
+        ?string $startTime,
+        ?string $endTime
+    ): string {
+        $startLabel = trim($startDate.' '.($startTime ?: '00:00'));
+        $endLabel = trim($endDate.' '.($endTime ?: '23:59'));
+
+        return $startLabel.' to '.$endLabel;
+    }
+
+    private function combineLedgerDateTime(string $date, ?string $time): string
+    {
+        return trim($date.' '.($time ?: '00:00'));
+    }
+
+    private function formatLedgerRowDate(object $line): string
+    {
+        $date = $line->date?->format('Y-m-d') ?? (string) $line->date;
+        $createdAt = $line->created_at ?? null;
+
+        if ($createdAt) {
+            return $date.' '.$createdAt->format('H:i');
+        }
+
+        return $date;
     }
 
     /**

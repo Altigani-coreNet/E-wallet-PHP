@@ -158,6 +158,12 @@ class CustomerAuthApiTest extends CustomerAuthTestCase
         $this->assertSame($customerId, Customer::query()->where('phone', self::TEST_PHONE)->value('id'));
         $this->assertSame(Customer::STATUS_PENDING, $response->json('data.customer.status'));
         $this->assertCustomerAuthPayloadExcludesMerchantFields($response->json('data.customer'));
+
+        $this->assertDatabaseHas('logs', [
+            'loggable_type' => Customer::class,
+            'loggable_id' => $customerId,
+            'action' => 'registered',
+        ]);
     }
 
     public function test_register_fails_without_verified_otp(): void
@@ -617,6 +623,7 @@ class CustomerAuthApiTest extends CustomerAuthTestCase
                 'cityId' => $city->id,
                 'country_code' => '249',
                 'picture' => UploadedFile::fake()->image('avatar.jpg'),
+                'passport' => UploadedFile::fake()->create('passport.pdf', 100, 'application/pdf'),
             ], [
                 'Accept' => 'application/json',
             ]);
@@ -655,14 +662,31 @@ class CustomerAuthApiTest extends CustomerAuthTestCase
         $this->assertNotNull($customer->profile_image);
         $this->assertFileExists(public_path($customer->profile_image));
 
+        $this->assertDatabaseHas('attachments', [
+            'attachable_type' => Customer::class,
+            'attachable_id' => $customer->id,
+            'url_type' => 'profile_image',
+        ]);
+        $this->assertDatabaseHas('attachments', [
+            'attachable_type' => Customer::class,
+            'attachable_id' => $customer->id,
+            'url_type' => 'passport_document',
+        ]);
+
         Mail::assertSent(CustomerWelcomeMail::class, function (CustomerWelcomeMail $mail) {
             return $mail->hasTo('ahmed@example.com')
                 && $mail->customerName === 'Ahmed'
                 && $mail->phone === self::TEST_PHONE;
         });
+
+        $this->assertDatabaseHas('logs', [
+            'loggable_type' => Customer::class,
+            'loggable_id' => $customer->id,
+            'action' => 'profile_completed',
+        ]);
     }
 
-    public function test_can_complete_profile_without_picture(): void
+    public function test_complete_profile_requires_passport(): void
     {
         Mail::fake();
 
@@ -674,24 +698,23 @@ class CustomerAuthApiTest extends CustomerAuthTestCase
         ]);
 
         $response = $this->withCustomerToken($customer)
-            ->postJson('/api/v1/customer/profile/complete', [
+            ->post('/api/v1/customer/profile/complete', [
                 'firstName' => 'Ahmed',
-                'nationalId' => 'NID-NO-PICTURE-001',
+                'nationalId' => 'NID-NO-PASSPORT-001',
                 'email' => 'ahmed@example.com',
                 'birthDate' => '1990-05-15',
                 'gender' => 'male',
                 'cityId' => $city->id,
                 'country_code' => '249',
+                'picture' => UploadedFile::fake()->image('avatar.jpg'),
+            ], [
+                'Accept' => 'application/json',
             ]);
 
-        $response->assertOk()
-            ->assertJsonPath('data.profile_completed', true)
-            ->assertJsonPath('data.customer.profileCompleted', true)
-            ->assertJsonPath('data.customer.profileImage', null);
+        $response->assertStatus(422)
+            ->assertJsonValidationErrors(['passport']);
 
-        $customer->refresh();
-        $this->assertNull($customer->profile_image);
-        Mail::assertSent(CustomerWelcomeMail::class);
+        Mail::assertNothingSent();
     }
 
     public function test_can_update_profile_without_changing_email_or_phone(): void
@@ -769,6 +792,7 @@ class CustomerAuthApiTest extends CustomerAuthTestCase
                 'cityId' => $city->id,
                 'country_code' => '249',
                 'picture' => UploadedFile::fake()->image('avatar.jpg'),
+                'passport' => UploadedFile::fake()->create('passport.pdf', 100, 'application/pdf'),
             ], [
                 'Accept' => 'application/json',
             ]);

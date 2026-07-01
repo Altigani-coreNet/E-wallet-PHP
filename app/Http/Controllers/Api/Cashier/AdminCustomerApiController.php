@@ -9,9 +9,12 @@ use App\Http\Requests\AdminCustomerUpdateRequest;
 use App\Http\Resources\AdminCustomerResource;
 use App\Http\Resources\AdminWalletResource;
 use App\Http\Resources\AdminWalletTransactionResource;
+use App\Models\ChangeRequest;
 use App\Models\Customer;
 use App\Modules\CustomerAuth\Services\CustomerPasswordSetupService;
 use App\Services\Admin\AdminWalletService;
+use App\Services\ChangeRequestFormatter;
+use App\Services\ChangeRequestService;
 use App\Services\CustomerService;
 use App\Support\CsvExport;
 use App\Traits\HasFiles;
@@ -29,6 +32,8 @@ class AdminCustomerApiController extends Controller
         private readonly CustomerService $customerService,
         private readonly CustomerPasswordSetupService $passwordSetupService,
         private readonly AdminWalletService $walletService,
+        private readonly ChangeRequestService $changeRequestService,
+        private readonly ChangeRequestFormatter $changeRequestFormatter,
     ) {
     }
 
@@ -408,6 +413,185 @@ class AdminCustomerApiController extends Controller
         }
     }
 
+    public function approve(string $id): JsonResponse
+    {
+        try {
+            $customer = $this->findCustomer($id);
+            $result = $this->customerService->approve($customer);
+
+            return $this->jsonSuccess(
+                AdminCustomerResource::make($result['customer'])->resolve(),
+                $result['message'],
+            );
+        } catch (ValidationException $exception) {
+            return response()->json([
+                'success' => false,
+                'status' => false,
+                'message' => $exception->getMessage(),
+                'errors' => $exception->errors(),
+            ], 422);
+        } catch (\Throwable $exception) {
+            Log::error('AdminCustomerApiController@approve error: '.$exception->getMessage());
+
+            return $this->jsonError('Failed to approve customer', 500);
+        }
+    }
+
+    public function reject(Request $request, string $id): JsonResponse
+    {
+        try {
+            $validated = $request->validate([
+                'rejection_reason' => 'required|string|min:10',
+                'invalid_fields' => 'nullable|array',
+                'missing_attachments' => 'nullable|array',
+                'missing_attachments.*' => 'in:profile_image,passport_document',
+            ]);
+
+            $customer = $this->findCustomer($id);
+            $result = $this->customerService->reject(
+                $customer,
+                $validated['rejection_reason'],
+                $validated['invalid_fields'] ?? [],
+                $validated['missing_attachments'] ?? [],
+            );
+
+            return $this->jsonSuccess(
+                AdminCustomerResource::make($result['customer'])->resolve(),
+                $result['message'],
+            );
+        } catch (ValidationException $exception) {
+            return response()->json([
+                'success' => false,
+                'status' => false,
+                'message' => $exception->getMessage(),
+                'errors' => $exception->errors(),
+            ], 422);
+        } catch (\Throwable $exception) {
+            Log::error('AdminCustomerApiController@reject error: '.$exception->getMessage());
+
+            return $this->jsonError('Failed to reject customer', 500);
+        }
+    }
+
+    public function logs(Request $request, string $id): JsonResponse
+    {
+        try {
+            $customer = $this->findCustomer($id);
+            $perPage = (int) $request->input('per_page', 15);
+            $search = trim((string) $request->input('search', ''));
+
+            $query = $customer->logs()->with('user')->latest();
+
+            if ($search !== '') {
+                $query->where(function ($builder) use ($search) {
+                    $builder->where('action', 'like', '%'.$search.'%')
+                        ->orWhere('metadata->message', 'like', '%'.$search.'%')
+                        ->orWhere('metadata->event', 'like', '%'.$search.'%');
+                });
+            }
+
+            $logs = $query->paginate($perPage);
+
+            return $this->jsonSuccess([
+                'data' => $logs->items(),
+                'current_page' => $logs->currentPage(),
+                'last_page' => $logs->lastPage(),
+                'per_page' => $logs->perPage(),
+                'total' => $logs->total(),
+                'from' => $logs->firstItem(),
+                'to' => $logs->lastItem(),
+            ]);
+        } catch (\Throwable $exception) {
+            Log::error('AdminCustomerApiController@logs error: '.$exception->getMessage());
+
+            return $this->jsonError('Failed to fetch customer logs', 500);
+        }
+    }
+
+    public function changeRequests(string $id): JsonResponse
+    {
+        try {
+            $customer = $this->findCustomer($id);
+
+            $requests = ChangeRequest::query()
+                ->where('changeable_type', Customer::class)
+                ->where('changeable_id', $customer->id)
+                ->orderByDesc('created_at')
+                ->get()
+                ->map(fn (ChangeRequest $changeRequest) => $this->changeRequestFormatter->formatSummary($changeRequest))
+                ->values()
+                ->all();
+
+            return $this->jsonSuccess($requests);
+        } catch (\Throwable $exception) {
+            Log::error('AdminCustomerApiController@changeRequests error: '.$exception->getMessage());
+
+            return $this->jsonError('Failed to fetch change requests', 500);
+        }
+    }
+
+    public function changeRequestDetail(string $id, string $changeRequest): JsonResponse
+    {
+        try {
+            $customer = $this->findCustomer($id);
+            $changeRequestModel = $this->findCustomerChangeRequest($customer, $changeRequest);
+
+            return $this->jsonSuccess(
+                $this->changeRequestFormatter->formatDetail($changeRequestModel),
+            );
+        } catch (\Throwable $exception) {
+            Log::error('AdminCustomerApiController@changeRequestDetail error: '.$exception->getMessage());
+
+            return $this->jsonError('Failed to fetch change request details', 500);
+        }
+    }
+
+    public function approveChangeRequest(Request $request, string $id, string $changeRequest): JsonResponse
+    {
+        try {
+            $customer = $this->findCustomer($id);
+            $changeRequestModel = $this->findCustomerChangeRequest($customer, $changeRequest);
+
+            $this->changeRequestService->approve(
+                $changeRequestModel,
+                $request->user('admin-api'),
+                $request->input('moderation_note'),
+            );
+
+            return $this->jsonSuccess(
+                AdminCustomerResource::make($customer->fresh(['merchant', 'country', 'city', 'wallet']))->resolve(),
+                'Change request approved successfully',
+            );
+        } catch (\Throwable $exception) {
+            Log::error('AdminCustomerApiController@approveChangeRequest error: '.$exception->getMessage());
+
+            return $this->jsonError($exception->getMessage(), 400);
+        }
+    }
+
+    public function rejectChangeRequest(Request $request, string $id, string $changeRequest): JsonResponse
+    {
+        try {
+            $customer = $this->findCustomer($id);
+            $changeRequestModel = $this->findCustomerChangeRequest($customer, $changeRequest);
+
+            $this->changeRequestService->reject(
+                $changeRequestModel,
+                $request->user('admin-api'),
+                $request->input('moderation_note'),
+            );
+
+            return $this->jsonSuccess(
+                AdminCustomerResource::make($customer->fresh(['merchant', 'country', 'city', 'wallet']))->resolve(),
+                'Change request rejected successfully',
+            );
+        } catch (\Throwable $exception) {
+            Log::error('AdminCustomerApiController@rejectChangeRequest error: '.$exception->getMessage());
+
+            return $this->jsonError($exception->getMessage(), 400);
+        }
+    }
+
     private function buildFilteredQuery(Request $request)
     {
         $query = Customer::query()->with(['merchant', 'country', 'city', 'wallet'])->withCountry();
@@ -457,9 +641,25 @@ class AdminCustomerApiController extends Controller
     private function findCustomer(string $id): Customer
     {
         return Customer::query()
-            ->with(['merchant', 'country', 'city', 'wallet'])
+            ->with([
+                'merchant',
+                'country',
+                'city',
+                'wallet',
+                'attachments',
+                'rejections' => fn ($query) => $query->latest()->limit(1),
+            ])
             ->withCountry()
             ->whereKey($id)
+            ->firstOrFail();
+    }
+
+    private function findCustomerChangeRequest(Customer $customer, string $changeRequestId): ChangeRequest
+    {
+        return ChangeRequest::query()
+            ->where('changeable_type', Customer::class)
+            ->where('changeable_id', $customer->id)
+            ->whereKey($changeRequestId)
             ->firstOrFail();
     }
 

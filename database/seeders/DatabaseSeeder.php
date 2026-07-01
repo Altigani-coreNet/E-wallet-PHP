@@ -25,6 +25,7 @@ class DatabaseSeeder extends Seeder
         $this->call(CountrySeeder::class);
         $this->call(CitySeeder::class);
         $this->call(TelecomTopupFlowSeeder::class);
+        $this->call(PartnerPayableAccountSeeder::class);
         $this->call(AdminSeeder::class);
         
         // Create 3 merchants with their owners

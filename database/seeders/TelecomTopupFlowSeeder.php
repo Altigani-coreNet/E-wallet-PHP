@@ -12,6 +12,7 @@ use App\Models\Service;
 use App\Models\ServiceCategory;
 use App\Models\ServiceSubCategory;
 use App\Models\ServiceType;
+use App\Services\PartnerPayableAccountService;
 use Illuminate\Database\Seeder;
 
 class TelecomTopupFlowSeeder extends Seeder
@@ -138,6 +139,8 @@ class TelecomTopupFlowSeeder extends Seeder
                 ]
             );
 
+            $this->ensurePartnerPayableAccount($partner);
+
             $service = Service::query()->updateOrCreate(
                 [
                     'partner_id' => $partner->id,
@@ -199,7 +202,7 @@ class TelecomTopupFlowSeeder extends Seeder
                             'en' => 'Mobile Services Form',
                             'ar' => 'نموذج خدمات الهاتف',
                         ],
-                        'form_url' => '',
+                        'form_url' => 'https://bill-mock.test/pay',
                         'country_id' => $countryId,
                     ]
                 );
@@ -271,6 +274,8 @@ class TelecomTopupFlowSeeder extends Seeder
             ]
         );
 
+        $this->ensurePartnerPayableAccount($fastPosPartner);
+
         $fastPosService = Service::query()->updateOrCreate(
             [
                 'partner_id' => $fastPosPartner->id,
@@ -318,7 +323,7 @@ class TelecomTopupFlowSeeder extends Seeder
                     'en' => 'FastPos Payment Form',
                     'ar' => 'نموذج دفع فاست بوس',
                 ],
-                'form_url' => '',
+                'form_url' => 'https://bill-mock.test/pay',
                 'country_id' => $countryId,
             ]
         );
@@ -336,6 +341,11 @@ class TelecomTopupFlowSeeder extends Seeder
                 'country_id' => $countryId,
             ]
         );
+    }
+
+    private function ensurePartnerPayableAccount(Partner $partner): void
+    {
+        app(PartnerPayableAccountService::class)->allocateForPartner($partner);
     }
 }
 

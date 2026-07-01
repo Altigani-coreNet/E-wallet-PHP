@@ -3,6 +3,7 @@
 namespace App\Modules\CustomerAuth\Resources;
 
 use App\Models\Customer;
+use App\Modules\CustomerAuth\Services\CustomerAttachmentService;
 use Illuminate\Http\Resources\Json\JsonResource;
 
 class CustomerAuthResource extends JsonResource
@@ -13,6 +14,7 @@ class CustomerAuthResource extends JsonResource
         $customer = $this->resource;
 
         $wallet = $customer->relationLoaded('wallet') ? $customer->wallet : null;
+        $attachments = app(CustomerAttachmentService::class)->getAttachmentUrls($customer);
 
         return [
             'id' => $customer->id,
@@ -22,7 +24,8 @@ class CustomerAuthResource extends JsonResource
             'birthDate' => $customer->birth_date?->toIso8601String(),
             'gender' => $customer->gender,
             'nationalId' => $customer->national_id,
-            'profileImage' => $customer->getProfileImageApi(),
+            'profileImage' => $attachments['profile_image'] ?? $customer->getProfileImageApi(),
+            'attachments' => $attachments,
             'address' => $customer->address,
             'countryId' => $customer->country_id,
             'cityId' => $customer->city_id,

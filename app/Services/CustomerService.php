@@ -2,12 +2,25 @@
 
 namespace App\Services;
 
+use App\Mail\CustomerApprovalMail;
+use App\Mail\CustomerRejectionMail;
 use App\Models\Customer;
+use App\Models\CustomerRejection;
 use App\Models\Merchant;
+use App\Support\CustomerEventMessageBuilder;
+use App\Modules\AdminKyc\Notifications\AdminKycNotificationType;
+use App\Modules\AdminKyc\Services\AdminKycNotificationService;
+use App\Modules\AdminKyc\Services\AdminKycQueueService;
+use App\Modules\CustomerAuth\Notifications\CustomerNotificationType;
+use App\Modules\CustomerAuth\Services\CustomerAttachmentService;
+use App\Modules\CustomerAuth\Services\CustomerSystemNotificationService;
 use App\Repositories\CustomerRepository;
 use App\Support\CsvExport;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Validation\ValidationException;
 
 class CustomerService
@@ -15,6 +28,8 @@ class CustomerService
     public function __construct(
         private readonly CustomerRepository $customerRepository,
         private readonly WalletService $walletService,
+        private readonly CustomerSystemNotificationService $customerSystemNotificationService,
+        private readonly AdminKycQueueService $adminKycQueueService,
     ) {
     }
 
@@ -123,6 +138,219 @@ class CustomerService
         }
 
         return $this->customerRepository->update($customer, $data);
+    }
+
+    /**
+     * Approve a pending or rejected customer application.
+     */
+    public function approve(Customer $customer): array
+    {
+        if (! in_array($customer->status, Customer::APPROVABLE_STATUSES, true)) {
+            throw ValidationException::withMessages([
+                'status' => 'Only pending or rejected customers can be approved.',
+            ]);
+        }
+
+        return DB::transaction(function () use ($customer) {
+            $customer->status = Customer::STATUS_ACTIVE;
+            $customer->save();
+
+            $fresh = $customer->fresh(['merchant', 'country', 'city', 'wallet']);
+            $admin = $this->resolveCustomerLogActor();
+
+            $this->logCustomerAction($fresh, 'approved', null, $fresh->getAttributes(), [
+                'type' => 'approval',
+                'event' => 'Admin approved customer profile',
+                'message' => CustomerEventMessageBuilder::approved($fresh, $admin?->name),
+            ]);
+
+            $this->customerSystemNotificationService->send(
+                $fresh,
+                CustomerNotificationType::ProfileApproved,
+            );
+
+            $this->sendApprovalEmail($fresh);
+
+            $this->adminKycQueueService->broadcast();
+
+            return [
+                'message' => 'Customer approved successfully',
+                'customer' => $fresh,
+            ];
+        });
+    }
+
+    /**
+     * Reject a customer application with reason and flagged fields.
+     *
+     * @param  list<string>  $invalidFields
+     * @param  list<string>  $missingAttachments
+     */
+    public function reject(
+        Customer $customer,
+        string $rejectionReason,
+        array $invalidFields = [],
+        array $missingAttachments = [],
+    ): array {
+        if ($customer->status === Customer::STATUS_REJECTED) {
+            throw ValidationException::withMessages([
+                'status' => 'Customer is already rejected.',
+            ]);
+        }
+
+        if (! in_array($customer->status, Customer::REJECTABLE_STATUSES, true)) {
+            throw ValidationException::withMessages([
+                'status' => 'Only pending or requesting-updated customers can be rejected.',
+            ]);
+        }
+
+        foreach ($missingAttachments as $attachment) {
+            if (! in_array($attachment, CustomerAttachmentService::ALLOWED_MISSING_ATTACHMENTS, true)) {
+                throw ValidationException::withMessages([
+                    'missing_attachments' => 'Invalid attachment key: '.$attachment,
+                ]);
+            }
+        }
+
+        return DB::transaction(function () use ($customer, $rejectionReason, $invalidFields, $missingAttachments) {
+            $customer->status = Customer::STATUS_REJECTED;
+            $customer->save();
+
+            $rejectedById = $this->resolveRejectionActorId();
+
+            CustomerRejection::create([
+                'customer_id' => $customer->id,
+                'rejection_reason' => $rejectionReason,
+                'invalid_fields' => $invalidFields,
+                'missing_attachments' => $missingAttachments ?: null,
+                'rejected_by' => $rejectedById,
+            ]);
+
+            $fresh = $customer->fresh(['merchant', 'country', 'city', 'wallet']);
+            $admin = $this->resolveCustomerLogActor();
+
+            $this->logCustomerAction($fresh, 'rejected', null, $fresh->getAttributes(), [
+                'type' => 'rejection',
+                'reason' => $rejectionReason,
+                'invalid_fields' => $invalidFields,
+                'missing_attachments' => $missingAttachments,
+                'event' => 'Admin rejected customer profile',
+                'message' => CustomerEventMessageBuilder::rejected(
+                    $rejectionReason,
+                    $invalidFields,
+                    $missingAttachments,
+                    $admin?->name,
+                ),
+            ]);
+
+            $this->customerSystemNotificationService->send(
+                $fresh,
+                CustomerNotificationType::ProfileRejected,
+                ['reason' => $rejectionReason],
+            );
+
+            $this->sendRejectionEmail($fresh, $rejectionReason);
+
+            $this->adminKycQueueService->broadcast();
+
+            return [
+                'message' => 'Customer rejected successfully',
+                'customer' => $fresh,
+            ];
+        });
+    }
+
+    public function logCustomerEvent(Customer $customer, string $action, array $metadata = [], $oldValues = null, $newValues = null): void
+    {
+        $this->logCustomerAction($customer, $action, $oldValues, $newValues, $metadata);
+    }
+
+    protected function logCustomerAction(Customer $customer, string $action, $oldValues = null, $newValues = null, array $metadata = []): void
+    {
+        $actor = $this->resolveCustomerLogActor();
+
+        $metadata = array_merge([
+            'timestamp' => now(),
+            'performed_by' => $actor?->name ?? 'System',
+        ], $metadata);
+
+        $customer->logs()->create([
+            'action' => $action,
+            'old_values' => $oldValues,
+            'new_values' => $newValues,
+            'metadata' => $metadata,
+            'user_id' => $actor?->id,
+            'user_type' => $actor ? get_class($actor) : null,
+        ]);
+    }
+
+    protected function resolveCustomerLogActor(): mixed
+    {
+        if (Auth::guard('customer')->check()) {
+            return Auth::guard('customer')->user();
+        }
+
+        try {
+            $adminApiUser = Auth::guard('admin-api')->user();
+            if ($adminApiUser) {
+                return $adminApiUser;
+            }
+        } catch (\Throwable) {
+            // Passport can throw on multipart customer requests that carry a customer JWT.
+        }
+
+        return Auth::guard('admin')->user();
+    }
+
+    /**
+     * @throws \RuntimeException
+     */
+    protected function resolveRejectionActorId(): string
+    {
+        $guards = ['admin-api', 'admin', null];
+
+        foreach ($guards as $guard) {
+            try {
+                $authGuard = $guard ? Auth::guard($guard) : Auth::guard();
+            } catch (\Throwable) {
+                continue;
+            }
+
+            if ($authGuard->check()) {
+                $id = $authGuard->id();
+                if (! empty($id)) {
+                    return (string) $id;
+                }
+            }
+        }
+
+        throw new \RuntimeException('Unable to determine the rejecting user.');
+    }
+
+    protected function sendApprovalEmail(Customer $customer): void
+    {
+        if (! $customer->email || ! class_exists(CustomerApprovalMail::class)) {
+            return;
+        }
+
+        try {
+            Mail::to($customer->email)->send(new CustomerApprovalMail($customer));
+        } catch (\Throwable $e) {
+            Log::warning('Failed to send customer approval email: '.$e->getMessage());
+        }
+    }
+
+    protected function sendRejectionEmail(Customer $customer, string $reason): void
+    {
+        if (! $customer->email || ! class_exists(CustomerRejectionMail::class)) {
+            return;
+        }
+
+        try {
+            Mail::to($customer->email)->send(new CustomerRejectionMail($customer, $reason));
+        } catch (\Throwable $e) {
+            Log::warning('Failed to send customer rejection email: '.$e->getMessage());
+        }
     }
 
     /**

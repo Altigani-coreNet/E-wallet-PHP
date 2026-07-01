@@ -4,6 +4,8 @@ namespace App\Modules\CustomerAuth\Controllers;
 
 use App\Exceptions\RecipientWalletException;
 use App\Models\Customer;
+use App\Modules\CustomerAuth\Requests\CustomerWalletBillPaymentOtpRequest;
+use App\Modules\CustomerAuth\Requests\CustomerWalletBillPaymentRequest;
 use App\Modules\CustomerAuth\Requests\CustomerWalletQueryRequest;
 use App\Modules\CustomerAuth\Requests\CustomerWalletResolveRecipientRequest;
 use App\Modules\CustomerAuth\Requests\CustomerWalletTransactionsRequest;
@@ -15,6 +17,7 @@ use App\Support\SuccessResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use InvalidArgumentException;
+use RuntimeException;
 
 class CustomerWalletController
 {
@@ -151,6 +154,52 @@ class CustomerWalletController
             return SuccessResponse::make($data, 'Withdrawal completed successfully');
         } catch (InvalidArgumentException $exception) {
             return SuccessResponse::error($exception->getMessage(), 422);
+        }
+    }
+
+    public function requestBillPaymentOtp(CustomerWalletBillPaymentOtpRequest $request)
+    {
+        /** @var Customer $customer */
+        $customer = Auth::guard('customer')->user();
+
+        try {
+            $payload = $request->validated();
+            $idempotencyKey = $this->resolveIdempotencyKey($request);
+            if ($idempotencyKey !== null) {
+                $payload['idempotency_key'] = $idempotencyKey;
+            }
+
+            $data = $this->walletService->issueBillPaymentOtp($customer, $payload);
+
+            return SuccessResponse::make($data, 'Bill payment OTP sent successfully', 201);
+        } catch (InvalidArgumentException $exception) {
+            return SuccessResponse::error($exception->getMessage(), 422);
+        }
+    }
+
+    public function billPayment(CustomerWalletBillPaymentRequest $request)
+    {
+        /** @var Customer $customer */
+        $customer = Auth::guard('customer')->user();
+
+        try {
+            $data = $this->walletService->payBill(
+                $customer,
+                $request->validated('service_id'),
+                $request->validated('product_id'),
+                (float) $request->validated('amount'),
+                $request->validated('service_payload') ?? [],
+                $request->validated('description'),
+                $this->resolveIdempotencyKey($request),
+                $request->validated('otp_token'),
+                (int) $request->validated('otp'),
+            );
+
+            return SuccessResponse::make($data, 'Bill payment completed successfully');
+        } catch (InvalidArgumentException $exception) {
+            return SuccessResponse::error($exception->getMessage(), 422);
+        } catch (RuntimeException $exception) {
+            return SuccessResponse::error($exception->getMessage(), 502);
         }
     }
 

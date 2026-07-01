@@ -27,3 +27,11 @@ Broadcast::channel('merchant-notifications.{targetMerchantId}', function ($user,
 Broadcast::channel('services_updates', function ($user) {
     return !is_null($user);
 });
+
+Broadcast::channel('admin-notifications.{targetAdminId}', function ($user, string $targetAdminId) {
+    return (string) $user->id === (string) $targetAdminId;
+});
+
+Broadcast::channel('admin-kyc-queue', function ($user) {
+    return ! is_null($user);
+});

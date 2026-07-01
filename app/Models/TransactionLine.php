@@ -23,6 +23,7 @@ class TransactionLine extends Model
         'account_id',
         'reference',
         'reference_id',
+        'operation_id',
         'reference_sub_id',
         'date',
         'credit',

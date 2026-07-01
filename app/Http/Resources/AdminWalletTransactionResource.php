@@ -32,6 +32,7 @@ class AdminWalletTransactionResource extends JsonResource
             'balance_after' => (float) $transaction->balance_after,
             'reference' => $transaction->reference,
             'reference_id' => $transaction->reference_id,
+            'operation_id' => $transaction->operation_id,
             'description' => $transaction->description,
             'note' => $transaction->note,
             'created_by' => $transaction->created_by,

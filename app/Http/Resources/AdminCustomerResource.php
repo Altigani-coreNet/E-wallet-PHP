@@ -2,7 +2,10 @@
 
 namespace App\Http\Resources;
 
+use App\Models\ChangeRequest;
 use App\Models\Customer;
+use App\Models\CustomerRejection;
+use App\Modules\CustomerAuth\Services\CustomerAttachmentService;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -38,7 +41,9 @@ class AdminCustomerResource extends JsonResource
                 ? $customer->wallet->wallet_id
                 : null,
             'profile_image_url' => $customer->getProfileImageApi(),
+            'attachments' => app(CustomerAttachmentService::class)->getAttachmentsForAdmin($customer),
             'profile_completed' => (bool) $customer->profile_completed,
+            'profile_completion' => Customer::calculateProfileCompletion($customer),
             'merchant_id' => $customer->merchant_id,
             'country_name' => $customer->relationLoaded('country') && $customer->country
                 ? $this->localizedName($customer->country)
@@ -68,9 +73,43 @@ class AdminCustomerResource extends JsonResource
                     'business_name' => $customer->merchant->business_name ?? null,
                 ]
                 : null,
+            'latest_rejection' => $this->latestRejection($customer),
+            'has_pending_change' => $this->hasPendingChange($customer),
             'created_at' => $customer->created_at?->toIso8601String(),
             'updated_at' => $customer->updated_at?->toIso8601String(),
         ];
+    }
+
+    private function latestRejection(Customer $customer): ?array
+    {
+        $rejection = $customer->relationLoaded('rejections')
+            ? $customer->rejections->first()
+            : CustomerRejection::query()
+                ->where('customer_id', $customer->id)
+                ->latest()
+                ->first();
+
+        if (! $rejection) {
+            return null;
+        }
+
+        return [
+            'id' => $rejection->id,
+            'rejection_reason' => $rejection->rejection_reason,
+            'invalid_fields' => $rejection->invalid_fields ?? [],
+            'missing_attachments' => $rejection->missing_attachments ?? [],
+            'rejected_by' => $rejection->rejected_by,
+            'created_at' => $rejection->created_at?->toIso8601String(),
+        ];
+    }
+
+    private function hasPendingChange(Customer $customer): bool
+    {
+        return ChangeRequest::query()
+            ->where('changeable_type', Customer::class)
+            ->where('changeable_id', $customer->id)
+            ->where('status', 'pending')
+            ->exists();
     }
 
     private function localizedName(object $model): string

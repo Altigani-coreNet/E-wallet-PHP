@@ -10,6 +10,7 @@ use App\Modules\CustomerAuth\Notifications\CustomerNotificationType;
 use App\Modules\CustomerAuth\Services\CustomerSystemNotificationService;
 use App\Modules\CustomerAuth\Support\CustomerJwtService;
 use App\Notifications\TestUserNotification;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Notifications\DatabaseNotification;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Mail;
@@ -33,7 +34,9 @@ class CustomerSystemNotificationTest extends CustomerAuthTestCase
         ]);
 
         $this->withCustomerToken($customer)
-            ->postJson('/api/v1/customer/profile/complete', $this->profilePayload($city))
+            ->post('/api/v1/customer/profile/complete', $this->profilePayload($city), [
+                'Accept' => 'application/json',
+            ])
             ->assertOk()
             ->assertJsonPath('data.profile_completed', true);
 
@@ -62,7 +65,9 @@ class CustomerSystemNotificationTest extends CustomerAuthTestCase
         ]);
 
         $this->withCustomerToken($customer)
-            ->postJson('/api/v1/customer/profile/complete', $this->profilePayload($city))
+            ->post('/api/v1/customer/profile/complete', $this->profilePayload($city), [
+                'Accept' => 'application/json',
+            ])
             ->assertOk();
 
         $this->withCustomerToken($customer->fresh())
@@ -100,7 +105,9 @@ class CustomerSystemNotificationTest extends CustomerAuthTestCase
         $this->app->instance(CustomerSystemNotificationService::class, $mock);
 
         $this->withCustomerToken($customer)
-            ->postJson('/api/v1/customer/profile/complete', $this->profilePayload($city))
+            ->post('/api/v1/customer/profile/complete', $this->profilePayload($city), [
+                'Accept' => 'application/json',
+            ])
             ->assertOk()
             ->assertJsonPath('data.profile_completed', true);
 
@@ -127,7 +134,9 @@ class CustomerSystemNotificationTest extends CustomerAuthTestCase
         ]);
 
         $this->withCustomerToken($customer)
-            ->postJson('/api/v1/customer/profile/complete', $this->profilePayload($city))
+            ->post('/api/v1/customer/profile/complete', $this->profilePayload($city), [
+                'Accept' => 'application/json',
+            ])
             ->assertOk();
 
         $this->assertEquals(0, DatabaseNotification::query()->count());
@@ -222,6 +231,8 @@ class CustomerSystemNotificationTest extends CustomerAuthTestCase
             'gender' => 'male',
             'cityId' => $city->id,
             'country_code' => '249',
+            'picture' => UploadedFile::fake()->image('avatar.jpg'),
+            'passport' => UploadedFile::fake()->create('passport.pdf', 100, 'application/pdf'),
         ];
     }
 }

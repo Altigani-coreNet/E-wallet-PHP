@@ -66,6 +66,7 @@ class ChartOfAccountSeeder extends Seeder
             ['code' => 1020, 'name' => 'Settlement Receivable', 'type_key' => 'assets', 'sub_type_key' => '1'],
             ['code' => 2000, 'name' => 'Customer Wallet Liability', 'type_key' => 'liabilities', 'sub_type_key' => '1'],
             ['code' => 2050, 'name' => 'Master Wallet Liability', 'type_key' => 'liabilities', 'sub_type_key' => '1'],
+            ['code' => 2100, 'name' => 'Third Party Payables', 'type_key' => 'liabilities', 'sub_type_key' => '1'],
             ['code' => 2900, 'name' => 'Fees / Tax Payable', 'type_key' => 'liabilities', 'sub_type_key' => '1'],
             ['code' => 3000, 'name' => 'Owner Equity', 'type_key' => 'equity', 'sub_type_key' => '1'],
             ['code' => 3900, 'name' => 'Retained Earnings', 'type_key' => 'equity', 'sub_type_key' => '1'],

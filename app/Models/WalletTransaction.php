@@ -32,6 +32,7 @@ class WalletTransaction extends Model
         'balance_after',
         'reference',
         'reference_id',
+        'operation_id',
         'description',
         'note',
         'created_by',

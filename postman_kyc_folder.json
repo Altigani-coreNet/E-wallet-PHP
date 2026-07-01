@@ -1,0 +1,345 @@
+{
+    "name": "KYC",
+    "description": "Customer KYC lifecycle: register → complete profile → admin reject/approve → resubmit rejected fields → active customer change requests → audit event logs.\n\n**Recommended order (Customer):**\n1. OTP → Register (saves `customer_jwt`, `customer_id`)\n2. Complete Profile (multipart; requires `nationalId`, passport file in dev)\n3. If rejected: Get Rejected Fields → Update Rejected Fields\n4. If active: Update Profile → creates change request (`requesting_updated`)\n\n**Recommended order (Admin):**\n1. Admin Login (saves `admin_token`)\n2. Reject Customer or Approve Customer\n3. Get Customer Logs / List Change Requests\n4. Approve or Reject Change Request\n\nPermissions: `approve_customers`, `reject_customers`, `view_customers`. Dev OTP: `OTP_MOCK_CODE=111111`.",
+    "item": [
+        {
+            "name": "Customer Flow",
+            "description": "Customer JWT endpoints under `/api/v1/customer`. Run OTP + Register first.",
+            "item": [
+                {
+                    "name": "1. Complete Profile (KYC Submit)",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            { "key": "Accept", "value": "application/json", "type": "text" },
+                            { "key": "Authorization", "value": "Bearer {{customer_jwt}}", "type": "text" }
+                        ],
+                        "body": {
+                            "mode": "formdata",
+                            "formdata": [
+                                { "key": "firstName", "value": "{{customer_first_name}}", "type": "text" },
+                                { "key": "nationalId", "value": "{{customer_national_id}}", "type": "text" },
+                                { "key": "email", "value": "{{customer_email}}", "type": "text" },
+                                { "key": "birthDate", "value": "1990-05-15", "type": "text" },
+                                { "key": "gender", "value": "male", "type": "text" },
+                                { "key": "cityId", "value": "{{city_id}}", "type": "text" },
+                                { "key": "country_code", "value": "{{country_code}}", "type": "text" },
+                                { "key": "picture", "type": "file", "src": [], "description": "Profile photo" },
+                                { "key": "passport", "type": "file", "src": [], "description": "Passport document (required)" }
+                            ]
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/api/v1/customer/profile/complete",
+                            "host": ["{{base_url}}"],
+                            "path": ["api", "v1", "customer", "profile", "complete"]
+                        },
+                        "description": "First-time KYC submission. Logs `profile_completed` event. Creates wallet."
+                    },
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "if (pm.response.code === 200) {",
+                                    "    const json = pm.response.json();",
+                                    "    const customer = json.data?.customer;",
+                                    "    if (customer?.id) pm.collectionVariables.set('customer_id', customer.id);",
+                                    "}"
+                                ]
+                            }
+                        }
+                    ]
+                },
+                {
+                    "name": "2. Get Profile (KYC Status)",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            { "key": "Accept", "value": "application/json", "type": "text" },
+                            { "key": "Authorization", "value": "Bearer {{customer_jwt}}", "type": "text" }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/v1/customer/profile",
+                            "host": ["{{base_url}}"],
+                            "path": ["api", "v1", "customer", "profile"]
+                        },
+                        "description": "Returns `profile_completed`, `has_pending_change`, and latest `rejection` when status is rejected."
+                    },
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "if (pm.response.code === 200) {",
+                                    "    const json = pm.response.json();",
+                                    "    const customer = json.data?.customer;",
+                                    "    if (customer?.id) pm.collectionVariables.set('customer_id', customer.id);",
+                                    "}"
+                                ]
+                            }
+                        }
+                    ]
+                },
+                {
+                    "name": "3. Get Rejected Fields",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            { "key": "Accept", "value": "application/json", "type": "text" },
+                            { "key": "Authorization", "value": "Bearer {{customer_jwt}}", "type": "text" }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/v1/customer/profile/rejected-fields",
+                            "host": ["{{base_url}}"],
+                            "path": ["api", "v1", "customer", "profile", "rejected-fields"]
+                        },
+                        "description": "Available when customer `status=rejected`. Returns flagged invalid fields and missing attachments."
+                    }
+                },
+                {
+                    "name": "4. Update Rejected Fields (Resubmit)",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            { "key": "Accept", "value": "application/json", "type": "text" },
+                            { "key": "Authorization", "value": "Bearer {{customer_jwt}}", "type": "text" }
+                        ],
+                        "body": {
+                            "mode": "formdata",
+                            "formdata": [
+                                { "key": "name", "value": "Corrected Name", "type": "text", "description": "Send only fields flagged in rejection" }
+                            ]
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/api/v1/customer/profile/update-rejected-fields",
+                            "host": ["{{base_url}}"],
+                            "path": ["api", "v1", "customer", "profile", "update-rejected-fields"]
+                        },
+                        "description": "Fixes flagged fields → `status=pending`. Logs `profile_resubmitted` with field-level message."
+                    }
+                },
+                {
+                    "name": "5. Update Profile (Active → Change Request)",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            { "key": "Accept", "value": "application/json", "type": "text" },
+                            { "key": "Authorization", "value": "Bearer {{customer_jwt}}", "type": "text" }
+                        ],
+                        "body": {
+                            "mode": "formdata",
+                            "formdata": [
+                                { "key": "firstName", "value": "Updated Name", "type": "text" },
+                                { "key": "birthDate", "value": "1991-07-14", "type": "text" },
+                                { "key": "gender", "value": "female", "type": "text" },
+                                { "key": "cityId", "value": "{{city_id}}", "type": "text" },
+                                { "key": "country_code", "value": "{{country_code}}", "type": "text" }
+                            ]
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/api/v1/customer/profile/update",
+                            "host": ["{{base_url}}"],
+                            "path": ["api", "v1", "customer", "profile", "update"]
+                        },
+                        "description": "When `status=active`, creates pending change request and sets `requesting_updated`. Logs `change_request_submitted`."
+                    }
+                }
+            ]
+        },
+        {
+            "name": "Admin Review",
+            "description": "Admin bearer token (`admin_token`). Run **Admin Login** first (also in Admin Wallets folder).",
+            "item": [
+                {
+                    "name": "1. Admin Login",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            { "key": "Accept", "value": "application/json", "type": "text" },
+                            { "key": "Content-Type", "value": "application/json", "type": "text" }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"email\": \"{{admin_email}}\",\n    \"password\": \"{{admin_password}}\"\n}",
+                            "options": { "raw": { "language": "json" } }
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/api/v2/admin/auth/login",
+                            "host": ["{{base_url}}"],
+                            "path": ["api", "v2", "admin", "auth", "login"]
+                        },
+                        "description": "Saves `admin_token` for KYC admin endpoints."
+                    },
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "if (pm.response.code === 200) {",
+                                    "    const json = pm.response.json();",
+                                    "    const token = json.data?.token || json.data?.access_token || json.token;",
+                                    "    if (token) pm.collectionVariables.set('admin_token', token);",
+                                    "}"
+                                ]
+                            }
+                        }
+                    ]
+                },
+                {
+                    "name": "2. Approve Customer (KYC)",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            { "key": "Accept", "value": "application/json", "type": "text" },
+                            { "key": "Authorization", "value": "Bearer {{admin_token}}", "type": "text" }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/v2/admin/customers/{{customer_id}}/approve",
+                            "host": ["{{base_url}}"],
+                            "path": ["api", "v2", "admin", "customers", "{{customer_id}}", "approve"]
+                        },
+                        "description": "Approves `pending` or `rejected` customer → `active`. Logs `approved` event with detailed message."
+                    }
+                },
+                {
+                    "name": "3. Reject Customer (KYC)",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            { "key": "Accept", "value": "application/json", "type": "text" },
+                            { "key": "Content-Type", "value": "application/json", "type": "text" },
+                            { "key": "Authorization", "value": "Bearer {{admin_token}}", "type": "text" }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"rejection_reason\": \"Full name must be corrected and resubmitted for KYC verification purposes.\",\n    \"invalid_fields\": [\"name\"],\n    \"missing_attachments\": []\n}",
+                            "options": { "raw": { "language": "json" } }
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/api/v2/admin/customers/{{customer_id}}/reject",
+                            "host": ["{{base_url}}"],
+                            "path": ["api", "v2", "admin", "customers", "{{customer_id}}", "reject"]
+                        },
+                        "description": "Rejects `pending` or `requesting_updated` customer. `invalid_fields`: name, email, phone, national_id, birth_date, gender, country, city. `missing_attachments`: profile_image, passport_document."
+                    }
+                },
+                {
+                    "name": "4. Get Customer Event Logs",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            { "key": "Accept", "value": "application/json", "type": "text" },
+                            { "key": "Authorization", "value": "Bearer {{admin_token}}", "type": "text" }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/v2/admin/customers/{{customer_id}}/logs?page=1&per_page=15&search=",
+                            "host": ["{{base_url}}"],
+                            "path": ["api", "v2", "admin", "customers", "{{customer_id}}", "logs"],
+                            "query": [
+                                { "key": "page", "value": "1" },
+                                { "key": "per_page", "value": "15" },
+                                { "key": "search", "value": "", "description": "Search action or message" }
+                            ]
+                        },
+                        "description": "Paginated audit trail (newest first). Each item includes `action`, `label`, `text`, `time`, `metadata.message`."
+                    }
+                },
+                {
+                    "name": "5. List Change Requests",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            { "key": "Accept", "value": "application/json", "type": "text" },
+                            { "key": "Authorization", "value": "Bearer {{admin_token}}", "type": "text" }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/v2/admin/customers/{{customer_id}}/change-requests",
+                            "host": ["{{base_url}}"],
+                            "path": ["api", "v2", "admin", "customers", "{{customer_id}}", "change-requests"]
+                        },
+                        "description": "Formatted summaries with `changed_fields`, status, requester. Saves first pending `change_request_id`."
+                    },
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "if (pm.response.code === 200) {",
+                                    "    const json = pm.response.json();",
+                                    "    const list = json.data || [];",
+                                    "    const pending = list.find((cr) => cr.status === 'pending') || list[0];",
+                                    "    if (pending?.id) pm.collectionVariables.set('change_request_id', String(pending.id));",
+                                    "}"
+                                ]
+                            }
+                        }
+                    ]
+                },
+                {
+                    "name": "6. Get Change Request Detail",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            { "key": "Accept", "value": "application/json", "type": "text" },
+                            { "key": "Authorization", "value": "Bearer {{admin_token}}", "type": "text" }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/v2/admin/customers/{{customer_id}}/change-requests/{{change_request_id}}",
+                            "host": ["{{base_url}}"],
+                            "path": ["api", "v2", "admin", "customers", "{{customer_id}}", "change-requests", "{{change_request_id}}"]
+                        },
+                        "description": "Field diff: `changes.{Field}.current` vs `changes.{Field}.requested`."
+                    }
+                },
+                {
+                    "name": "7. Approve Change Request",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            { "key": "Accept", "value": "application/json", "type": "text" },
+                            { "key": "Content-Type", "value": "application/json", "type": "text" },
+                            { "key": "Authorization", "value": "Bearer {{admin_token}}", "type": "text" }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"moderation_note\": \"Approved after reviewing profile changes.\"\n}",
+                            "options": { "raw": { "language": "json" } }
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/api/v2/admin/customers/{{customer_id}}/change-requests/{{change_request_id}}/approve",
+                            "host": ["{{base_url}}"],
+                            "path": ["api", "v2", "admin", "customers", "{{customer_id}}", "change-requests", "{{change_request_id}}", "approve"]
+                        },
+                        "description": "Applies payload to customer → `active`. Logs `change_request_approved` with field-level message."
+                    }
+                },
+                {
+                    "name": "8. Reject Change Request",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            { "key": "Accept", "value": "application/json", "type": "text" },
+                            { "key": "Content-Type", "value": "application/json", "type": "text" },
+                            { "key": "Authorization", "value": "Bearer {{admin_token}}", "type": "text" }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"moderation_note\": \"Requested changes are not acceptable.\"\n}",
+                            "options": { "raw": { "language": "json" } }
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/api/v2/admin/customers/{{customer_id}}/change-requests/{{change_request_id}}/reject",
+                            "host": ["{{base_url}}"],
+                            "path": ["api", "v2", "admin", "customers", "{{customer_id}}", "change-requests", "{{change_request_id}}", "reject"]
+                        },
+                        "description": "Rejects pending change request; customer returns to `active` without applying fields. Logs `change_request_rejected`."
+                    }
+                }
+            ]
+        }
+    ]
+}

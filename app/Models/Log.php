@@ -53,6 +53,7 @@ class Log extends Model
     {
         return match ($this->loggable_type) {
             Merchant::class => "Merchants",
+            Customer::class => "Customers",
             Admin::class => "Admins",
             Terminal::class => "Terminals",
             User::class => "Users",
@@ -62,11 +63,17 @@ class Log extends Model
 
     public function getLabelAttribute()
     {
-        return match ($this->action) {
+        $action = (string) $this->action;
+
+        if (str_starts_with($action, 'change_request_')) {
+            return str_contains($action, 'reject') ? 'danger' : 'warning';
+        }
+
+        return match ($action) {
             'created' => 'success',
             'updated' => 'primary',
             'deleted' => 'danger',
-            "status_changed" => "warning",
+            'status_changed' => 'warning',
             'rejected' => 'danger',
             'approved' => 'success',
             'suspended' => 'danger',
@@ -74,6 +81,9 @@ class Log extends Model
             'attachments_updated' => 'success',
             'viewed' => 'info',
             'registered' => 'success',
+            'profile_completed' => 'success',
+            'profile_resubmitted' => 'primary',
+            'password_reset' => 'warning',
             'retrieved' => 'info',
             'user_assigned' => 'success',
             'user_removed' => 'warning',
@@ -90,9 +100,9 @@ class Log extends Model
             'roles_removed' => 'warning',
             'terminals_updated' => 'info',
             'terminal_removed' => 'warning',
-            default => 'secondary'
+            default => 'secondary',
         };
-    }   
+    }
 
 
     public function getTimeAttribute()
@@ -133,11 +143,17 @@ class Log extends Model
             'status_changed' => "{$entityType} status changed by {$userName}",
             'rejected' => "{$entityType} rejected by {$userName}",
             'approved' => "{$entityType} approved by {$userName}",
+            'change_request_approved' => "Profile change request approved by {$userName}",
+            'change_request_rejected' => "Profile change request rejected by {$userName}",
             'suspended' => "{$entityType} suspended by {$userName}",
             'activated' => "{$entityType} activated by {$userName}",
             'attachments_updated' => "{$entityType} attachments updated by {$userName}",
             'viewed' => "{$entityType} viewed by {$userName}",
-            'registered' => "{$entityType} registered automatically",
+            'registered' => "{$entityType} registered by {$userName}",
+            'profile_completed' => "{$entityType} completed profile by {$userName}",
+            'profile_resubmitted' => "{$entityType} resubmitted profile corrections by {$userName}",
+            'password_reset' => "{$entityType} reset account password",
+            'change_request_submitted' => "{$entityType} submitted a profile change request",
             'retrieved' => "{$entityType} retrieved automatically",
             'user_assigned' => "{$entityType} user assigned by {$userName}",
             'user_removed' => "{$entityType} user removed by {$userName}",

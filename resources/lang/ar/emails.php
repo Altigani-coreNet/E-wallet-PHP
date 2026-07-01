@@ -153,6 +153,24 @@ return [
     'merchant_rejection_thanks' => 'شكراً لاهتمامك بمنصتنا.',
     'merchant_rejection_regards' => 'مع أطيب التحيات،',
 
+    // Customer rejection
+    'customer_rejection_subject' => 'تحديث حالة طلب الحساب',
+    'customer_rejection_title' => 'تحديث حالة الطلب',
+    'customer_rejection_greeting' => 'عزيزي :name،',
+    'customer_rejection_intro' => 'نأسف لإبلاغك بأن طلب حساب المحفظة لم تتم الموافقة عليه في الوقت الحالي.',
+    'customer_rejection_reason_title' => 'سبب الرفض',
+    'customer_rejection_reapply' => 'يرجى تسجيل الدخول إلى حسابك ومراجعة الحقول المطلوبة وتحديث ملفك الشخصي وإعادة الإرسال للمراجعة.',
+    'customer_rejection_thanks' => 'شكراً لاهتمامك بمنصتنا.',
+    'customer_rejection_regards' => 'مع أطيب التحيات،',
+
+    // Customer approval
+    'customer_approval_subject' => 'تمت الموافقة على حساب محفظتك',
+    'customer_approval_title' => 'تمت الموافقة على الحساب',
+    'customer_approval_greeting' => 'عزيزي :name،',
+    'customer_approval_intro' => 'أخبار رائعة! تمت الموافقة على حساب محفظتك. يمكنك الآن استخدام جميع ميزات المحفظة بما في ذلك التحويلات ودفع الفواتير.',
+    'customer_approval_thanks' => 'شكراً لاختيارك منصتنا.',
+    'customer_approval_regards' => 'مع أطيب التحيات،',
+
     'merchant_registration_confirmation_subject' => 'تم استلام التسجيل — :app',
     'merchant_registration_confirmation_title' => 'تم استلام التسجيل',
     'merchant_registration_confirmation_greeting' => 'مرحباً :name،',

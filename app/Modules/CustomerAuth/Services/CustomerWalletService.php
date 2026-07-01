@@ -4,10 +4,13 @@ namespace App\Modules\CustomerAuth\Services;
 
 use App\Exceptions\RecipientWalletException;
 use App\Models\Customer;
+use App\Models\Product;
+use App\Models\Service;
 use App\Models\Wallet;
 use App\Models\WalletTransaction;
 use App\Modules\CustomerAuth\Notifications\CustomerNotificationType;
 use App\Services\IdempotencyService;
+use App\Services\WalletBillPaymentService;
 use App\Services\WalletService;
 use Carbon\Carbon;
 use InvalidArgumentException;
@@ -18,11 +21,14 @@ class CustomerWalletService
 
     public const SCOPE_WITHDRAW = 'wallet.withdraw';
 
+    public const SCOPE_BILL_PAYMENT = 'wallet.bill_payment';
+
     public function __construct(
         private readonly WalletService $walletService,
         private readonly IdempotencyService $idempotencyService,
         private readonly CustomerSystemNotificationService $customerSystemNotificationService,
         private readonly WalletTransferOtpService $walletTransferOtpService,
+        private readonly WalletBillPaymentService $walletBillPaymentService,
     ) {
     }
 
@@ -191,6 +197,119 @@ class CustomerWalletService
         $this->assertTransferIntent($sender, $normalized['recipient_wallet_id'], $normalized['amount']);
 
         return $this->walletTransferOtpService->issue($sender, $normalized);
+    }
+
+    /**
+     * @param  array<string, mixed>  $payload
+     * @return array{otp_token: string, expires_at: string}
+     */
+    public function issueBillPaymentOtp(Customer $customer, array $payload): array
+    {
+        $normalized = WalletTransferOtpService::normalizeBillPaymentPayload($payload);
+        $this->assertBillPaymentIntent($customer, $normalized['service_id'], $normalized['product_id'], $normalized['amount']);
+
+        return $this->walletTransferOtpService->issueBillPayment($customer, $normalized);
+    }
+
+    /**
+     * @param  array<string, mixed>  $servicePayload
+     */
+    public function payBill(
+        Customer $customer,
+        string $serviceId,
+        string $productId,
+        float $amount,
+        array $servicePayload = [],
+        ?string $description = null,
+        ?string $idempotencyKey = null,
+        ?string $otpToken = null,
+        ?int $otpCode = null
+    ): array {
+        $billPayload = WalletTransferOtpService::normalizeBillPaymentPayload([
+            'service_id' => $serviceId,
+            'product_id' => $productId,
+            'amount' => $amount,
+            'service_payload' => $servicePayload,
+            'description' => $description,
+            'idempotency_key' => $idempotencyKey,
+        ]);
+
+        $cached = $this->idempotencyService->findCached(
+            $customer->id,
+            self::SCOPE_BILL_PAYMENT,
+            $idempotencyKey
+        );
+        if ($cached !== null) {
+            return $cached;
+        }
+
+        $this->walletTransferOtpService->verifyBillPaymentAndConsume(
+            $customer,
+            (string) $otpToken,
+            (int) $otpCode,
+            $billPayload
+        );
+
+        [$service, $product, $wallet] = $this->resolveBillPaymentContext(
+            $customer,
+            $billPayload['service_id'],
+            $billPayload['product_id'],
+            $billPayload['amount']
+        );
+
+        // Partner HTTP + failed audit rows must commit outside idempotency transaction.
+        $result = $this->walletBillPaymentService->process(
+            $customer,
+            $wallet,
+            $service,
+            $product,
+            $billPayload['amount'],
+            $billPayload['service_payload'],
+            $billPayload['description'],
+            $billPayload['idempotency_key'],
+        );
+
+        $serviceName = is_array($service->service_name)
+            ? ($service->service_name['en'] ?? reset($service->service_name))
+            : (string) $service->service_name;
+
+        $this->customerSystemNotificationService->send(
+            $customer->fresh(),
+            CustomerNotificationType::BillPayment,
+            [
+                'amount' => $result['total_debited'],
+                'currency' => $wallet->currency_code,
+                'service_name' => $serviceName ?: 'bill payment',
+            ],
+        );
+
+        $response = [
+            'amount' => $result['amount'],
+            'fee' => $result['fee'],
+            'total_debited' => $result['total_debited'],
+            'wallet' => $this->formatWallet($result['wallet']),
+            'bill_payment' => [
+                'id' => $result['bill_payment']->id,
+                'status' => $result['bill_payment']->status,
+                'partner_reference' => $result['bill_payment']->partner_reference,
+                'service_id' => $result['bill_payment']->service_id,
+                'partner_id' => $result['bill_payment']->partner_id,
+            ],
+            'transaction' => $result['transaction']
+                ? $this->formatTransaction($result['transaction'])
+                : null,
+        ];
+
+        if ($idempotencyKey !== null && trim($idempotencyKey) !== '') {
+            return $this->idempotencyService->remember(
+                $customer->id,
+                self::SCOPE_BILL_PAYMENT,
+                $idempotencyKey,
+                $response
+            );
+        }
+
+        return $response;
     }
 
     public function transfer(
@@ -462,6 +581,69 @@ class CustomerWalletService
         $this->walletService->assertSufficientBalance($fromWallet, $amount);
     }
 
+    private function assertBillPaymentIntent(
+        Customer $customer,
+        string $serviceId,
+        string $productId,
+        float $amount
+    ): void {
+        $this->resolveBillPaymentContext($customer, $serviceId, $productId, $amount);
+    }
+
+    /**
+     * @return array{0: Service, 1: Product, 2: Wallet}
+     */
+    private function resolveBillPaymentContext(
+        Customer $customer,
+        string $serviceId,
+        string $productId,
+        float $amount
+    ): array {
+        $this->assertCustomerCanUseWallet($customer);
+
+        $wallet = $this->resolveActiveWalletForCustomer($customer);
+        $this->assertWalletIsActive($wallet, 'Your wallet is not available for bill payment.');
+
+        $service = Service::query()
+            ->with('partner')
+            ->where('id', $serviceId)
+            ->where('is_active', true)
+            ->where('status', 'active')
+            ->first();
+
+        if (! $service) {
+            throw new InvalidArgumentException('Service is not available.');
+        }
+
+        if ($service->country_id && $customer->country_id && $service->country_id !== $customer->country_id) {
+            throw new InvalidArgumentException('Service is not available in your region.');
+        }
+
+        $product = Product::query()
+            ->where('id', $productId)
+            ->where('service_id', $service->id)
+            ->where('status', true)
+            ->first();
+
+        if (! $product) {
+            throw new InvalidArgumentException('Product is not available for this service.');
+        }
+
+        $partner = $service->partner;
+        if (! $partner || ! $partner->account_id) {
+            throw new InvalidArgumentException('Bill payment is not available for this provider.');
+        }
+
+        $fee = $this->walletService->billPaymentFee();
+        $this->walletService->assertSufficientBalance(
+            $wallet,
+            round($amount + $fee, 2),
+            'Insufficient wallet balance for this bill payment.'
+        );
+
+        return [$service, $product, $wallet];
+    }
+
     /**
      * Block lookup/transfer when identifier matches the sender's own wallet or phone.
      */
@@ -510,6 +692,8 @@ class CustomerWalletService
                 Customer::STATUS_SUSPENDED => 'Recipient account is suspended and cannot receive money.',
                 Customer::STATUS_INACTIVE => 'Recipient account is inactive and cannot receive money.',
                 Customer::STATUS_PENDING => 'Recipient account is pending approval and cannot receive money.',
+                Customer::STATUS_REJECTED => 'Recipient account is not approved and cannot receive money.',
+                Customer::STATUS_REQUESTING_UPDATED => 'Recipient account has a pending profile update and cannot receive money.',
                 Customer::STATUS_DELETED => 'Recipient account is not available.',
                 default => 'Recipient account is not available to receive money.',
             };

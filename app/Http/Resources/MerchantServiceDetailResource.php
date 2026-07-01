@@ -17,6 +17,7 @@ class MerchantServiceDetailResource extends JsonResource
     {
         return [
             'id' => $this->id,
+            'partner_id' => $this->partner_id,
             'service_name' => $this->service_name,
             'description' => $this->description,
             'service_type' => $this->service_type?->value,

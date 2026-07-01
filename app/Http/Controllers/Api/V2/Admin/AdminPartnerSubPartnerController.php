@@ -3,7 +3,7 @@
 namespace App\Http\Controllers\Api\V2\Admin;
 
 use App\Http\Controllers\Controller;
-use App\Services\ContentProviderService;
+use App\Services\PartnerService as ContentProviderService;
 use App\Traits\ApiResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;

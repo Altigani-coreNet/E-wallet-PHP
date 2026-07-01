@@ -4,6 +4,12 @@ namespace App\Services;
 
 use App\Models\ChangeHistory;
 use App\Models\ChangeRequest;
+use App\Models\Customer;
+use App\Models\Merchant;
+use App\Modules\CustomerAuth\Notifications\CustomerNotificationType;
+use App\Modules\CustomerAuth\Services\CustomerSystemNotificationService;
+use App\Support\CustomerEventMessageBuilder;
+use App\Modules\AdminKyc\Services\AdminKycQueueService;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
@@ -11,6 +17,12 @@ use InvalidArgumentException;
 
 class ChangeRequestService
 {
+    public function __construct(
+        private readonly CustomerSystemNotificationService $customerSystemNotificationService,
+        private readonly CustomerService $customerService,
+        private readonly AdminKycQueueService $adminKycQueueService,
+    ) {}
+
     /**
      * Submit a change request for any morphable model.
      *
@@ -59,15 +71,13 @@ class ChangeRequestService
                 throw new InvalidArgumentException('Invalid changeable model.');
             }
 
-            $payload = $request->payload ?? [];
+            $payload = $this->applicablePayload($request->payload ?? []);
 
-            // Build before/after snapshots limited to the keys present in the payload
             $targetKeys = array_keys($payload);
             $beforeSnapshot = Arr::only($changeable->getAttributes(), $targetKeys);
-            // dd($beforeSnapshot);
-            // Apply payload
+
             foreach ($payload as $field => $value) {
-                if($field == 'tax_certified_number'){
+                if ($field === 'tax_certified_number') {
                     $changeable->setAttribute('tax_number', $value);
                     continue;
                 }
@@ -77,8 +87,6 @@ class ChangeRequestService
 
             $afterSnapshot = Arr::only($changeable->fresh()->getAttributes(), $targetKeys);
 
-            // dd($afterSnapshot,$beforeSnapshot);
-            // History
             $history = new ChangeHistory([
                 'before' => $beforeSnapshot,
                 'after' => $afterSnapshot,
@@ -91,7 +99,6 @@ class ChangeRequestService
             $history->actor()->associate($approver);
             $history->save();
 
-            // Update request status
             $request->status = 'approved';
             $request->approved_at = now();
             $request->approved_id = method_exists($approver, 'getKey') ? $approver->getKey() : null;
@@ -99,15 +106,38 @@ class ChangeRequestService
             $request->approver()->associate($approver);
             $request->save();
 
-            $request->changeable->status = 'pending';
-            $request->changeable->save();
+            $changeable->status = $this->resolvePostApprovalStatus($changeable, $request->payload ?? []);
+            $changeable->save();
+
+            if ($changeable instanceof Customer) {
+                $this->customerSystemNotificationService->send(
+                    $changeable->fresh(),
+                    CustomerNotificationType::ProfileChangeRequestApproved,
+                );
+
+                $this->customerService->logCustomerEvent($changeable->fresh(), 'change_request_approved', [
+                    'change_request_id' => $request->id,
+                    'moderation_note' => $moderationNote,
+                    'changed_fields' => array_keys($payload),
+                    'event' => 'Profile change request approved',
+                    'message' => CustomerEventMessageBuilder::changeRequestApproved(
+                        $payload,
+                        $beforeSnapshot,
+                        $afterSnapshot,
+                        $moderationNote,
+                        method_exists($approver, 'name') ? $approver->name : null,
+                    ),
+                ], $beforeSnapshot, $afterSnapshot);
+
+                $this->adminKycQueueService->broadcast();
+            }
 
             return $history;
         });
     }
 
     /**
-     * Reject a change request; does not alter the target model.
+     * Reject a change request; does not alter the target model fields.
      */
     public function reject(ChangeRequest $request, Model $approver, ?string $moderationNote = null): ChangeRequest
     {
@@ -121,8 +151,34 @@ class ChangeRequestService
         $request->approver()->associate($approver);
         $request->save();
 
-        $request->changeable->status = 'pending';
-        $request->changeable->save();
+        $changeable = $request->changeable;
+        if ($changeable instanceof Model) {
+            $payload = $this->applicablePayload($request->payload ?? []);
+
+            $changeable->status = $this->resolvePostRejectionStatus($changeable, $request->payload ?? []);
+            $changeable->save();
+
+            if ($changeable instanceof Customer) {
+                $this->customerSystemNotificationService->send(
+                    $changeable->fresh(),
+                    CustomerNotificationType::ProfileChangeRequestRejected,
+                    ['note' => $moderationNote ?? ''],
+                );
+
+                $this->customerService->logCustomerEvent($changeable->fresh(), 'change_request_rejected', [
+                    'change_request_id' => $request->id,
+                    'moderation_note' => $moderationNote,
+                    'changed_fields' => array_keys($payload),
+                    'event' => 'Profile change request rejected',
+                    'message' => CustomerEventMessageBuilder::changeRequestRejected(
+                        $payload,
+                        $moderationNote,
+                        method_exists($approver, 'name') ? $approver->name : null,
+                    ),
+                ]);
+                $this->adminKycQueueService->broadcast();
+            }
+        }
 
         return $request;
     }
@@ -143,6 +199,54 @@ class ChangeRequestService
         }
         return $payload;
     }
+
+    /**
+     * @param  array<string, mixed>  $payload
+     * @return array<string, mixed>
+     */
+    private function applicablePayload(array $payload): array
+    {
+        return Arr::except($payload, ['__meta']);
+    }
+
+    private function resolvePostApprovalStatus(Model $changeable, array $payload): string
+    {
+        if ($changeable instanceof Customer) {
+            return Customer::STATUS_ACTIVE;
+        }
+
+        if ($changeable instanceof Merchant) {
+            $previous = data_get($payload, '__meta.previous_status');
+            if ($previous === 'requesting_updated' || $previous === 'approved') {
+                return 'approved';
+            }
+            if (is_string($previous) && $previous !== '') {
+                return $previous;
+            }
+        }
+
+        return 'pending';
+    }
+
+    private function resolvePostRejectionStatus(Model $changeable, array $payload): string
+    {
+        $previous = data_get($payload, '__meta.previous_status');
+
+        if ($changeable instanceof Customer) {
+            return is_string($previous) && $previous !== ''
+                ? $previous
+                : Customer::STATUS_ACTIVE;
+        }
+
+        if ($changeable instanceof Merchant) {
+            if ($previous === 'requesting_updated') {
+                return 'approved';
+            }
+            if (is_string($previous) && $previous !== '') {
+                return $previous;
+            }
+        }
+
+        return 'pending';
+    }
 }
-
-

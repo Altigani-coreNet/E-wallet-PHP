@@ -233,6 +233,8 @@ class ContentProviderService
                 $this->sendWelcomeEmailForContentProvider($user, $plainPassword, $freshContentProvider);
             }
 
+            $this->afterContentProviderCreated($freshContentProvider);
+
             return $freshContentProvider;
         });
     }
@@ -287,6 +289,8 @@ class ContentProviderService
             if ($user && $plainPassword) {
                 $this->sendWelcomeEmailForContentProvider($user, $plainPassword, $freshContentProvider);
             }
+
+            $this->afterContentProviderCreated($freshContentProvider);
 
             return $freshContentProvider;
         });
@@ -1114,5 +1118,12 @@ class ContentProviderService
         }
 
         return 'other';
+    }
+
+    /**
+     * Hook for subclasses after a partner/content provider row is persisted.
+     */
+    protected function afterContentProviderCreated(ContentProvider $contentProvider): void
+    {
     }
 }

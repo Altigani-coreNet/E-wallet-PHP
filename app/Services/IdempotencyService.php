@@ -13,6 +13,63 @@ class IdempotencyService
     public const SYSTEM_OWNER_ID = '00000000-0000-0000-0000-000000000001';
 
     /**
+     * @return array<string, mixed>|null
+     */
+    public function findCached(int|string|null $ownerId, string $scope, ?string $idempotencyKey): ?array
+    {
+        if ($idempotencyKey === null || trim($idempotencyKey) === '') {
+            return null;
+        }
+
+        $existing = WalletIdempotencyKey::query()
+            ->where('customer_id', $this->normalizeOwnerId($ownerId))
+            ->where('scope', $scope)
+            ->where('idempotency_key', trim($idempotencyKey))
+            ->first();
+
+        return $existing?->response;
+    }
+
+    /**
+     * @param  array<string, mixed>  $response
+     * @return array<string, mixed>
+     */
+    public function remember(int|string|null $ownerId, string $scope, string $idempotencyKey, array $response): array
+    {
+        $idempotencyKey = trim($idempotencyKey);
+        $ownerKey = $this->normalizeOwnerId($ownerId);
+
+        try {
+            WalletIdempotencyKey::create([
+                'customer_id' => $ownerKey,
+                'scope' => $scope,
+                'idempotency_key' => $idempotencyKey,
+                'status' => WalletIdempotencyKey::STATUS_COMPLETED,
+                'response_code' => 200,
+                'response' => $response,
+            ]);
+        } catch (QueryException $exception) {
+            if (! $this->isUniqueConstraintViolation($exception)) {
+                throw $exception;
+            }
+
+            $existing = WalletIdempotencyKey::query()
+                ->where('customer_id', $ownerKey)
+                ->where('scope', $scope)
+                ->where('idempotency_key', $idempotencyKey)
+                ->first();
+
+            if ($existing) {
+                return $existing->response;
+            }
+
+            throw $exception;
+        }
+
+        return $response;
+    }
+
+    /**
      * @template T of array
      *
      * @param  Closure(): T  $callback
@@ -27,14 +84,9 @@ class IdempotencyService
         $idempotencyKey = trim($idempotencyKey);
         $ownerKey = $this->normalizeOwnerId($ownerId);
 
-        $existing = WalletIdempotencyKey::query()
-            ->where('customer_id', $ownerKey)
-            ->where('scope', $scope)
-            ->where('idempotency_key', $idempotencyKey)
-            ->first();
-
-        if ($existing) {
-            return $existing->response;
+        $cached = $this->findCached($ownerKey, $scope, $idempotencyKey);
+        if ($cached !== null) {
+            return $cached;
         }
 
         try {

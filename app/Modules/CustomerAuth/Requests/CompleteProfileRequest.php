@@ -21,7 +21,8 @@ class CompleteProfileRequest extends CustomerAuthFormRequest
             'gender' => ['required', 'string', 'in:male,female,other'],
             'cityId' => ['required', 'uuid'],
             'country_code' => ['nullable', 'string'],
-            'picture' => ['nullable', 'image', 'mimes:jpeg,jpg,png,gif,webp', 'max:2048'],
+            'picture' => ['required', 'image', 'mimes:jpeg,jpg,png,gif,webp', 'max:2048'],
+            'passport' => ['required', 'file', 'mimes:jpeg,jpg,png,pdf', 'max:5120'],
         ];
     }
 }

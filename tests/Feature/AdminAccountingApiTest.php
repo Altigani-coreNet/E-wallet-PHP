@@ -255,6 +255,28 @@ class AdminAccountingApiTest extends CustomerAuthTestCase
             ->assertJsonPath('data.totals.debit', 150);
     }
 
+    public function test_ledger_summary_filters_by_start_and_end_time(): void
+    {
+        $bankAccount = $this->accountByCode(WalletService::BANK_ACCOUNT_CODE);
+        $today = now()->toDateString();
+
+        $morningLine = $this->postLine($bankAccount->id, 100, 0, $today);
+        $morningLine->forceFill(['created_at' => "{$today} 08:00:00"])->save();
+
+        $afternoonLine = $this->postLine($bankAccount->id, 50, 0, $today);
+        $afternoonLine->forceFill(['created_at' => "{$today} 14:00:00"])->save();
+
+        $response = $this->actingAsAdminApi()->getJson(
+            "/api/v2/admin/accounting/ledger?start_date={$today}&end_date={$today}&start_time=12:00&end_time=23:59"
+        );
+
+        $response->assertOk()
+            ->assertJsonCount(1, 'data.rows')
+            ->assertJsonPath('data.totals.debit', 50)
+            ->assertJsonPath('data.filter.start_time', '12:00')
+            ->assertJsonPath('data.filter.end_time', '23:59');
+    }
+
     public function test_ledger_summary_export_returns_xlsx(): void
     {
         $bankAccount = $this->accountByCode(WalletService::BANK_ACCOUNT_CODE);

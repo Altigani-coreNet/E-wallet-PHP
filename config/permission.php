@@ -128,6 +128,8 @@ return [
             'create_customers',
             'edit_customers',
             'delete_customers',
+            'approve_customers',
+            'reject_customers',
         ],
         'reports_management' => [
             'view_reports',
@@ -265,6 +267,8 @@ return [
                 'delete_customers',
                 'import_customers',
                 'export_customers',
+                'approve_customers',
+                'reject_customers',
             ],
             'products' => [
                 'view_products',
@@ -527,6 +531,8 @@ return [
                 'delete_customers',
                 'import_customers',
                 'export_customers',
+                'approve_customers',
+                'reject_customers',
             ],
             'products' => [
                 'view_products',
@@ -619,6 +625,9 @@ return [
             'wallets' => [
                 'cash_in_wallets',
                 'cash_out_wallets',
+            ],
+            'provider_settlements' => [
+                'settle_provider_payables',
             ],
         ],
     ],

@@ -9,6 +9,7 @@ use App\Models\Customer;
 use App\Modules\CustomerAuth\Support\CustomerJwtService;
 use App\Services\WalletService;
 use Database\Seeders\ChartOfAccountSeeder;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
 use Laravel\Passport\Passport;
@@ -64,7 +65,7 @@ class CustomerNotificationWorkflowE2eTest extends CustomerAuthTestCase
 
         // 2. Complete profile -> application received notification
         $this->withHeaders(['Authorization' => 'Bearer '.$authToken])
-            ->postJson('/api/v1/customer/profile/complete', [
+            ->post('/api/v1/customer/profile/complete', [
                 'firstName' => 'Workflow User',
                 'nationalId' => 'NID-WORKFLOW-001',
                 'email' => 'workflow@example.com',
@@ -72,6 +73,10 @@ class CustomerNotificationWorkflowE2eTest extends CustomerAuthTestCase
                 'gender' => 'male',
                 'cityId' => $city->id,
                 'country_code' => '249',
+                'picture' => UploadedFile::fake()->image('avatar.jpg'),
+                'passport' => UploadedFile::fake()->create('passport.pdf', 100, 'application/pdf'),
+            ], [
+                'Accept' => 'application/json',
             ])
             ->assertOk()
             ->assertJsonPath('data.profile_completed', true);
