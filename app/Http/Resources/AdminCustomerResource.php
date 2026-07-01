@@ -44,6 +44,13 @@ class AdminCustomerResource extends JsonResource
             'attachments' => app(CustomerAttachmentService::class)->getAttachmentsForAdmin($customer),
             'profile_completed' => (bool) $customer->profile_completed,
             'profile_completion' => Customer::calculateProfileCompletion($customer),
+            'email_verified' => $customer->hasVerifiedEmail(),
+            'phone_verified' => $customer->hasVerifiedPhone(),
+            'email_verified_at' => $customer->email_verified_at?->toIso8601String(),
+            'phone_verified_at' => $customer->phone_verified_at?->toIso8601String(),
+            'transactions_count' => $this->transactionsCount($customer),
+            'events_count' => (int) ($customer->logs_count ?? $customer->logs()->count()),
+            'change_requests_count' => (int) ($customer->change_requests_count ?? $customer->changeRequests()->count()),
             'merchant_id' => $customer->merchant_id,
             'country_name' => $customer->relationLoaded('country') && $customer->country
                 ? $this->localizedName($customer->country)
@@ -126,5 +133,18 @@ class AdminCustomerResource extends JsonResource
         $name = $model->name ?? '';
 
         return is_string($name) ? $name : '';
+    }
+
+    private function transactionsCount(Customer $customer): int
+    {
+        if ($customer->relationLoaded('wallet') && $customer->wallet) {
+            if (isset($customer->wallet->wallet_transactions_count)) {
+                return (int) $customer->wallet->wallet_transactions_count;
+            }
+
+            return $customer->wallet->walletTransactions()->count();
+        }
+
+        return 0;
     }
 }

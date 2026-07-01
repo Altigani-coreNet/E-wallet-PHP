@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
 
 class ChangeHistory extends Model
@@ -37,6 +38,11 @@ class ChangeHistory extends Model
     public function actor(): MorphTo
     {
         return $this->morphTo();
+    }
+
+    public function changeRequest(): BelongsTo
+    {
+        return $this->belongsTo(ChangeRequest::class);
     }
 }
 

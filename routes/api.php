@@ -583,6 +583,8 @@ Route::prefix('v2/admin')->middleware(['auth:admin-api'])->group(function () {
     Route::post('customers/import', [AdminCustomerApiController::class, 'import']);
     Route::get('customers', [AdminCustomerApiController::class, 'index']);
     Route::get('customers/kyc/pending', [\App\Http\Controllers\Api\Cashier\AdminCustomerKycController::class, 'pending']);
+    Route::get('customers/kyc/change-history', [\App\Http\Controllers\Api\Cashier\AdminCustomerKycController::class, 'changeHistory']);
+    Route::get('customers/kyc/change-history/{historyId}', [\App\Http\Controllers\Api\Cashier\AdminCustomerKycController::class, 'changeHistoryShow']);
     Route::get('customers/kyc/events', [\App\Http\Controllers\Api\Cashier\AdminCustomerKycController::class, 'events']);
     Route::get('customers/kyc/events/{logId}', [\App\Http\Controllers\Api\Cashier\AdminCustomerKycController::class, 'eventShow']);
     Route::get('customers/kyc/queue-counts', [\App\Http\Controllers\Api\Cashier\AdminCustomerKycController::class, 'queueCounts']);
@@ -941,6 +943,8 @@ Route::prefix('v1/customer')->group(function () {
         Route::post('profile/update-rejected-fields', [\App\Modules\CustomerAuth\Controllers\CustomerProfileController::class, 'updateRejectedFields']);
         Route::post('profile/complete', [\App\Modules\CustomerAuth\Controllers\CustomerAuthController::class, 'completeProfile']);
         Route::post('profile/update', [\App\Modules\CustomerAuth\Controllers\CustomerAuthController::class, 'updateProfile']);
+        Route::post('verification/email/send', [\App\Modules\CustomerAuth\Controllers\CustomerEmailVerificationController::class, 'send']);
+        Route::post('verification/email/confirm', [\App\Modules\CustomerAuth\Controllers\CustomerEmailVerificationController::class, 'confirm']);
         Route::post('password/change', [\App\Modules\CustomerAuth\Controllers\CustomerAuthController::class, 'changePassword']);
         Route::post('auth/logout', [\App\Modules\CustomerAuth\Controllers\CustomerAuthController::class, 'logout']);
         Route::delete('account', [\App\Modules\CustomerAuth\Controllers\CustomerAuthController::class, 'deleteAccount']);

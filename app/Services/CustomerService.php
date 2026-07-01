@@ -127,6 +127,10 @@ class CustomerService
             throw ValidationException::withMessages(['email' => 'Customer with this email already exists']);
         }
 
+        if (array_key_exists('email', $data) && $data['email'] !== $customer->email) {
+            $data['email_verified_at'] = null;
+        }
+
         $merchantId = $data['merchant_id'] ?? null;
         if ($merchantId) {
             $data['merchant_country_id'] = $this->getMerchantCountryId((int) $merchantId);

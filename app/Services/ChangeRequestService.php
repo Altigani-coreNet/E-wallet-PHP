@@ -81,6 +81,9 @@ class ChangeRequestService
                     $changeable->setAttribute('tax_number', $value);
                     continue;
                 }
+                if ($changeable instanceof Customer && $field === 'email' && $value !== $changeable->email) {
+                    $changeable->setAttribute('email_verified_at', null);
+                }
                 $changeable->setAttribute($field, $value);
             }
             $changeable->save();

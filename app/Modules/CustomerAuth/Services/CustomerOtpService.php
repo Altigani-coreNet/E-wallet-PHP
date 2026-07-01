@@ -74,4 +74,47 @@ class CustomerOtpService
     {
         $this->otpRepository->deleteById($id);
     }
+
+    public function sendEmailVerificationOtp(Customer $customer): array
+    {
+        $email = trim((string) $customer->email);
+
+        if ($email === '') {
+            throw new \Symfony\Component\HttpKernel\Exception\UnprocessableEntityHttpException(
+                'Customer has no email address on file'
+            );
+        }
+
+        return $this->generateAndSendEmailOtp($email);
+    }
+
+    public function confirmEmailVerification(Customer $customer, string $token, int $code): Customer
+    {
+        if ($customer->hasVerifiedEmail()) {
+            return $customer;
+        }
+
+        $email = trim((string) $customer->email);
+
+        if ($email === '') {
+            throw new \Symfony\Component\HttpKernel\Exception\UnprocessableEntityHttpException(
+                'Customer has no email address on file'
+            );
+        }
+
+        $otp = $this->otpRepository->verifyCode($token, $code);
+
+        if (! $otp || $otp->channel !== 'email' || $otp->identifier !== $email) {
+            throw new \Symfony\Component\HttpKernel\Exception\BadRequestHttpException(
+                'Invalid or expired OTP code'
+            );
+        }
+
+        $customer->email_verified_at = now();
+        $customer->save();
+
+        $this->consumeOtpById($otp->id);
+
+        return $customer->fresh(['country', 'city', 'wallet', 'attachments']);
+    }
 }

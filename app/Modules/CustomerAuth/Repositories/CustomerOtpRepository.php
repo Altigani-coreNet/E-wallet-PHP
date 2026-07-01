@@ -68,6 +68,17 @@ class CustomerOtpRepository
             ->first();
     }
 
+    public function findVerifiedEmailOtp(string $token, string $email): ?CustomerOtp
+    {
+        return CustomerOtp::query()
+            ->where('token', $token)
+            ->where('identifier', $email)
+            ->where('channel', 'email')
+            ->where('is_verified', true)
+            ->where('expires_at', '>', now())
+            ->first();
+    }
+
     public function deleteById(int $id): void
     {
         CustomerOtp::query()->whereKey($id)->delete();

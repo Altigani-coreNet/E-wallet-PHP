@@ -93,6 +93,8 @@ class Customer extends Model implements AuthenticatableContract
         'merchant_country_id',
         'profile_completed',
         'status',
+        'email_verified_at',
+        'phone_verified_at',
     ];
 
     protected $hidden = [
@@ -103,6 +105,8 @@ class Customer extends Model implements AuthenticatableContract
         'balance' => 'decimal:2',
         'birth_date' => 'datetime',
         'profile_completed' => 'boolean',
+        'email_verified_at' => 'datetime',
+        'phone_verified_at' => 'datetime',
     ];
 
     public function merchant()
@@ -133,6 +137,21 @@ class Customer extends Model implements AuthenticatableContract
     public function logs(): MorphMany
     {
         return $this->morphMany(Log::class, 'loggable');
+    }
+
+    public function changeRequests(): MorphMany
+    {
+        return $this->morphMany(ChangeRequest::class, 'changeable');
+    }
+
+    public function hasVerifiedEmail(): bool
+    {
+        return $this->email_verified_at !== null;
+    }
+
+    public function hasVerifiedPhone(): bool
+    {
+        return $this->phone_verified_at !== null;
     }
 
     public function attachments(): MorphMany

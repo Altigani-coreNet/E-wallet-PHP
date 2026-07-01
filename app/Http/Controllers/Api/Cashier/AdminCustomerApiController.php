@@ -645,10 +645,11 @@ class AdminCustomerApiController extends Controller
                 'merchant',
                 'country',
                 'city',
-                'wallet',
+                'wallet' => fn ($query) => $query->withCount('walletTransactions'),
                 'attachments',
                 'rejections' => fn ($query) => $query->latest()->limit(1),
             ])
+            ->withCount(['logs', 'changeRequests'])
             ->withCountry()
             ->whereKey($id)
             ->firstOrFail();

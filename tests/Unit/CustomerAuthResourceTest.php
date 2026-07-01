@@ -33,6 +33,10 @@ class CustomerAuthResourceTest extends CustomerAuthTestCase
         $this->assertNull($payload['availableBalance']);
         $this->assertTrue($payload['profileCompleted']);
         $this->assertSame(Customer::STATUS_PENDING, $payload['status']);
+        $this->assertFalse($payload['emailVerified']);
+        $this->assertFalse($payload['phoneVerified']);
+        $this->assertNull($payload['emailVerifiedAt']);
+        $this->assertNull($payload['phoneVerifiedAt']);
         $this->assertArrayNotHasKey('merchantId', $payload);
         $this->assertArrayNotHasKey('merchantCountryId', $payload);
         $this->assertNull($payload['country']);
@@ -71,5 +75,22 @@ class CustomerAuthResourceTest extends CustomerAuthTestCase
         $this->assertSame('249912345678@fastpay', $payload['walletId']);
         $this->assertSame('250.75', $payload['balance']);
         $this->assertSame('200.50', $payload['availableBalance']);
+    }
+
+    public function test_resource_includes_verification_flags(): void
+    {
+        $customer = Customer::factory()->create([
+            'phone' => '+249912345680',
+            'email' => 'verified@example.com',
+            'email_verified_at' => now(),
+            'phone_verified_at' => now(),
+        ]);
+
+        $payload = CustomerAuthResource::make($customer)->toArray(Request::create('/'));
+
+        $this->assertTrue($payload['emailVerified']);
+        $this->assertTrue($payload['phoneVerified']);
+        $this->assertNotNull($payload['emailVerifiedAt']);
+        $this->assertNotNull($payload['phoneVerifiedAt']);
     }
 }

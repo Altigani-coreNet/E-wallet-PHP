@@ -157,7 +157,11 @@ class CustomerAuthApiTest extends CustomerAuthTestCase
         $this->assertTrue(Str::isUuid((string) $customerId));
         $this->assertSame($customerId, Customer::query()->where('phone', self::TEST_PHONE)->value('id'));
         $this->assertSame(Customer::STATUS_PENDING, $response->json('data.customer.status'));
+        $this->assertTrue($response->json('data.customer.phoneVerified'));
         $this->assertCustomerAuthPayloadExcludesMerchantFields($response->json('data.customer'));
+
+        $customer = Customer::query()->where('phone', self::TEST_PHONE)->first();
+        $this->assertNotNull($customer->phone_verified_at);
 
         $this->assertDatabaseHas('logs', [
             'loggable_type' => Customer::class,

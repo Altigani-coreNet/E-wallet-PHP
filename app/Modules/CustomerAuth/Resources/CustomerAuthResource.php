@@ -33,6 +33,10 @@ class CustomerAuthResource extends JsonResource
             'zip' => $customer->zip,
             'status' => $customer->status,
             'profileCompleted' => (bool) $customer->profile_completed,
+            'emailVerified' => $customer->hasVerifiedEmail(),
+            'phoneVerified' => $customer->hasVerifiedPhone(),
+            'emailVerifiedAt' => $customer->email_verified_at?->toIso8601String(),
+            'phoneVerifiedAt' => $customer->phone_verified_at?->toIso8601String(),
             'walletId' => $wallet?->wallet_id,
             'balance' => number_format((float) ($wallet?->balance ?? $customer->balance), 2, '.', ''),
             'availableBalance' => $wallet !== null

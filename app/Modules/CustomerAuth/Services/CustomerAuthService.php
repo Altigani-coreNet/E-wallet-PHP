@@ -73,6 +73,7 @@ class CustomerAuthService
             'status' => Customer::STATUS_PENDING,
             'name' => '',
             'email' => '',
+            'phone_verified_at' => now(),
         ]);
 
         $this->otpService->consumeOtpById($otp->id);

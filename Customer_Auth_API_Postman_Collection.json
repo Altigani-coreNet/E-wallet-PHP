@@ -1537,6 +1537,83 @@
                             "body": "{\n    \"success\": false,\n    \"message\": \"Unauthorized\",\n    \"errors\": null,\n    \"data\": null\n}"
                         }
                     ]
+                },
+                {
+                    "name": "Send Email Verification OTP",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json",
+                                "type": "text"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{customer_jwt}}",
+                                "type": "text"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/v1/customer/verification/email/send",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "v1",
+                                "customer",
+                                "verification",
+                                "email",
+                                "send"
+                            ]
+                        },
+                        "description": "Sends a 6-digit OTP to the authenticated customer's email on file. Requires profile email to be set (e.g. after complete profile)."
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Confirm Email Verification",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json",
+                                "type": "text"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{customer_jwt}}",
+                                "type": "text"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/v1/customer/verification/email/confirm",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "v1",
+                                "customer",
+                                "verification",
+                                "email",
+                                "confirm"
+                            ]
+                        },
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"token\": \"{{email_verification_token}}\",\n    \"code\": 111111\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        },
+                        "description": "Confirms email verification using the token from Send Email Verification OTP and the OTP code from the email. Sets emailVerified=true on the customer."
+                    },
+                    "response": []
                 }
             ]
         },

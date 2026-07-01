@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Branch;
+use App\Models\ChangeHistory;
 use App\Models\ChangeRequest;
 use App\Models\City;
 use App\Models\Country;
@@ -18,6 +19,84 @@ class ChangeRequestFormatter
     protected array $cityCache = [];
     protected array $countryCache = [];
     protected array $userCache = [];
+
+    /**
+     * Build a summary payload for applied change history list views.
+     */
+    public function formatHistorySummary(ChangeHistory $history): array
+    {
+        $history->loadMissing(['changeable', 'actor', 'changeRequest']);
+
+        /** @var Customer|null $customer */
+        $customer = $history->changeable instanceof Customer ? $history->changeable : null;
+        $payload = $history->payload ?? [];
+
+        return [
+            'id' => $history->id,
+            'change_request_id' => $history->change_request_id,
+            'customer' => $customer ? [
+                'id' => $customer->id,
+                'name' => $customer->name,
+                'email' => $customer->email,
+                'phone' => $customer->phone,
+                'status' => $customer->status,
+            ] : null,
+            'changed_fields' => $this->summarizePayloadFields($payload),
+            'actor' => $this->formatActor($history->actor),
+            'applied_at' => optional($history->created_at)->toIso8601String(),
+            'created_at' => optional($history->created_at)->toIso8601String(),
+        ];
+    }
+
+    /**
+     * Build the detailed payload for an applied change history record.
+     */
+    public function formatHistoryDetail(ChangeHistory $history): array
+    {
+        $history->loadMissing(['changeable', 'actor', 'changeRequest']);
+
+        /** @var Customer|null $customer */
+        $customer = $history->changeable instanceof Customer ? $history->changeable : null;
+        $payload = $this->applicablePayload($history->payload ?? []);
+        $before = $history->before ?? [];
+        $after = $history->after ?? [];
+
+        $changes = [];
+        foreach (array_keys($payload) as $key) {
+            $beforeRaw = $before[$key] ?? null;
+            $afterRaw = $after[$key] ?? null;
+            $isAttachment = $this->isAttachmentField($key);
+
+            $changes[] = [
+                'field' => $key,
+                'label' => $this->mapFieldName($key),
+                'before' => $this->mapFieldValue($key, $beforeRaw),
+                'after' => $this->mapFieldValue($key, $afterRaw),
+                'before_raw' => $beforeRaw,
+                'after_raw' => $afterRaw,
+                'before_url' => $isAttachment ? $this->resolveAttachmentUrl($beforeRaw) : null,
+                'after_url' => $isAttachment ? $this->resolveAttachmentUrl($afterRaw) : null,
+                'is_attachment' => $isAttachment,
+            ];
+        }
+
+        return [
+            'id' => $history->id,
+            'change_request_id' => $history->change_request_id,
+            'customer' => $customer ? [
+                'id' => $customer->id,
+                'name' => $customer->name,
+                'email' => $customer->email,
+                'phone' => $customer->phone,
+                'status' => $customer->status,
+            ] : null,
+            'actor' => $this->formatActor($history->actor),
+            'moderation_note' => $history->changeRequest?->moderation_note,
+            'applied_at' => optional($history->created_at)->toIso8601String(),
+            'created_at' => optional($history->created_at)->toIso8601String(),
+            'changes' => $changes,
+        ];
+    }
 
     /**
      * Build a summary payload for list views.
@@ -363,15 +442,24 @@ class ChangeRequestFormatter
     {
         $fields = [];
 
-        foreach ($payload as $key => $value) {
-            if (Str::startsWith($key, '__')) {
-                continue;
-            }
-
+        foreach ($this->applicablePayload($payload) as $key => $value) {
             $fields[] = $this->mapFieldName($key);
         }
 
         return $fields;
+    }
+
+    /**
+     * @param  array<string, mixed>  $payload
+     * @return array<string, mixed>
+     */
+    protected function applicablePayload(array $payload): array
+    {
+        return array_filter(
+            $payload,
+            fn ($key) => ! Str::startsWith($key, '__'),
+            ARRAY_FILTER_USE_KEY
+        );
     }
 }
 

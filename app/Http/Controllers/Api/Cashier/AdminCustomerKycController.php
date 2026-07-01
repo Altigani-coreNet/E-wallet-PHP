@@ -4,9 +4,11 @@ namespace App\Http\Controllers\Api\Cashier;
 
 use App\Http\Controllers\Controller;
 use App\Http\Resources\AdminCustomerResource;
+use App\Models\ChangeHistory;
 use App\Models\Customer;
 use App\Models\Log;
 use App\Modules\AdminKyc\Services\AdminKycQueueService;
+use App\Services\ChangeRequestFormatter;
 use App\Traits\ApiResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -18,6 +20,7 @@ class AdminCustomerKycController extends Controller
 
     public function __construct(
         private readonly AdminKycQueueService $queueService,
+        private readonly ChangeRequestFormatter $changeRequestFormatter,
     ) {
     }
 
@@ -68,6 +71,75 @@ class AdminCustomerKycController extends Controller
             Logger::error('AdminCustomerKycController@pending: '.$exception->getMessage());
 
             return $this->ErrorMessage('Failed to fetch pending customers', null, 500);
+        }
+    }
+
+    public function changeHistory(Request $request): JsonResponse
+    {
+        try {
+            $scopedCustomerIds = Customer::query()->withCountry()->select('id');
+            $perPage = max(1, min((int) $request->input('per_page', 15), 100));
+            $search = trim((string) $request->input('search', ''));
+
+            $query = ChangeHistory::query()
+                ->where('changeable_type', Customer::class)
+                ->whereIn('changeable_id', $scopedCustomerIds)
+                ->with(['changeable', 'actor', 'changeRequest'])
+                ->latest();
+
+            if ($search !== '') {
+                $query->where(function ($builder) use ($search) {
+                    $builder->where('payload', 'like', '%'.$search.'%')
+                        ->orWhereHasMorph('changeable', [Customer::class], function ($customerQuery) use ($search) {
+                            $customerQuery->where('name', 'like', '%'.$search.'%')
+                                ->orWhere('email', 'like', '%'.$search.'%')
+                                ->orWhere('phone', 'like', '%'.$search.'%');
+                        });
+                });
+            }
+
+            $histories = $query->paginate($perPage);
+
+            $items = collect($histories->items())
+                ->map(fn (ChangeHistory $history) => $this->changeRequestFormatter->formatHistorySummary($history))
+                ->values()
+                ->all();
+
+            return $this->SuccessMessage([
+                'data' => $items,
+                'current_page' => $histories->currentPage(),
+                'last_page' => $histories->lastPage(),
+                'per_page' => $histories->perPage(),
+                'total' => $histories->total(),
+                'from' => $histories->firstItem(),
+                'to' => $histories->lastItem(),
+            ]);
+        } catch (\Throwable $exception) {
+            Logger::error('AdminCustomerKycController@changeHistory: '.$exception->getMessage());
+
+            return $this->ErrorMessage('Failed to fetch customer change history', null, 500);
+        }
+    }
+
+    public function changeHistoryShow(string $historyId): JsonResponse
+    {
+        try {
+            $scopedCustomerIds = Customer::query()->withCountry()->pluck('id');
+
+            $history = ChangeHistory::query()
+                ->where('changeable_type', Customer::class)
+                ->whereIn('changeable_id', $scopedCustomerIds)
+                ->with(['changeable', 'actor', 'changeRequest'])
+                ->whereKey($historyId)
+                ->firstOrFail();
+
+            return $this->SuccessMessage(
+                $this->changeRequestFormatter->formatHistoryDetail($history)
+            );
+        } catch (\Throwable $exception) {
+            Logger::error('AdminCustomerKycController@changeHistoryShow: '.$exception->getMessage());
+
+            return $this->ErrorMessage('Failed to fetch change history details', null, 404);
         }
     }
 
