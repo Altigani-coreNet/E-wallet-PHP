@@ -29,7 +29,6 @@ class ChangeRequest extends Model
 
     protected $casts = [
         'payload' => 'array',
-        'approved_id' => 'integer',
         'approved_at' => 'datetime',
         'rejected_at' => 'datetime',
         'has_file' => 'boolean',

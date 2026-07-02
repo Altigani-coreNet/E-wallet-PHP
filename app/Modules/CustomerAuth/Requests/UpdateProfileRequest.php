@@ -13,6 +13,7 @@ class UpdateProfileRequest extends CustomerAuthFormRequest
     {
         return [
             'firstName' => ['required', 'string', 'max:255'],
+            'email' => ['sometimes', 'required', 'email', 'max:255'],
             'birthDate' => ['required', 'date'],
             'gender' => ['required', 'string', 'in:male,female,other'],
             'cityId' => ['required', 'uuid'],

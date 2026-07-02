@@ -10,9 +10,10 @@ use App\Models\Country;
 use App\Models\Customer;
 use App\Models\Merchant;
 use App\Models\User;
+use Carbon\Carbon;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
-use Illuminate\Database\Eloquent\Model;
 
 class ChangeRequestFormatter
 {
@@ -119,7 +120,7 @@ class ChangeRequestFormatter
             'created_at' => optional($changeRequest->created_at)->toISOString(),
             'approved_at' => optional($changeRequest->approved_at)->toISOString(),
             'rejected_at' => optional($changeRequest->rejected_at)->toISOString(),
-            'changed_fields' => $this->summarizePayloadFields($changeRequest->payload ?? []),
+            'changed_fields' => $this->summarizeChangedFields($changeRequest->payload ?? [], $changeRequest->changeable),
         ];
     }
 
@@ -243,6 +244,10 @@ class ChangeRequestFormatter
             $currentMappedValue = $this->mapFieldValue($key, $currentRaw ?? $currentValue);
             $requestedMappedValue = $this->mapFieldValue($key, $requestedValue);
 
+            if ($this->valuesAreEquivalent($key, $currentRaw ?? $currentValue, $requestedValue)) {
+                continue;
+            }
+
             if ($currentMappedValue !== $requestedMappedValue) {
                 $isAttachment = $this->isAttachmentField($key);
                 $mappedPayload[$mappedKey] = [
@@ -318,6 +323,10 @@ class ChangeRequestFormatter
                 return $this->resolveCountryName($value);
             case 'user_id':
                 return $this->resolveUserName($value);
+            case 'birth_date':
+                return $this->formatDateValue($value);
+            case 'email':
+                return trim((string) $value);
         }
 
         if ($fieldName === 'status') {
@@ -438,6 +447,34 @@ class ChangeRequestFormatter
      * @param  array<string, mixed>  $payload
      * @return list<string>
      */
+    protected function summarizeChangedFields(array $payload, ?Model $model): array
+    {
+        $fields = [];
+
+        foreach ($this->applicablePayload($payload) as $key => $requestedValue) {
+            $currentValue = $model ? $model->getAttribute($key) : null;
+
+            if ($this->valuesAreEquivalent($key, $currentValue, $requestedValue)) {
+                continue;
+            }
+
+            $currentMappedValue = $this->mapFieldValue($key, $currentValue);
+            $requestedMappedValue = $this->mapFieldValue($key, $requestedValue);
+
+            if ($currentMappedValue === $requestedMappedValue) {
+                continue;
+            }
+
+            $fields[] = $this->mapFieldName($key);
+        }
+
+        return $fields;
+    }
+
+    /**
+     * @param  array<string, mixed>  $payload
+     * @return list<string>
+     */
     protected function summarizePayloadFields(array $payload): array
     {
         $fields = [];
@@ -460,6 +497,56 @@ class ChangeRequestFormatter
             fn ($key) => ! Str::startsWith($key, '__'),
             ARRAY_FILTER_USE_KEY
         );
+    }
+
+    protected function valuesAreEquivalent(string $fieldName, mixed $currentValue, mixed $requestedValue): bool
+    {
+        if ($fieldName === 'birth_date') {
+            $currentDate = $this->normalizeDateValue($currentValue);
+            $requestedDate = $this->normalizeDateValue($requestedValue);
+
+            return $currentDate !== null
+                && $requestedDate !== null
+                && $currentDate === $requestedDate;
+        }
+
+        if ($fieldName === 'email') {
+            return strtolower(trim((string) $currentValue)) === strtolower(trim((string) $requestedValue));
+        }
+
+        return false;
+    }
+
+    protected function normalizeDateValue(mixed $value): ?string
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+
+        if ($value instanceof \DateTimeInterface) {
+            return $value->format('Y-m-d');
+        }
+
+        try {
+            return Carbon::parse((string) $value)->toDateString();
+        } catch (\Throwable) {
+            $string = (string) $value;
+
+            if (str_contains($string, 'T')) {
+                return substr($string, 0, 10);
+            }
+
+            if (str_contains($string, ' ')) {
+                return substr($string, 0, 10);
+            }
+
+            return $string;
+        }
+    }
+
+    protected function formatDateValue(mixed $value): string
+    {
+        return $this->normalizeDateValue($value) ?? 'Not provided';
     }
 }
 

@@ -198,6 +198,134 @@ class AdminCustomerLogsAndChangeRequestsTest extends CustomerAuthTestCase
         ]);
     }
 
+    public function test_change_request_detail_ignores_same_birth_date_with_different_timestamp_format(): void
+    {
+        $customer = Customer::factory()->create([
+            'email' => 'birth-date-'.uniqid().'@example.com',
+            'phone' => '+24996'.random_int(1000000, 9999999),
+            'status' => Customer::STATUS_REQUESTING_UPDATED,
+            'profile_completed' => true,
+            'password' => Hash::make('Password1!'),
+            'country_id' => $this->country->id,
+            'city_id' => $this->city->id,
+            'name' => 'Original Name',
+            'birth_date' => '1990-05-15 00:00:00',
+        ]);
+
+        $changeRequest = ChangeRequest::create([
+            'changeable_type' => Customer::class,
+            'changeable_id' => $customer->id,
+            'requester_type' => Customer::class,
+            'requester_id' => $customer->id,
+            'payload' => [
+                'name' => 'Updated Name',
+                'birth_date' => '1990-05-15',
+                'gender' => 'male',
+                'city_id' => $this->city->id,
+                'country_id' => $this->country->id,
+                '__meta' => ['previous_status' => Customer::STATUS_ACTIVE],
+            ],
+            'status' => 'pending',
+            'has_file' => false,
+        ]);
+
+        $response = $this->actingAsAdminApi()->getJson(
+            "/api/v2/admin/customers/{$customer->id}/change-requests/{$changeRequest->id}"
+        );
+
+        $response->assertOk()
+            ->assertJsonPath('success', true)
+            ->assertJsonPath('data.changes.Name.current', 'Original Name')
+            ->assertJsonPath('data.changes.Name.requested', 'Updated Name')
+            ->assertJsonMissingPath('data.changes.Date of Birth');
+    }
+
+    public function test_kyc_change_request_detail_ignores_same_birth_date_with_different_timestamp_format(): void
+    {
+        $customer = Customer::factory()->create([
+            'email' => 'birth-date-kyc-'.uniqid().'@example.com',
+            'phone' => '+24991'.random_int(1000000, 9999999),
+            'status' => Customer::STATUS_REQUESTING_UPDATED,
+            'profile_completed' => true,
+            'password' => Hash::make('Password1!'),
+            'country_id' => $this->country->id,
+            'city_id' => $this->city->id,
+            'name' => 'Original Name',
+            'birth_date' => '1990-05-15 00:00:00',
+        ]);
+
+        $changeRequest = ChangeRequest::create([
+            'changeable_type' => Customer::class,
+            'changeable_id' => $customer->id,
+            'requester_type' => Customer::class,
+            'requester_id' => $customer->id,
+            'payload' => [
+                'name' => 'Updated Name',
+                'birth_date' => '1990-05-15',
+                'gender' => 'male',
+                'city_id' => $this->city->id,
+                'country_id' => $this->country->id,
+                '__meta' => ['previous_status' => Customer::STATUS_ACTIVE],
+            ],
+            'status' => 'pending',
+            'has_file' => false,
+        ]);
+
+        $response = $this->actingAsAdminApi()->getJson(
+            "/api/v2/admin/change-requests/{$changeRequest->id}"
+        );
+
+        $response->assertOk()
+            ->assertJsonPath('status', true)
+            ->assertJsonPath('data.changes.Name.current', 'Original Name')
+            ->assertJsonPath('data.changes.Name.requested', 'Updated Name')
+            ->assertJsonMissingPath('data.changes.Date of Birth');
+    }
+
+    public function test_change_request_detail_shows_email_change(): void
+    {
+        $currentEmail = 'current-'.uniqid().'@example.com';
+        $requestedEmail = 'requested-'.uniqid().'@example.com';
+
+        $customer = Customer::factory()->create([
+            'email' => $currentEmail,
+            'phone' => '+24995'.random_int(1000000, 9999999),
+            'status' => Customer::STATUS_REQUESTING_UPDATED,
+            'profile_completed' => true,
+            'password' => Hash::make('Password1!'),
+            'country_id' => $this->country->id,
+            'city_id' => $this->city->id,
+            'name' => 'Original Name',
+        ]);
+
+        $changeRequest = ChangeRequest::create([
+            'changeable_type' => Customer::class,
+            'changeable_id' => $customer->id,
+            'requester_type' => Customer::class,
+            'requester_id' => $customer->id,
+            'payload' => [
+                'email' => $requestedEmail,
+                'name' => 'Original Name',
+                'birth_date' => '1990-01-01',
+                'gender' => 'male',
+                'city_id' => $this->city->id,
+                'country_id' => $this->country->id,
+                '__meta' => ['previous_status' => Customer::STATUS_ACTIVE],
+            ],
+            'status' => 'pending',
+            'has_file' => false,
+        ]);
+
+        $response = $this->actingAsAdminApi()->getJson(
+            "/api/v2/admin/customers/{$customer->id}/change-requests/{$changeRequest->id}"
+        );
+
+        $response->assertOk()
+            ->assertJsonPath('success', true)
+            ->assertJsonPath('data.changes.Email.current', $currentEmail)
+            ->assertJsonPath('data.changes.Email.requested', $requestedEmail);
+    }
+
     private function actingAsAdminApi(): self
     {
         Passport::actingAs($this->admin, [], 'admin-api');

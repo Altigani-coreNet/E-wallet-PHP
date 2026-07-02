@@ -412,6 +412,24 @@ class CustomerAuthService
             'merchant_country_id' => $country->id,
         ];
 
+        if (array_key_exists('email', $data)) {
+            $requestedEmail = trim((string) $data['email']);
+            $currentEmail = trim((string) ($customer->email ?? ''));
+
+            if ($requestedEmail !== '' && strcasecmp($requestedEmail, $currentEmail) !== 0) {
+                if (Customer::query()
+                    ->where('email', $requestedEmail)
+                    ->where('id', '!=', $customer->id)
+                    ->exists()) {
+                    throw new \Symfony\Component\HttpKernel\Exception\ConflictHttpException(
+                        'Email is already in use'
+                    );
+                }
+
+                $updateData['email'] = $requestedEmail;
+            }
+        }
+
         if ($request->hasFile('picture')) {
             $updateData['profile_image'] = $this->storeProfilePicture($request, $customer);
         }

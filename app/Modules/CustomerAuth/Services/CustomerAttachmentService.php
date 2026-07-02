@@ -192,12 +192,14 @@ class CustomerAttachmentService
 
     private function resolvePublicUrl(?string $path): ?string
     {
+        if (function_exists('customer_attachment_public_url')) {
+            return customer_attachment_public_url($path);
+        }
+
         if (! $path) {
             return null;
         }
 
-        return function_exists('coreservice_asset')
-            ? coreservice_asset($path)
-            : asset($path);
+        return asset($path);
     }
 }

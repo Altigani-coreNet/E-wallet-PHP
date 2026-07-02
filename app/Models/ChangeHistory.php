@@ -27,7 +27,6 @@ class ChangeHistory extends Model
         'before' => 'array',
         'after' => 'array',
         'payload' => 'array',
-        'user_id' => 'integer',
     ];
 
     public function changeable(): MorphTo

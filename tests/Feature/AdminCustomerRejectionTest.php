@@ -122,6 +122,47 @@ class AdminCustomerRejectionTest extends CustomerAuthTestCase
         Mail::assertSent(\App\Mail\CustomerApprovalMail::class);
     }
 
+    public function test_approval_notification_appears_in_customer_inbox(): void
+    {
+        $customer = $this->createPendingCustomer();
+
+        $this->actingAsAdminApi()->postJson(
+            "/api/v2/admin/customers/{$customer->id}/approve"
+        )->assertOk();
+
+        $auth = app(\App\Modules\CustomerAuth\Support\CustomerJwtService::class)->createToken(
+            $customer->id,
+            $customer->email ?: $customer->phone,
+        );
+
+        $this->withHeaders([
+            'Authorization' => 'Bearer '.$auth['token'],
+            'Accept' => 'application/json',
+        ])->getJson('/api/v1/customer/notifications')
+            ->assertOk()
+            ->assertJsonPath('data.total', 1)
+            ->assertJsonPath('data.data.0.title', 'Your account is approved');
+    }
+
+    public function test_status_endpoint_pending_to_active_sends_approval_notification(): void
+    {
+        $customer = $this->createPendingCustomer();
+
+        $this->actingAsAdminApi()->postJson(
+            "/api/v2/admin/customers/{$customer->id}/status",
+            ['status' => Customer::STATUS_ACTIVE]
+        )->assertOk()
+            ->assertJsonPath('data.status', Customer::STATUS_ACTIVE);
+
+        $notification = DatabaseNotification::query()
+            ->where('notifiable_id', (string) $customer->id)
+            ->where('data->meta->event_type', CustomerNotificationType::ProfileApproved->value)
+            ->first();
+
+        $this->assertNotNull($notification);
+        Mail::assertSent(\App\Mail\CustomerApprovalMail::class);
+    }
+
     public function test_approve_active_customer_returns_422(): void
     {
         $customer = Customer::factory()->create([
@@ -214,6 +255,10 @@ class AdminCustomerRejectionTest extends CustomerAuthTestCase
         $urlTypes = collect($response->json('data.attachments'))->pluck('url_type')->all();
         $this->assertContains('profile_image', $urlTypes);
         $this->assertContains('passport_document', $urlTypes);
+
+        $attachments = collect($response->json('data.attachments'))->keyBy('url_type');
+        $this->assertStringContainsString('customer_profile_images/', $attachments->get('profile_image')['url']);
+        $this->assertStringContainsString('/storage/customer_documents/', $attachments->get('passport_document')['url']);
     }
 
     private function createPendingCustomer(): Customer

@@ -141,6 +141,17 @@ class CustomerService
             }
         }
 
+        $newStatus = $data['status'] ?? null;
+        if ($this->shouldRunKycApprovalFlow($customer->status, $newStatus)) {
+            unset($data['status']);
+
+            if ($data !== []) {
+                $customer = $this->customerRepository->update($customer, $data);
+            }
+
+            return $this->approve($customer->fresh())['customer'];
+        }
+
         return $this->customerRepository->update($customer, $data);
     }
 
@@ -368,10 +379,21 @@ class CustomerService
             ]);
         }
 
+        if ($this->shouldRunKycApprovalFlow($customer->status, $status)) {
+            return $this->approve($customer)['customer'];
+        }
+
         $customer->status = $status;
         $customer->save();
 
         return $customer->fresh(['merchant', 'country', 'city']);
+    }
+
+    protected function shouldRunKycApprovalFlow(?string $currentStatus, ?string $nextStatus): bool
+    {
+        return $nextStatus === Customer::STATUS_ACTIVE
+            && $nextStatus !== $currentStatus
+            && in_array($currentStatus, Customer::APPROVABLE_STATUSES, true);
     }
 
     /**

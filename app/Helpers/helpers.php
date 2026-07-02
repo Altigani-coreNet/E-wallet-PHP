@@ -43,3 +43,36 @@ if (!function_exists('coreservice_asset')) {
         return $baseUrl .'/' . $assetPath;
     }
 }
+
+if (!function_exists('customer_attachment_public_url')) {
+    /**
+     * Build a public URL for customer KYC files (profile photo, passport, etc.).
+     *
+     * Profile images are stored under public/. Passport documents use the public disk
+     * (storage/app/public) and must be served via /storage/...
+     */
+    function customer_attachment_public_url(?string $path): ?string
+    {
+        if ($path === null || $path === '') {
+            return null;
+        }
+
+        if (filter_var($path, FILTER_VALIDATE_URL)) {
+            return $path;
+        }
+
+        $normalized = ltrim(str_replace('\\', '/', $path), '/');
+
+        if (str_starts_with($normalized, 'storage/')) {
+            $assetPath = $normalized;
+        } elseif (str_starts_with($normalized, 'customer_documents/')) {
+            $assetPath = 'storage/'.$normalized;
+        } else {
+            $assetPath = $normalized;
+        }
+
+        return function_exists('coreservice_asset')
+            ? coreservice_asset($assetPath)
+            : asset($assetPath);
+    }
+}

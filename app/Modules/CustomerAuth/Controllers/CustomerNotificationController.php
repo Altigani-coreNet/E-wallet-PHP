@@ -120,7 +120,7 @@ class CustomerNotificationController
             ->where(function ($q) use ($customer, $merchantId, $firstAdminId) {
                 $q->where(function ($sub) use ($customer) {
                     $sub->where('notifiable_type', Customer::class)
-                        ->where('notifiable_id', $customer->id);
+                        ->where('notifiable_id', (string) $customer->id);
                 });
 
                 if (! empty($merchantId)) {
