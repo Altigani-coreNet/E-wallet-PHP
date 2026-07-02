@@ -175,6 +175,11 @@ class CustomerEventMessageBuilder
         return "Password reset completed for {$phone}.";
     }
 
+    public static function passwordResetRequested(): string
+    {
+        return 'Password reset requested.';
+    }
+
     /**
      * @param  array<string, mixed>  $before
      * @param  array<string, mixed>  $after

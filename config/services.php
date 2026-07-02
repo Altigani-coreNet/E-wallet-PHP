@@ -86,6 +86,15 @@ return [
         'mock_code' => env('OTP_MOCK_CODE', 111111),
     ],
 
+    'biometric' => [
+        'algorithm' => env('BIOMETRIC_ALGORITHM', 'ES256'),
+        'challenge_ttl' => (int) env('BIOMETRIC_CHALLENGE_TTL', 60),
+        'max_devices' => (int) env('BIOMETRIC_MAX_DEVICES', 5),
+        'max_devices_strategy' => env('BIOMETRIC_MAX_DEVICES_STRATEGY', 'revoke_oldest'),
+        'challenge_rate_limit' => (int) env('BIOMETRIC_CHALLENGE_RATE_LIMIT', 10),
+        'challenge_rate_decay' => (int) env('BIOMETRIC_CHALLENGE_RATE_DECAY', 60),
+    ],
+
     /*
     |--------------------------------------------------------------------------
     | Wallet transfer fee (fixed amount deducted from each customer transfer)

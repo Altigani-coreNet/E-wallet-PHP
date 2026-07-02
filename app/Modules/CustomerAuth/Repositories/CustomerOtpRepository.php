@@ -10,6 +10,8 @@ class CustomerOtpRepository
 {
     private const OTP_EXPIRY_MINUTES = 10;
 
+    private const EMAIL_LINK_EXPIRY_HOURS = 48;
+
     public function store(string $identifier, string $channel): CustomerOtp
     {
         return CustomerOtp::create([
@@ -82,5 +84,32 @@ class CustomerOtpRepository
     public function deleteById(int $id): void
     {
         CustomerOtp::query()->whereKey($id)->delete();
+    }
+
+    public function storeEmailVerificationLink(string $email): CustomerOtp
+    {
+        CustomerOtp::query()
+            ->where('identifier', $email)
+            ->where('channel', 'email')
+            ->where('is_verified', false)
+            ->delete();
+
+        return CustomerOtp::create([
+            'identifier' => $email,
+            'channel' => 'email',
+            'code' => (int) config('services.otp.mock_code', 111111),
+            'token' => Str::random(64),
+            'expires_at' => Carbon::now()->addHours(self::EMAIL_LINK_EXPIRY_HOURS),
+        ]);
+    }
+
+    public function findValidEmailVerificationLink(string $token): ?CustomerOtp
+    {
+        return CustomerOtp::query()
+            ->where('token', $token)
+            ->where('channel', 'email')
+            ->where('is_verified', false)
+            ->where('expires_at', '>', now())
+            ->first();
     }
 }

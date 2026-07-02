@@ -33,6 +33,7 @@ class CustomerAuthService
 
     public function __construct(
         private readonly CustomerOtpService $otpService,
+        private readonly CustomerActionOtpService $actionOtpService,
         private readonly CustomerJwtService $jwtService,
         private readonly WalletService $walletService,
         private readonly CustomerSystemNotificationService $customerSystemNotificationService,
@@ -118,7 +119,21 @@ class CustomerAuthService
     public function forgotPassword(string $phone): array
     {
         // Always issue an OTP token — do not reveal whether the account exists.
-        return $this->otpService->generateAndSendSmsOtp($phone);
+        $result = $this->otpService->generateAndSendSmsOtp($phone);
+
+        $customer = Customer::query()
+            ->where('phone', $phone)
+            ->whereNull('deleted_at')
+            ->first();
+
+        if ($customer) {
+            $this->customerService->logCustomerEvent($customer, 'password_reset_requested', [
+                'message' => CustomerEventMessageBuilder::passwordResetRequested(),
+                'performed_by' => $customer->name ?: $customer->phone ?: 'Customer',
+            ]);
+        }
+
+        return $result;
     }
 
     public function resetPassword(array $data): array
@@ -176,6 +191,7 @@ class CustomerAuthService
             );
         }
 
+        app(CustomerBiometricService::class)->revokeAllForCustomer($customer);
         $this->customerService->softDeleteWithCorruption($customer);
 
         return ['message' => 'Account deleted successfully'];
@@ -188,7 +204,37 @@ class CustomerAuthService
         return $this->buildAuthResponse($customer);
     }
 
-    public function changePassword(Customer $customer, array $data): array
+    /**
+     * @return array{otp_token: string, expires_at: string}
+     */
+    public function requestPasswordChange(Customer $customer, array $data): array
+    {
+        $this->assertPasswordChangeValid($customer, $data);
+
+        $fingerprint = CustomerActionOtpService::fingerprintPassword($data['password']);
+
+        return $this->actionOtpService->issuePasswordChange($customer, $fingerprint);
+    }
+
+    public function confirmPasswordChange(Customer $customer, array $data): array
+    {
+        $this->assertPasswordChangeValid($customer, $data);
+
+        $fingerprint = CustomerActionOtpService::fingerprintPassword($data['password']);
+
+        return DB::transaction(function () use ($customer, $data, $fingerprint) {
+            $this->actionOtpService->verifyPasswordChangeAndConsume(
+                $customer,
+                $data['otp_token'],
+                (int) $data['otp'],
+                $fingerprint,
+            );
+
+            return $this->applyPasswordChange($customer, $data['password']);
+        });
+    }
+
+    private function assertPasswordChangeValid(Customer $customer, array $data): void
     {
         if (! Hash::check($data['current_password'], $customer->password)) {
             throw new \Symfony\Component\HttpKernel\Exception\BadRequestHttpException(
@@ -201,10 +247,15 @@ class CustomerAuthService
                 'New password must be different from the current password'
             );
         }
+    }
 
+    private function applyPasswordChange(Customer $customer, string $newPassword): array
+    {
         $customer->update([
-            'password' => Hash::make($data['password']),
+            'password' => Hash::make($newPassword),
         ]);
+
+        app(CustomerBiometricService::class)->revokeAllForCustomer($customer->fresh());
 
         $customer->load(['country', 'city']);
 
@@ -278,6 +329,7 @@ class CustomerAuthService
                 'gender' => $data['gender'],
                 'city_id' => $data['cityId'],
                 'country_id' => $country->id,
+                'merchant_country_id' => $country->id,
                 'profile_completed' => true,
             ];
 
@@ -357,6 +409,7 @@ class CustomerAuthService
             'gender' => $data['gender'],
             'city_id' => $data['cityId'],
             'country_id' => $country->id,
+            'merchant_country_id' => $country->id,
         ];
 
         if ($request->hasFile('picture')) {

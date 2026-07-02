@@ -244,6 +244,17 @@ return [
     'customer_set_password_footer_help' => 'If you need help, our support team is available.',
     'customer_set_password_automated' => 'This is an automated message. Please do not reply.',
 
+    'customer_email_verification_subject' => 'Verify your email address',
+    'customer_email_verification_title' => 'Verify your email',
+    'customer_email_verification_greeting' => 'Hello :name,',
+    'customer_email_verification_body' => 'Please confirm that this email address belongs to you. Click the button below to verify your account email.',
+    'customer_email_verification_section' => 'Email verification',
+    'customer_email_verification_btn' => 'Verify email',
+    'customer_email_verification_expiry' => 'This link is valid for :hours hours. If it expires, ask your administrator to send a new verification email.',
+    'customer_email_verification_copy_url' => 'If you have trouble clicking the button, copy and paste this URL into your browser:',
+    'customer_email_verification_footer_help' => 'If you did not request this, you can safely ignore this email.',
+    'customer_email_verification_automated' => 'This is an automated message. Please do not reply.',
+
     // Password reset success
     'password_reset_success_subject' => 'Password reset successful',
     'password_reset_success_greeting' => 'Hello :name,',

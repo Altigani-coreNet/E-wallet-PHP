@@ -2,7 +2,7 @@
     "info": {
         "_postman_id": "e-wallet-project-2026",
         "name": "E Wallet Project",
-        "description": "End-customer authentication, onboarding, wallet transfers (IFRS double-entry), banners, services catalog, and notifications for Fast Pay SoftPOS (`/api/v1/customer`).\n\n## Auth\nRegister/login/reset/refresh/change-password return `token`, `refresh_token`, `expires_in`, and `refresh_token_expires_in`. Use `POST /auth/refresh-token` with body `{ \"refresh_token\": \"...\" }` to rotate the pair. Change password: `POST /password/change` (Bearer access token required). Delete account: `DELETE /account` with body `{ \"password\": \"...\" }` — soft-deletes and corrupts phone/email (Bearer access token required).\n\nDev OTP mock: set `OTP_MOCK_CODE=111111`. JWT config: `JWT_EXPIRES_IN` (access, default 7d), `JWT_REFRESH_EXPIRES_IN` (refresh, default 30d).\n\n## Customer wallet transfer flow (recommended order)\n1. **Login** — `POST /auth/login` → saves `customer_jwt`\n2. **Dashboard** — `GET /wallet/dashboard` → balance + last 5 transactions\n3. **Query recipient** — `GET /wallet/query?identifier=<phone|wallet_id>` → returns recipient `wallet_id`, `name`, `email` (cannot query your own account)\n4. **Request transfer OTP** — `POST /wallet/transfer/otp` with the same transfer payload → returns `otp_token` (SMS stub + WebSocket push with code; code not in HTTP body)\n5. **Transfer** — `POST /wallet/transfer` with the **same payload** plus `otp_token` and `otp` (use `otp_code` collection var, default `111111` in dev)\n6. **Withdraw** (optional) — `POST /wallet/withdraw` to cash out to master float\n\n## Customer bill payment flow (recommended order)\n1. **Login** — `POST /auth/login` → saves `customer_jwt`\n2. **Services Catalog** — `GET /services/catalog` → saves `service_id`, `product_id`, `partner_id` from first billable service\n3. **Wallet Dashboard** — confirm balance covers `amount + fee`\n4. **Request bill payment OTP** — `POST /wallet/bill-payment/otp` with exact payload → saves `bill_payment_otp_token`\n5. **Pay bill** — `POST /wallet/bill-payment` with the **same payload** plus `otp_token` and `otp` (dev: `111111`)\n6. **Admin settle provider** (optional) — `POST /api/v2/admin/provider-settlements` after bill payments accrue partner payables\n\nUse the same `Idempotency-Key` on both bill-payment OTP and pay when retrying. Accounting: bill pay posts **DR 2000 Customer / CR 21xx Provider Payable** (+ optional fee to 4000); settlement posts **DR 21xx / CR 1000 Bank**.\n\nUse the same `Idempotency-Key` on both OTP request and transfer when retrying. Run wallet folder requests top-to-bottom for a full demo. `recipient_wallet_id` is auto-saved from **Query Recipient**; `transfer_otp_token` is auto-saved from **Request Transfer OTP**.\n\nAdmin **Wallets** folder: `/api/v2/admin/wallets` (list, transactions, cash-in/out, opening capital). Seed: `php artisan db:seed --class=WalletE2eSeeder` (master `WAL-MASTER`).\n\n## KYC folder\nUse the **KYC** folder for admin reject/approve, change requests, event logs, and customer resubmit flows. Variables: `customer_id`, `change_request_id`, `customer_national_id`. See `CUSTOMER_REJECTION_WORKFLOW_PRD.md`.",
+        "description": "End-customer authentication, onboarding, wallet transfers (IFRS double-entry), banners, services catalog, and notifications for Fast Pay SoftPOS (`/api/v1/customer`).\n\n## Auth\nRegister/login/reset/refresh return `token`, `refresh_token`, `expires_in`, and `refresh_token_expires_in`. Use `POST /auth/refresh-token` with body `{ \"refresh_token\": \"...\" }` to rotate the pair. Change password (two-step OTP): `POST /password/change/request` then `POST /password/change/confirm` with `otp_token` and `otp` (Bearer access token required). Delete account: `DELETE /account` with body `{ \"password\": \"...\" }` — soft-deletes and corrupts phone/email (Bearer access token required).\n\nDev OTP mock: set `OTP_MOCK_CODE=111111`. JWT config: `JWT_EXPIRES_IN` (access, default 7d), `JWT_REFRESH_EXPIRES_IN` (refresh, default 30d).\n\n## Customer wallet transfer flow (recommended order)\n1. **Login** — `POST /auth/login` → saves `customer_jwt`\n2. **Dashboard** — `GET /wallet/dashboard` → balance + last 5 transactions\n3. **Query recipient** — `GET /wallet/query?identifier=<phone|wallet_id>` → returns recipient `wallet_id`, `name`, `email` (cannot query your own account)\n4. **Request transfer OTP** — `POST /wallet/transfer/otp` with the same transfer payload → returns `otp_token` (SMS stub + WebSocket push with code; code not in HTTP body)\n5. **Transfer** — `POST /wallet/transfer` with the **same payload** plus `otp_token` and `otp` (use `otp_code` collection var, default `111111` in dev)\n6. **Withdraw** (optional) — `POST /wallet/withdraw` to cash out to master float\n\n## Customer bill payment flow (recommended order)\n1. **Login** — `POST /auth/login` → saves `customer_jwt`\n2. **Services Catalog** — `GET /services/catalog` → saves `service_id`, `product_id`, `partner_id` from first billable service\n3. **Wallet Dashboard** — confirm balance covers `amount + fee`\n4. **Request bill payment OTP** — `POST /wallet/bill-payment/otp` with exact payload → saves `bill_payment_otp_token`\n5. **Pay bill** — `POST /wallet/bill-payment` with the **same payload** plus `otp_token` and `otp` (dev: `111111`)\n6. **Admin settle provider** (optional) — `POST /api/v2/admin/provider-settlements` after bill payments accrue partner payables\n\nUse the same `Idempotency-Key` on both bill-payment OTP and pay when retrying. Accounting: bill pay posts **DR 2000 Customer / CR 21xx Provider Payable** (+ optional fee to 4000); settlement posts **DR 21xx / CR 1000 Bank**.\n\nUse the same `Idempotency-Key` on both OTP request and transfer when retrying. Run wallet folder requests top-to-bottom for a full demo. `recipient_wallet_id` is auto-saved from **Query Recipient**; `transfer_otp_token` is auto-saved from **Request Transfer OTP**.\n\nAdmin **Wallets** folder: `/api/v2/admin/wallets` (list, transactions, cash-in/out, opening capital). Seed: `php artisan db:seed --class=WalletE2eSeeder` (master `WAL-MASTER`).\n\n## KYC folder\nUse the **KYC** folder for admin reject/approve, change requests, event logs, and customer resubmit flows. Variables: `customer_id`, `change_request_id`, `customer_national_id`. See `CUSTOMER_REJECTION_WORKFLOW_PRD.md`.\n\n## Biometric (fingerprint / Face ID) login — Flutter mobile\n\n**What it is:** Quick re-login on a **trusted phone** without typing password. The server **never receives fingerprint data**. The phone's biometric sensor only unlocks a **private key** stored in secure hardware (Android Keystore / iOS Secure Enclave). The server stores the matching **public key** and verifies a **signed challenge** on each login.\n\n**When to use:** Returning user opens the app on a phone that was previously enrolled after password login.\n\n**Recommended Postman demo order:** Auth → **Login** → Biometric → **Enroll** → **Challenge** → **Biometric Login** → (optional) List / Disable / Revoke.\n\nCollection variables: `biometric_device_id` (UUID per app install), `biometric_challenge_token`, `biometric_nonce`, `biometric_signature`, `biometric_credential_id`.\n\nConfig: `BIOMETRIC_CHALLENGE_TTL` (default 60s), `BIOMETRIC_MAX_DEVICES` (default 5). See `docs/prds/CUSTOMER_BIOMETRIC_LOGIN_PRD.md`.",
         "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
     },
     "variable": [
@@ -53,6 +53,31 @@
         },
         {
             "key": "customer_refresh_token",
+            "value": "",
+            "type": "string"
+        },
+        {
+            "key": "biometric_device_id",
+            "value": "550e8400-e29b-41d4-a716-446655440000",
+            "type": "string"
+        },
+        {
+            "key": "biometric_challenge_token",
+            "value": "",
+            "type": "string"
+        },
+        {
+            "key": "biometric_nonce",
+            "value": "",
+            "type": "string"
+        },
+        {
+            "key": "biometric_signature",
+            "value": "",
+            "type": "string"
+        },
+        {
+            "key": "biometric_credential_id",
             "value": "",
             "type": "string"
         },
@@ -108,6 +133,11 @@
         },
         {
             "key": "transfer_otp_token",
+            "value": "",
+            "type": "string"
+        },
+        {
+            "key": "password_change_otp_token",
             "value": "",
             "type": "string"
         },
@@ -311,6 +341,160 @@
                             }
                         }
                     ]
+                }
+            ]
+        },
+        {
+            "name": "Public",
+            "description": "Public content endpoints (no auth). Use `Accept-Language: en` or `ar` for localized contract terms and support info.",
+            "item": [
+                {
+                    "name": "Get Contract Terms (EN)",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json",
+                                "type": "text"
+                            },
+                            {
+                                "key": "Accept-Language",
+                                "value": "en",
+                                "type": "text"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/contract-terms",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "contract-terms"
+                            ]
+                        },
+                        "description": "Public contract terms for registration/onboarding. Locale from `Accept-Language` header (`en` or `ar`)."
+                    },
+                    "response": [
+                        {
+                            "name": "Success",
+                            "status": "OK",
+                            "code": 200,
+                            "_postman_previewlanguage": "json",
+                            "header": [
+                                {
+                                    "key": "Content-Type",
+                                    "value": "application/json"
+                                }
+                            ],
+                            "body": "{\n    \"success\": true,\n    \"message\": \"Contract terms retrieved successfully\",\n    \"data\": {\n        \"language\": \"en\",\n        \"terms\": \"<p>Terms and conditions HTML...</p>\",\n        \"retrieved_at\": \"2026-07-01T12:00:00.000000Z\"\n    }\n}"
+                        }
+                    ]
+                },
+                {
+                    "name": "Get Contract Terms (AR)",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json",
+                                "type": "text"
+                            },
+                            {
+                                "key": "Accept-Language",
+                                "value": "ar",
+                                "type": "text"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/contract-terms",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "contract-terms"
+                            ]
+                        },
+                        "description": "Arabic contract terms (`Accept-Language: ar`)."
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Get Support Info",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json",
+                                "type": "text"
+                            },
+                            {
+                                "key": "Accept-Language",
+                                "value": "en",
+                                "type": "text"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/support",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "support"
+                            ]
+                        },
+                        "description": "Static support contact details (phone, email, WhatsApp, live chat). Replace with CMS/settings later."
+                    },
+                    "response": [
+                        {
+                            "name": "Success",
+                            "status": "OK",
+                            "code": 200,
+                            "_postman_previewlanguage": "json",
+                            "header": [
+                                {
+                                    "key": "Content-Type",
+                                    "value": "application/json"
+                                }
+                            ],
+                            "body": "{\n    \"success\": true,\n    \"message\": \"Support information retrieved successfully\",\n    \"data\": {\n        \"language\": \"en\",\n        \"title\": \"Need assistance?\",\n        \"description\": \"If you have any questions, our support team is here to help.\",\n        \"email\": \"support@corenetpay.com\",\n        \"phone\": \"+971 50 123 4567\",\n        \"whatsapp\": \"+971501234567\",\n        \"live_chat_url\": \"https://corenettech.com/support\",\n        \"working_hours\": \"Monday - Friday: 9:00 AM - 6:00 PM (GST)\",\n        \"retrieved_at\": \"2026-07-01T12:00:00.000000Z\"\n    }\n}"
+                        }
+                    ]
+                },
+                {
+                    "name": "Get Support Info (AR)",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json",
+                                "type": "text"
+                            },
+                            {
+                                "key": "Accept-Language",
+                                "value": "ar",
+                                "type": "text"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/support",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "support"
+                            ]
+                        },
+                        "description": "Arabic support contact details (`Accept-Language: ar`)."
+                    },
+                    "response": []
                 }
             ]
         },
@@ -915,7 +1099,7 @@
                     ]
                 },
                 {
-                    "name": "Change Password",
+                    "name": "Change Password — Request OTP",
                     "request": {
                         "method": "POST",
                         "header": [
@@ -936,7 +1120,7 @@
                             }
                         ],
                         "url": {
-                            "raw": "{{base_url}}/api/v1/customer/password/change",
+                            "raw": "{{base_url}}/api/v1/customer/password/change/request",
                             "host": [
                                 "{{base_url}}"
                             ],
@@ -945,7 +1129,8 @@
                                 "v1",
                                 "customer",
                                 "password",
-                                "change"
+                                "change",
+                                "request"
                             ]
                         },
                         "body": {
@@ -957,13 +1142,13 @@
                                 }
                             }
                         },
-                        "description": "Requires a valid customer access token. Returns a fresh token pair on success."
+                        "description": "Step 1: Validates current and new password, stores pending intent, sends SMS OTP. Does not update password. Saves password_change_otp_token on success."
                     },
                     "response": [
                         {
                             "name": "Success",
-                            "status": "OK",
-                            "code": 200,
+                            "status": "Created",
+                            "code": 201,
                             "_postman_previewlanguage": "json",
                             "header": [
                                 {
@@ -971,7 +1156,7 @@
                                     "value": "application/json"
                                 }
                             ],
-                            "body": "{\n    \"success\": true,\n    \"message\": \"Password changed successfully\",\n    \"data\": {\n        \"token\": \"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.example\",\n        \"token_type\": \"Bearer\",\n        \"expires_in\": 604800,\n        \"refresh_token\": \"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.refresh\",\n        \"refresh_token_expires_in\": 2592000,\n        \"profile_completed\": true,\n        \"customer\": {\n            \"id\": 1,\n            \"phone\": \"+249912345678\"\n        }\n    }\n}"
+                            "body": "{\n    \"success\": true,\n    \"message\": \"Password change OTP sent successfully\",\n    \"data\": {\n        \"otp_token\": \"abc123...\",\n        \"expires_at\": \"2026-07-02T12:00:00+00:00\"\n    }\n}"
                         },
                         {
                             "name": "Error",
@@ -995,11 +1180,105 @@
                                 "exec": [
                                     "if (pm.response.code === 200 || pm.response.code === 201) {",
                                     "    const json = pm.response.json();",
+                                    "    if (json.data && json.data.otp_token) {",
+                                    "        pm.collectionVariables.set('password_change_otp_token', json.data.otp_token);",
+                                    "    }",
+                                    "}"
+                                ]
+                            }
+                        }
+                    ]
+                },
+                {
+                    "name": "Change Password — Confirm OTP",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json",
+                                "type": "text"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json",
+                                "type": "text"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{customer_jwt}}",
+                                "type": "text"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/v1/customer/password/change/confirm",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "v1",
+                                "customer",
+                                "password",
+                                "change",
+                                "confirm"
+                            ]
+                        },
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"otp_token\": \"{{password_change_otp_token}}\",\n    \"otp\": {{otp_code}},\n    \"current_password\": \"{{customer_password}}\",\n    \"password\": \"NewSecurePass1!\",\n    \"password_confirmation\": \"NewSecurePass1!\"\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        },
+                        "description": "Step 2: Verifies OTP and applies password change. Returns fresh token pair on success. Use same password fields as request step."
+                    },
+                    "response": [
+                        {
+                            "name": "Success",
+                            "status": "OK",
+                            "code": 200,
+                            "_postman_previewlanguage": "json",
+                            "header": [
+                                {
+                                    "key": "Content-Type",
+                                    "value": "application/json"
+                                }
+                            ],
+                            "body": "{\n    \"success\": true,\n    \"message\": \"Password changed successfully\",\n    \"data\": {\n        \"token\": \"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.example\",\n        \"token_type\": \"Bearer\",\n        \"expires_in\": 604800,\n        \"refresh_token\": \"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.refresh\",\n        \"refresh_token_expires_in\": 2592000,\n        \"profile_completed\": true,\n        \"customer\": {\n            \"id\": 1,\n            \"phone\": \"+249912345678\"\n        }\n    }\n}"
+                        },
+                        {
+                            "name": "Error",
+                            "status": "Unprocessable Entity",
+                            "code": 422,
+                            "_postman_previewlanguage": "json",
+                            "header": [
+                                {
+                                    "key": "Content-Type",
+                                    "value": "application/json"
+                                }
+                            ],
+                            "body": "{\n    \"success\": false,\n    \"message\": \"Invalid or expired OTP.\",\n    \"errors\": null,\n    \"data\": null\n}"
+                        }
+                    ],
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "if (pm.response.code === 200 || pm.response.code === 201) {",
+                                    "    const json = pm.response.json();",
                                     "    if (json.data && json.data.token) {",
                                     "        pm.collectionVariables.set('customer_jwt', json.data.token);",
                                     "    }",
                                     "    if (json.data && json.data.refresh_token) {",
                                     "        pm.collectionVariables.set('customer_refresh_token', json.data.refresh_token);",
+                                    "    }",
+                                    "    if (json.data && json.data.password) {",
+                                    "        pm.collectionVariables.set('customer_password', 'NewSecurePass1!');",
                                     "    }",
                                     "}"
                                 ]
@@ -1270,6 +1549,531 @@
                                     "}"
                                 ]
                             }
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "Biometric",
+            "description": "# Biometric Login — Frontend / Flutter Guide\n\n## Plain English\n\nFingerprint login is **not** sending your fingerprint to the server. The flow is:\n\n1. **First time only:** Customer logs in with **phone + password** (normal login).\n2. Customer taps **Enable fingerprint login** in the app.\n3. App generates a **key pair** in secure hardware. Private key never leaves the phone.\n4. App sends only the **public key** to the server (`POST /biometric/enroll`).\n5. **Next time:** App requests a challenge → user scans fingerprint → app **signs the nonce** → server returns JWT (same as password login).\n\n---\n\n## Two phases\n\n### Phase A — Enroll (password required once)\n\n```\nUser enters phone + password\n  → POST /auth/login  →  JWT\nUser enables fingerprint\n  → Generate keypair on phone (Flutter: local_auth + Keystore / Secure Enclave)\n  → POST /biometric/enroll  (Bearer JWT + public_key + device_id)\n  → Server stores public key for this device\n```\n\n### Phase B — Biometric login (returning user)\n\n```\nApp has device_id saved locally\n  → POST /auth/biometric/challenge  { device_id }\n  → Server returns challenge_token + nonce + expires_at\nUser scans fingerprint\n  → App signs raw nonce bytes with private key (unlocked by biometric)\n  → POST /auth/biometric/login  { device_id, challenge_token, signature }\n  → Server returns token + refresh_token (same shape as POST /auth/login)\n```\n\n---\n\n## Rules (must implement on mobile)\n\n| Rule | Detail |\n|------|--------|\n| **Never send fingerprint** | Only public key at enroll; only signature at login |\n| **device_id** | Stable UUID generated once per app install; store in secure storage |\n| **Sign raw nonce** | Decode `nonce` from base64url → sign those bytes → encode signature as base64url |\n| **Algorithm** | ES256 (EC P-256) on production phones; server auto-detects RS256 for RSA test keys |\n| **Challenge TTL** | 60 seconds default — request new challenge if expired |\n| **Single use** | Each challenge_token works **once** — replay returns 422 |\n| **Password still required** | New device, after password change, or after revoke — must password-login + re-enroll |\n| **Max devices** | 5 active devices per customer; oldest auto-revoked when enrolling a 6th |\n| **Password change** | Revokes **all** biometric devices — user must re-enroll |\n| **Account delete** | Revokes all biometric devices |\n| **Fallback** | Always show password login if biometrics disabled in OS or enroll missing |\n\n---\n\n## Flutter packages (reference)\n\n- `local_auth` — check sensor, prompt fingerprint / Face ID\n- Platform keystore — generate key with biometric protection\n- `flutter_secure_storage` — persist device_id\n\n---\n\n## Postman demo order\n\n1. **Auth → Login** (sets `customer_jwt`)\n2. **Enroll Biometric Device**\n3. **Biometric Challenge**\n4. **Biometric Login** (pre-request script signs nonce automatically)\n\n---\n\n## Standard response envelope\n\nAll endpoints return:\n\n```json\n{\n  \"success\": true|false,\n  \"message\": \"Human readable\",\n  \"data\": { ... } | null,\n  \"errors\": null | { \"field\": [\"...\"] }\n}\n```",
+            "item": [
+                {
+                    "name": "1. Enroll Biometric Device",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json",
+                                "type": "text"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json",
+                                "type": "text"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{customer_jwt}}",
+                                "type": "text"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/v1/customer/biometric/enroll",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "v1",
+                                "customer",
+                                "biometric",
+                                "enroll"
+                            ]
+                        },
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"device_id\": \"{{biometric_device_id}}\",\n    \"device_name\": \"Postman Test Device\",\n    \"platform\": \"android\",\n    \"public_key\": \"-----BEGIN PUBLIC KEY-----\\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAwvUC+Qu8uUuaURChYPNf\\nLCdeQunHJPl3qQ35IxVnyVcTywb3I5dbp98Y0yk8k8EoGL6ugZBAzduwU84u5ScC\\nfW4Y0z8gbXiXeQXXIc6F8IfMWIGO/1QocP1hDUZ90e56QNd9DlALElDom6fPHmqx\\nwalxFtXycZp4/N4GbreXubhPez1wWAssidTeMS2wlrsTQEhIzXE8gnLFD4CCBDF1\\nNFXo9bU0n3I26nlqGoqeXOkb+w7EgaZuu4O/hb1f3b21f1eHkORSEtWba17QaUVN\\nfHr9U58zqKg2CaktO3idDbycgJhqZtimcRXasjh8OSFaoxRJYHmflhhOaldMd8+4\\nmwIDAQAB\\n-----END PUBLIC KEY-----\"\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        },
+                        "description": "## Purpose\nRegister this phone as a **trusted device** for fingerprint login. Call **once** after the user has logged in with phone + password and opted in to biometrics.\n\n## Auth\n**Required** — `Authorization: Bearer {{customer_jwt}}` (access token from password login or register).\n\n## Request body\n\n| Field | Type | Required | Description |\n|-------|------|----------|-------------|\n| `device_id` | UUID string | Yes | Stable ID for this app install. Generate once, store in secure storage. Example: `550e8400-e29b-41d4-a716-446655440000` |\n| `device_name` | string | No | User-visible label, e.g. \"Ahmed's Pixel 8\" |\n| `platform` | enum | Yes | `android` or `ios` |\n| `public_key` | PEM string | Yes | **Public key only** from secure hardware keypair. Never send private key. Production: EC P-256 (ES256). |\n\n## Flutter steps before this call\n1. Check biometrics available (`local_auth`)\n2. Generate keypair in Android Keystore / iOS Secure Enclave with biometric protection\n3. Export public key as PEM\n4. Call this endpoint with JWT from password login\n\n## Success\n- **201 Created** — device enrolled or updated (same `device_id` re-enrolls)\n- Saves `biometric_credential_id` collection variable\n- Writes `biometric_enrolled` to customer activity log\n\n## Errors\n| HTTP | When |\n|------|------|\n| 401 | Missing or invalid JWT |\n| 422 | Invalid `device_id`, `platform`, or malformed `public_key` |\n| 409 | Max devices reached (if `BIOMETRIC_MAX_DEVICES_STRATEGY=reject`) |\n\n## Idempotency\nSame `(customer_id, device_id)` updates the public key — use after OS reset / re-key."
+                    },
+                    "response": [
+                        {
+                            "name": "Success — 201 Created",
+                            "status": "Created",
+                            "code": 201,
+                            "_postman_previewlanguage": "json",
+                            "header": [
+                                {
+                                    "key": "Content-Type",
+                                    "value": "application/json"
+                                }
+                            ],
+                            "body": "{\n    \"success\": true,\n    \"message\": \"Biometric device enrolled successfully\",\n    \"data\": {\n        \"id\": \"a1b2c3d4-e5f6-7890-abcd-ef1234567890\",\n        \"device_id\": \"550e8400-e29b-41d4-a716-446655440000\",\n        \"device_name\": \"Postman Test Device\",\n        \"platform\": \"android\",\n        \"algorithm\": \"RS256\",\n        \"enrolled_at\": \"2026-07-02T12:00:00+00:00\",\n        \"last_used_at\": null,\n        \"biometric_enabled\": true\n    }\n}"
+                        },
+                        {
+                            "name": "Error — 401 Unauthorized",
+                            "status": "Unauthorized",
+                            "code": 401,
+                            "_postman_previewlanguage": "json",
+                            "header": [
+                                {
+                                    "key": "Content-Type",
+                                    "value": "application/json"
+                                }
+                            ],
+                            "body": "{\n    \"success\": false,\n    \"message\": \"Unauthorized\",\n    \"errors\": null,\n    \"data\": null\n}"
+                        },
+                        {
+                            "name": "Error — 422 Invalid public key",
+                            "status": "Unprocessable Entity",
+                            "code": 422,
+                            "_postman_previewlanguage": "json",
+                            "header": [
+                                {
+                                    "key": "Content-Type",
+                                    "value": "application/json"
+                                }
+                            ],
+                            "body": "{\n    \"success\": false,\n    \"message\": \"Invalid public key\",\n    \"errors\": null,\n    \"data\": null\n}"
+                        }
+                    ],
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "if (pm.response.code === 201) {",
+                                    "    const json = pm.response.json();",
+                                    "    if (json.data?.id) {",
+                                    "        pm.collectionVariables.set('biometric_credential_id', json.data.id);",
+                                    "    }",
+                                    "}"
+                                ]
+                            }
+                        }
+                    ]
+                },
+                {
+                    "name": "4. List Biometric Devices",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json",
+                                "type": "text"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{customer_jwt}}",
+                                "type": "text"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/v1/customer/biometric/devices",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "v1",
+                                "customer",
+                                "biometric",
+                                "devices"
+                            ]
+                        },
+                        "description": "## Purpose\nShow the customer all **active** enrolled devices (for Settings → \"Trusted devices\" screen).\n\n## Auth\n**Required** — Bearer JWT.\n\n## Request\nNo body. GET only.\n\n## Response `data` — array of devices\n\n| Field | Description |\n|-------|-------------|\n| `id` | Credential UUID — use for **Revoke** endpoint |\n| `device_id` | Client install UUID |\n| `device_name` | Display name |\n| `platform` | `android` or `ios` |\n| `algorithm` | `ES256` or `RS256` |\n| `enrolled_at` | When device was enrolled |\n| `last_used_at` | Last successful biometric login (null if never) |\n| `biometric_enabled` | Always `true` for listed rows (revoked devices excluded) |\n\n## Flutter usage\n- Show list in app settings\n- Highlight current device by comparing local `device_id`\n- \"Remove\" button → call **Disable** (this device) or **Revoke** (by credential `id`)\n\n## Errors\n| HTTP | When |\n|------|------|\n| 401 | Missing or invalid JWT |"
+                    },
+                    "response": [
+                        {
+                            "name": "Success — 200 OK",
+                            "status": "OK",
+                            "code": 200,
+                            "_postman_previewlanguage": "json",
+                            "header": [
+                                {
+                                    "key": "Content-Type",
+                                    "value": "application/json"
+                                }
+                            ],
+                            "body": "{\n    \"success\": true,\n    \"message\": \"Biometric devices retrieved successfully\",\n    \"data\": [\n        {\n            \"id\": \"a1b2c3d4-e5f6-7890-abcd-ef1234567890\",\n            \"device_id\": \"550e8400-e29b-41d4-a716-446655440000\",\n            \"device_name\": \"Postman Test Device\",\n            \"platform\": \"android\",\n            \"algorithm\": \"RS256\",\n            \"enrolled_at\": \"2026-07-02T12:00:00+00:00\",\n            \"last_used_at\": \"2026-07-02T12:05:00+00:00\",\n            \"biometric_enabled\": true\n        }\n    ]\n}"
+                        },
+                        {
+                            "name": "Success — empty list",
+                            "status": "OK",
+                            "code": 200,
+                            "_postman_previewlanguage": "json",
+                            "header": [
+                                {
+                                    "key": "Content-Type",
+                                    "value": "application/json"
+                                }
+                            ],
+                            "body": "{\n    \"success\": true,\n    \"message\": \"Biometric devices retrieved successfully\",\n    \"data\": []\n}"
+                        }
+                    ]
+                },
+                {
+                    "name": "2. Biometric Challenge",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json",
+                                "type": "text"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json",
+                                "type": "text"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/v1/customer/auth/biometric/challenge",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "v1",
+                                "customer",
+                                "auth",
+                                "biometric",
+                                "challenge"
+                            ]
+                        },
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"device_id\": \"{{biometric_device_id}}\"\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        },
+                        "description": "## Purpose\nRequest a **one-time challenge** before biometric login. The server returns a random `nonce` that the app must sign with the device private key (after user scans fingerprint).\n\n## Auth\n**None** — public endpoint (no JWT). Security comes from cryptographic signature, not Bearer token.\n\n## Request body\n\n| Field | Type | Required | Description |\n|-------|------|----------|-------------|\n| `device_id` | UUID string | Yes | Same UUID stored locally and used at enroll |\n\n## Response fields (Flutter must use all three)\n\n| Field | Description |\n|-------|-------------|\n| `challenge_token` | Opaque encrypted token — send back unchanged in login request |\n| `nonce` | **Base64url-encoded random bytes** — decode to raw bytes, sign with private key |\n| `expires_at` | ISO8601 expiry (default 60s). Request new challenge if expired. |\n\n## Flutter steps after this call\n1. Prompt biometric (`local_auth.authenticate`)\n2. On success, unlock private key in secure hardware\n3. `rawNonce = base64UrlDecode(response.nonce)`\n4. `signature = sign(rawNonce, privateKey)` → base64url encode\n5. Call **Biometric Login** with `challenge_token` + `signature`\n\n## Success\n- **200 OK** — saves `biometric_challenge_token` and `biometric_nonce` via test script\n\n## Errors\n| HTTP | When |\n|------|------|\n| 401 | Unknown device, revoked device, or suspended/inactive account |\n| 422 | Invalid `device_id` format |\n| 429 | Rate limit exceeded (default 10/min per device + IP) |\n\n## Rules\n- Challenge is **single-use** — consumed on login attempt\n- Only the **latest** challenge per device is valid if multiple requested"
+                    },
+                    "response": [
+                        {
+                            "name": "Success — 200 OK",
+                            "status": "OK",
+                            "code": 200,
+                            "_postman_previewlanguage": "json",
+                            "header": [
+                                {
+                                    "key": "Content-Type",
+                                    "value": "application/json"
+                                }
+                            ],
+                            "body": "{\n    \"success\": true,\n    \"message\": \"Biometric challenge issued successfully\",\n    \"data\": {\n        \"challenge_token\": \"a1b2c3d4e5f6789012345678abcdef:fedcba9876543210...\",\n        \"nonce\": \"xK9mP2nQ7rT4vW8yZ1aB3cD5eF6gH7jK9lM0nP1qR2sT3uV4wX5yZ6aB7cD8eF\",\n        \"expires_at\": \"2026-07-02T12:01:00+00:00\"\n    }\n}"
+                        },
+                        {
+                            "name": "Error — 401 Unknown or revoked device",
+                            "status": "Unauthorized",
+                            "code": 401,
+                            "_postman_previewlanguage": "json",
+                            "header": [
+                                {
+                                    "key": "Content-Type",
+                                    "value": "application/json"
+                                }
+                            ],
+                            "body": "{\n    \"success\": false,\n    \"message\": \"Invalid credentials\",\n    \"errors\": null,\n    \"data\": null\n}"
+                        },
+                        {
+                            "name": "Error — 401 Suspended account",
+                            "status": "Unauthorized",
+                            "code": 401,
+                            "_postman_previewlanguage": "json",
+                            "header": [
+                                {
+                                    "key": "Content-Type",
+                                    "value": "application/json"
+                                }
+                            ],
+                            "body": "{\n    \"success\": false,\n    \"message\": \"Your account has been suspended. Please contact support.\",\n    \"errors\": null,\n    \"data\": null\n}"
+                        }
+                    ],
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "if (pm.response.code === 200) {",
+                                    "    const json = pm.response.json();",
+                                    "    if (json.data?.challenge_token) {",
+                                    "        pm.collectionVariables.set('biometric_challenge_token', json.data.challenge_token);",
+                                    "    }",
+                                    "    if (json.data?.nonce) {",
+                                    "        pm.collectionVariables.set('biometric_nonce', json.data.nonce);",
+                                    "    }",
+                                    "}"
+                                ]
+                            }
+                        }
+                    ]
+                },
+                {
+                    "name": "3. Biometric Login",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json",
+                                "type": "text"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json",
+                                "type": "text"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/v1/customer/auth/biometric/login",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "v1",
+                                "customer",
+                                "auth",
+                                "biometric",
+                                "login"
+                            ]
+                        },
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"device_id\": \"{{biometric_device_id}}\",\n    \"challenge_token\": \"{{biometric_challenge_token}}\",\n    \"signature\": \"{{biometric_signature}}\"\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        },
+                        "description": "## Purpose\nComplete biometric login by proving possession of the enrolled device private key. Returns **the same JWT pair** as `POST /auth/login` — use `token` and `refresh_token` identically in the app.\n\n## Auth\n**None** — public endpoint.\n\n## Prerequisites\n1. Device enrolled (`POST /biometric/enroll`)\n2. Fresh challenge (`POST /auth/biometric/challenge`)\n3. User scanned fingerprint and app signed the nonce\n\n## Request body\n\n| Field | Type | Required | Description |\n|-------|------|----------|-------------|\n| `device_id` | UUID | Yes | Must match enrolled device |\n| `challenge_token` | string | Yes | From challenge response — do not modify |\n| `signature` | base64url string | Yes | ECDSA/RSA-SHA256 signature over **raw nonce bytes** (not over challenge_token) |\n\n## Signature algorithm (Flutter)\n```\nrawBytes = base64UrlDecode(nonce)\nsignature = secureHardwareSign(rawBytes)  // SHA256withECDSA or RSA\nsignatureField = base64UrlEncode(signature)\n```\n\n## Success response — same as password login\n\n| Field | Description |\n|-------|-------------|\n| `token` | Access JWT — use as `Authorization: Bearer` |\n| `refresh_token` | Refresh JWT — use with `POST /auth/refresh-token` |\n| `expires_in` | Access token TTL (seconds) |\n| `refresh_token_expires_in` | Refresh token TTL (seconds) |\n| `profile_completed` | KYC flag |\n| `customer` | Full customer object (same as login) |\n\n## Errors\n| HTTP | When |\n|------|------|\n| 401 | Wrong signature, unknown device, suspended account |\n| 422 | Expired challenge, replayed challenge_token, device_id mismatch |\n\n## Postman note\nPre-request script auto-signs `biometric_nonce` with test private key (simulates phone). Requires **Postman Desktop** (Node `crypto` module).\n\nRun **1. Enroll** → **2. Challenge** → **3. Login** in order."
+                    },
+                    "response": [
+                        {
+                            "name": "Success — 200 OK (same as password login)",
+                            "status": "OK",
+                            "code": 200,
+                            "_postman_previewlanguage": "json",
+                            "header": [
+                                {
+                                    "key": "Content-Type",
+                                    "value": "application/json"
+                                }
+                            ],
+                            "body": "{\n    \"success\": true,\n    \"message\": \"Login successful\",\n    \"data\": {\n        \"token\": \"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.example\",\n        \"token_type\": \"Bearer\",\n        \"expires_in\": 604800,\n        \"refresh_token\": \"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.refresh\",\n        \"refresh_token_expires_in\": 2592000,\n        \"profile_completed\": true,\n        \"customer\": {\n            \"id\": \"00000000-0000-4000-8000-000000000001\",\n            \"name\": \"Ahmed\",\n            \"phone\": \"+249912345678\",\n            \"status\": \"active\",\n            \"profileCompleted\": true,\n            \"balance\": \"150.00\"\n        }\n    }\n}"
+                        },
+                        {
+                            "name": "Error — 401 Invalid signature",
+                            "status": "Unauthorized",
+                            "code": 401,
+                            "_postman_previewlanguage": "json",
+                            "header": [
+                                {
+                                    "key": "Content-Type",
+                                    "value": "application/json"
+                                }
+                            ],
+                            "body": "{\n    \"success\": false,\n    \"message\": \"Invalid credentials\",\n    \"errors\": null,\n    \"data\": null\n}"
+                        },
+                        {
+                            "name": "Error — 422 Expired or replayed challenge",
+                            "status": "Unprocessable Entity",
+                            "code": 422,
+                            "_postman_previewlanguage": "json",
+                            "header": [
+                                {
+                                    "key": "Content-Type",
+                                    "value": "application/json"
+                                }
+                            ],
+                            "body": "{\n    \"success\": false,\n    \"message\": \"Invalid or expired challenge token\",\n    \"errors\": null,\n    \"data\": null\n}"
+                        }
+                    ],
+                    "event": [
+                        {
+                            "listen": "prerequest",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "const crypto = require('crypto');",
+                                    "const privateKey = `-----BEGIN PRIVATE KEY-----\\nMIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQDC9QL5C7y5S5pR\\nEKFg818sJ15C6cck+XepDfkjFWfJVxPLBvcjl1un3xjTKTyTwSgYvq6BkEDN27BT\\nzi7lJwJ9bhjTPyBteJd5BdchzoXwh8xYgY7/VChw/WENRn3R7npA130OUAsSUOib\\np88earHBqXEW1fJxmnj83gZut5e5uE97PXBYCyyJ1N4xLbCWuxNASEjNcTyCcsUP\\ngIIEMXU0Vej1tTSfcjbqeWoaip5c6Rv7DsSBpm67g7+FvV/dvbV/V4eQ5FIS1Ztr\\nXtBpRU18ev1TnzOoqDYJqS07eJ0NvJyAmGpm2KZxFdqyOHw5IVqjFElgeZ+WGE5q\\nV0x3z7ibAgMBAAECggEACri3E04vcKX1PyG3K6HxaSK4dDKaG/DyQTmpAA0Zz5X6\\nhdmvYWWItLM4EMjS8YdCYWtUeoCd577+CVCB/g0xUweT1Zjs+3LnKvsvaRxhUP3k\\nNuEtJY08dMuieOdDB8wMgiC3r7/8KTjfifaRFT77NpzPFi6UQ5DMuDoCSDglinY9\\nRzrihyI6oBPhhVq/hXhghDoASE5+WKpFbro1cUTUJ64Y63DM2ohJrlKnmhGtLNqs\\n9u+1eeSO56xuKCEy6ORA86WI1lbyxwldGzuHAgnyUG9jec/IWMvWomFUsE/NRb+u\\nAvnYgKz9TS0GwLHmfFLe3IcJ7eQc9aMkEmXG/FYbWQKBgQDupcdM2oScK/AuItTL\\nN8jFbTrON3VMGZYIaotwVlEmlHreJnkZrulZIoHmK/zR5aSw0MCpSHCYUd2UHXaK\\nxRHg0v6UYLBs1z0Nc8dy6Uu3YTN1MHV91g4mbmkaM89FmFilS7KRXIfk2+8szBpN\\njrDoTChXLDIzu4QCE0ZEtf5qwwKBgQDRIfjBGiZZRh8yWorKb3fKu7ThqZeZk81+\\nh5m5xUvlzAeO9MIIcs2tnZwbREchmoswJ+zWplHxn7zK3/JscNF8uQz/XenHwcJt\\ngw8RPuRb8TpNlV7ybasc4pnuzpEXU+RU9y8Re6qS56bL/NMOcDGk2SwNggpxF5kK\\n0zZLEpUtSQKBgEEo1n/vciHKBWwzanKKKrFtH49KqSY8HjDyFlx31PR5ugqJ6qrO\\njTwfJeSYwhD1aMA2X0RZWRTd1Wgpm0JMiJMgSQ5uT/2Hz02q/RwtAtVxHsGyl4Hi\\nPj7UCrJyzvcrn5iSUJFL+HbObkGHAO+INFlY4fLbSGHDo0mFxbvhDTRNAoGBALlG\\nvIfvL9xViFvm5SD1Yg6E/3oQ8pMH471eSu3PAi+i82tOIfy0IM3YXS227sGxlfBi\\n3qtIDD7hQrQFdVNnG+DAXOh8fhoP6b11p8qiilN+QiXr2IM0b60WgEOWU+pz000G\\n9HcrtXGSsy3zXdRjx0eBc0rAU5nfyyFQ/7/AxdKpAoGBAIXnntPfrX51xhoRW+kI\\nMT5WW1CXmHbP8CA6xwmnykD3stCRe8RPqlDQAFxI7j04xq/5/ZKVP7NUXcd4Asb9\\nFHK3PuQHRD5JqDKrNTC411eDkUWkjqB6Ipg+wCsvjL3EJLNK8sF/2x9KaHyWaEhf\\nOaj97EBoA98HCaXv+xWz1c4r\\n-----END PRIVATE KEY-----`;",
+                                    "const nonceB64Url = pm.collectionVariables.get('biometric_nonce');",
+                                    "if (!nonceB64Url) { return; }",
+                                    "const padded = nonceB64Url.replace(/-/g, '+').replace(/_/g, '/');",
+                                    "const nonceBuffer = Buffer.from(padded + '='.repeat((4 - padded.length % 4) % 4), 'base64');",
+                                    "const signature = crypto.sign('sha256', nonceBuffer, privateKey);",
+                                    "const signatureB64Url = signature.toString('base64').replace(/\\+/g, '-').replace(/\\//g, '_').replace(/=+$/, '');",
+                                    "pm.collectionVariables.set('biometric_signature', signatureB64Url);"
+                                ]
+                            }
+                        },
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "if (pm.response.code === 200) {",
+                                    "    const json = pm.response.json();",
+                                    "    if (json.data?.token) {",
+                                    "        pm.collectionVariables.set('customer_jwt', json.data.token);",
+                                    "    }",
+                                    "    if (json.data?.refresh_token) {",
+                                    "        pm.collectionVariables.set('customer_refresh_token', json.data.refresh_token);",
+                                    "    }",
+                                    "}"
+                                ]
+                            }
+                        }
+                    ]
+                },
+                {
+                    "name": "5. Disable Biometric (current device)",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json",
+                                "type": "text"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json",
+                                "type": "text"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{customer_jwt}}",
+                                "type": "text"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/v1/customer/biometric/disable",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "v1",
+                                "customer",
+                                "biometric",
+                                "disable"
+                            ]
+                        },
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"device_id\": \"{{biometric_device_id}}\"\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        },
+                        "description": "## Purpose\nTurn off fingerprint login **on this phone only**. Convenience endpoint — same effect as revoke but keyed by `device_id` instead of credential `id`.\n\n## Auth\n**Required** — Bearer JWT.\n\n## Request body\n\n| Field | Type | Required | Description |\n|-------|------|----------|-------------|\n| `device_id` | UUID | Yes | Local device UUID to revoke |\n\n## Flutter usage\nSettings → \"Disable fingerprint login on this device\"\n\nAfter success:\n- Delete local private key / clear secure storage enrollment flag\n- Fall back to password login on next app open\n- Biometric challenge for this `device_id` will return **401**\n\n## Success\n**200 OK** — `data: null`\n\n## Errors\n| HTTP | When |\n|------|------|\n| 401 | Missing JWT |\n| 422 | Device not found or already revoked |"
+                    },
+                    "response": [
+                        {
+                            "name": "Success — 200 OK",
+                            "status": "OK",
+                            "code": 200,
+                            "_postman_previewlanguage": "json",
+                            "header": [
+                                {
+                                    "key": "Content-Type",
+                                    "value": "application/json"
+                                }
+                            ],
+                            "body": "{\n    \"success\": true,\n    \"message\": \"Biometric login disabled for this device\",\n    \"data\": null\n}"
+                        },
+                        {
+                            "name": "Error — 422 Device not found",
+                            "status": "Unprocessable Entity",
+                            "code": 422,
+                            "_postman_previewlanguage": "json",
+                            "header": [
+                                {
+                                    "key": "Content-Type",
+                                    "value": "application/json"
+                                }
+                            ],
+                            "body": "{\n    \"success\": false,\n    \"message\": \"Biometric device not found\",\n    \"errors\": null,\n    \"data\": null\n}"
+                        }
+                    ]
+                },
+                {
+                    "name": "6. Revoke Biometric Device",
+                    "request": {
+                        "method": "DELETE",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json",
+                                "type": "text"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{customer_jwt}}",
+                                "type": "text"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/v1/customer/biometric/devices/{{biometric_credential_id}}",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "v1",
+                                "customer",
+                                "biometric",
+                                "devices",
+                                "{{biometric_credential_id}}"
+                            ]
+                        },
+                        "description": "## Purpose\nRemove a trusted device by **credential id** (from List or Enroll response). Use when user removes another phone from settings.\n\n## Auth\n**Required** — Bearer JWT. Can only revoke **own** devices (scoped by customer_id).\n\n## URL parameter\n\n| Param | Description |\n|-------|-------------|\n| `{id}` | Credential UUID from `data.id` at enroll or `data[].id` from list — saved as `biometric_credential_id` |\n\n## Flutter usage\nSettings → Trusted devices → Remove \"Old Phone\"\n\n## Success\n**200 OK** — `data: null`\n\n## Errors\n| HTTP | When |\n|------|------|\n| 401 | Missing JWT |\n| 422 | Credential not found or already revoked |\n\n## Automatic revokes (no API call needed)\n- **Password change confirm** revokes ALL devices\n- **Account delete** revokes ALL devices\n- User must password-login and re-enroll after password change"
+                    },
+                    "response": [
+                        {
+                            "name": "Success — 200 OK",
+                            "status": "OK",
+                            "code": 200,
+                            "_postman_previewlanguage": "json",
+                            "header": [
+                                {
+                                    "key": "Content-Type",
+                                    "value": "application/json"
+                                }
+                            ],
+                            "body": "{\n    \"success\": true,\n    \"message\": \"Biometric device revoked successfully\",\n    \"data\": null\n}"
+                        },
+                        {
+                            "name": "Error — 422 Not found",
+                            "status": "Unprocessable Entity",
+                            "code": 422,
+                            "_postman_previewlanguage": "json",
+                            "header": [
+                                {
+                                    "key": "Content-Type",
+                                    "value": "application/json"
+                                }
+                            ],
+                            "body": "{\n    \"success\": false,\n    \"message\": \"Biometric device not found\",\n    \"errors\": null,\n    \"data\": null\n}"
                         }
                     ]
                 }
@@ -2638,6 +3442,85 @@
                                 }
                             ],
                             "body": "{\n    \"status\": false,\n    \"message\": \"Partner not found or not available.\",\n    \"Error_Code\": \"CUSTOMER_PARTNER_NOT_FOUND\"\n}"
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "Security Activity",
+            "item": [
+                {
+                    "name": "List Security Activity",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json",
+                                "type": "text"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{customer_jwt}}",
+                                "type": "text"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/v1/customer/activity?page=1&per_page=15",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "v1",
+                                "customer",
+                                "activity"
+                            ],
+                            "query": [
+                                {
+                                    "key": "page",
+                                    "value": "1"
+                                },
+                                {
+                                    "key": "per_page",
+                                    "value": "15"
+                                },
+                                {
+                                    "key": "action",
+                                    "value": "password_changed",
+                                    "disabled": true
+                                }
+                            ]
+                        },
+                        "description": "**What:** Paginated security activity for the logged-in customer (password change, forgot-password, profile update).\n\n**Use when:** Mobile Settings → Account Activity screen.\n\n**Returns only:** `password_changed`, `password_reset`, `password_reset_requested`, `change_request_submitted`, `profile_resubmitted`.\n\n**Optional query:** `action` — filter within the whitelist above."
+                    },
+                    "response": [
+                        {
+                            "name": "Success",
+                            "status": "OK",
+                            "code": 200,
+                            "_postman_previewlanguage": "json",
+                            "header": [
+                                {
+                                    "key": "Content-Type",
+                                    "value": "application/json"
+                                }
+                            ],
+                            "body": "{\n    \"success\": true,\n    \"message\": \"Success\",\n    \"data\": {\n        \"data\": [\n            {\n                \"id\": 42,\n                \"action\": \"password_changed\",\n                \"message\": \"Ahmed changed account password.\",\n                \"label\": \"warning\",\n                \"created_at\": \"2026-07-02T10:30:00+00:00\",\n                \"time\": \"2 hours ago\"\n            }\n        ],\n        \"current_page\": 1,\n        \"last_page\": 1,\n        \"per_page\": 15,\n        \"total\": 1\n    }\n}"
+                        },
+                        {
+                            "name": "Invalid action filter",
+                            "status": "Unprocessable Entity",
+                            "code": 422,
+                            "_postman_previewlanguage": "json",
+                            "header": [
+                                {
+                                    "key": "Content-Type",
+                                    "value": "application/json"
+                                }
+                            ],
+                            "body": "{\n    \"success\": false,\n    \"message\": \"Invalid action filter. Allowed values: password_changed, password_reset, password_reset_requested, change_request_submitted, profile_resubmitted\",\n    \"errors\": null,\n    \"data\": null\n}"
                         }
                     ]
                 }

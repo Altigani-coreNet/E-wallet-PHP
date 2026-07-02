@@ -451,116 +451,6 @@ class CustomerAuthApiTest extends CustomerAuthTestCase
             ]);
     }
 
-    public function test_can_change_password(): void
-    {
-        $newPassword = 'NewSecure1!';
-
-        Customer::factory()->active()->create([
-            'phone' => self::TEST_PHONE,
-            'password' => Hash::make(self::VALID_PASSWORD),
-        ]);
-
-        $loginResponse = $this->postJson('/api/v1/customer/auth/login', [
-            'phone' => self::TEST_PHONE,
-            'password' => self::VALID_PASSWORD,
-        ]);
-
-        $response = $this->withHeaders([
-            'Authorization' => 'Bearer '.$loginResponse->json('data.token'),
-        ])->postJson('/api/v1/customer/password/change', [
-            'current_password' => self::VALID_PASSWORD,
-            'password' => $newPassword,
-            'password_confirmation' => $newPassword,
-        ]);
-
-        $response->assertOk()
-            ->assertJson([
-                'success' => true,
-                'message' => 'Password changed successfully',
-            ])
-            ->assertJsonStructure([
-                'data' => ['token', 'refresh_token'],
-            ]);
-
-        $this->postJson('/api/v1/customer/auth/login', [
-            'phone' => self::TEST_PHONE,
-            'password' => self::VALID_PASSWORD,
-        ])->assertStatus(401);
-
-        $this->postJson('/api/v1/customer/auth/login', [
-            'phone' => self::TEST_PHONE,
-            'password' => $newPassword,
-        ])->assertOk();
-    }
-
-    public function test_change_password_fails_with_wrong_current_password(): void
-    {
-        Customer::factory()->active()->create([
-            'phone' => self::TEST_PHONE,
-            'password' => Hash::make(self::VALID_PASSWORD),
-        ]);
-
-        $loginResponse = $this->postJson('/api/v1/customer/auth/login', [
-            'phone' => self::TEST_PHONE,
-            'password' => self::VALID_PASSWORD,
-        ]);
-
-        $response = $this->withHeaders([
-            'Authorization' => 'Bearer '.$loginResponse->json('data.token'),
-        ])->postJson('/api/v1/customer/password/change', [
-            'current_password' => 'WrongPass1!',
-            'password' => 'NewSecure1!',
-            'password_confirmation' => 'NewSecure1!',
-        ]);
-
-        $response->assertStatus(400)
-            ->assertJson([
-                'success' => false,
-                'message' => 'Current password is incorrect',
-            ]);
-    }
-
-    public function test_change_password_requires_authentication(): void
-    {
-        $response = $this->postJson('/api/v1/customer/password/change', [
-            'current_password' => self::VALID_PASSWORD,
-            'password' => 'NewSecure1!',
-            'password_confirmation' => 'NewSecure1!',
-        ]);
-
-        $response->assertStatus(401)
-            ->assertJson([
-                'success' => false,
-                'message' => 'Unauthorized',
-            ]);
-    }
-
-    public function test_change_password_validation_requires_strong_password(): void
-    {
-        Customer::factory()->active()->create([
-            'phone' => self::TEST_PHONE,
-            'password' => Hash::make(self::VALID_PASSWORD),
-        ]);
-
-        $loginResponse = $this->postJson('/api/v1/customer/auth/login', [
-            'phone' => self::TEST_PHONE,
-            'password' => self::VALID_PASSWORD,
-        ]);
-
-        $response = $this->withHeaders([
-            'Authorization' => 'Bearer '.$loginResponse->json('data.token'),
-        ])->postJson('/api/v1/customer/password/change', [
-            'current_password' => self::VALID_PASSWORD,
-            'password' => 'weakpass',
-            'password_confirmation' => 'weakpass',
-        ]);
-
-        $response->assertStatus(422)
-            ->assertJson([
-                'success' => false,
-            ]);
-    }
-
     public function test_can_get_profile(): void
     {
         $customer = Customer::factory()->create([
@@ -1026,7 +916,10 @@ class CustomerAuthApiTest extends CustomerAuthTestCase
         $this->deleteJson('/api/v1/customer/account')
             ->assertStatus(401);
 
-        $this->postJson('/api/v1/customer/password/change')
+        $this->postJson('/api/v1/customer/password/change/request')
+            ->assertStatus(401);
+
+        $this->postJson('/api/v1/customer/password/change/confirm')
             ->assertStatus(401);
 
         $this->getJson('/api/v1/customer/banners')

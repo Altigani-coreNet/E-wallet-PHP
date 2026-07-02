@@ -163,4 +163,46 @@ trait CustomerAuthTestHelper
             'data',
         ])->assertJson(['success' => true]);
     }
+
+    /**
+     * @return array{response: TestResponse, otp_token: string}
+     */
+    protected function requestCustomerPasswordChange(
+        string $authToken,
+        string $currentPassword,
+        string $newPassword,
+    ): array {
+        $response = $this->withHeaders([
+            'Authorization' => 'Bearer '.$authToken,
+            'Accept' => 'application/json',
+        ])->postJson('/api/v1/customer/password/change/request', [
+            'current_password' => $currentPassword,
+            'password' => $newPassword,
+            'password_confirmation' => $newPassword,
+        ]);
+
+        return [
+            'response' => $response,
+            'otp_token' => (string) $response->json('data.otp_token'),
+        ];
+    }
+
+    protected function confirmCustomerPasswordChange(
+        string $authToken,
+        string $otpToken,
+        int $otp,
+        string $currentPassword,
+        string $newPassword,
+    ): TestResponse {
+        return $this->withHeaders([
+            'Authorization' => 'Bearer '.$authToken,
+            'Accept' => 'application/json',
+        ])->postJson('/api/v1/customer/password/change/confirm', [
+            'otp_token' => $otpToken,
+            'otp' => $otp,
+            'current_password' => $currentPassword,
+            'password' => $newPassword,
+            'password_confirmation' => $newPassword,
+        ]);
+    }
 }

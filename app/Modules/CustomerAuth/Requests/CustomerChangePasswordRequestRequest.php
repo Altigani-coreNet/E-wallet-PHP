@@ -4,7 +4,7 @@ namespace App\Modules\CustomerAuth\Requests;
 
 use Illuminate\Validation\Rules\Password;
 
-class CustomerChangePasswordRequest extends CustomerAuthFormRequest
+class CustomerChangePasswordRequestRequest extends CustomerAuthFormRequest
 {
     public function authorize(): bool
     {

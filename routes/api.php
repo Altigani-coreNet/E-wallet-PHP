@@ -48,6 +48,7 @@ use App\Http\Controllers\Api\Cashier\AdminCustomerApiController;
 |
 */
 Route::get('/contract-terms', [\App\Http\Controllers\Api\ContractTermsController::class, 'getContractTerms']);
+Route::get('/support', [\App\Http\Controllers\Api\SupportController::class, 'getSupportInfo']);
 
 
 // Route::get('test', function(){
@@ -605,6 +606,7 @@ Route::prefix('v2/admin')->middleware(['auth:admin-api'])->group(function () {
     Route::post('customers/{id}/change-requests/{changeRequest}/reject', [AdminCustomerApiController::class, 'rejectChangeRequest']);
     Route::post('customers/{id}/toggle-status', [AdminCustomerApiController::class, 'toggleStatus']);
     Route::post('customers/{id}/resend-password-invite', [AdminCustomerApiController::class, 'resendPasswordInvite']);
+    Route::post('customers/{id}/send-verification-email', [AdminCustomerApiController::class, 'sendVerificationEmail']);
 
     Route::prefix('wallets')->group(function () {
         Route::get('/', [\App\Http\Controllers\Api\V2\Admin\AdminWalletController::class, 'index']);
@@ -929,6 +931,8 @@ Route::prefix('v1/customer')->group(function () {
 
     Route::post('auth/register', [\App\Modules\CustomerAuth\Controllers\CustomerAuthController::class, 'register']);
     Route::post('auth/login', [\App\Modules\CustomerAuth\Controllers\CustomerAuthController::class, 'login']);
+    Route::post('auth/biometric/challenge', [\App\Modules\CustomerAuth\Controllers\CustomerBiometricController::class, 'challenge']);
+    Route::post('auth/biometric/login', [\App\Modules\CustomerAuth\Controllers\CustomerBiometricController::class, 'login']);
     Route::post('auth/refresh-token', [\App\Modules\CustomerAuth\Controllers\CustomerAuthController::class, 'refreshToken']);
     Route::post('password/forgot', [\App\Modules\CustomerAuth\Controllers\CustomerAuthController::class, 'forgotPassword']);
     Route::post('password/reset', [\App\Modules\CustomerAuth\Controllers\CustomerAuthController::class, 'resetPassword']);
@@ -936,17 +940,24 @@ Route::prefix('v1/customer')->group(function () {
     // Admin-created customers set their own password via emailed/SMS invite link
     Route::get('set-password/validate', [\App\Modules\CustomerAuth\Controllers\CustomerPasswordSetupController::class, 'validateToken']);
     Route::post('set-password', [\App\Modules\CustomerAuth\Controllers\CustomerPasswordSetupController::class, 'setPassword']);
+    Route::post('verification/email/verify-link', [\App\Modules\CustomerAuth\Controllers\CustomerEmailVerificationController::class, 'verifyLink']);
 
     Route::middleware('customer.jwt')->group(function () {
         Route::get('profile', [\App\Modules\CustomerAuth\Controllers\CustomerAuthController::class, 'profile']);
         Route::get('profile/rejected-fields', [\App\Modules\CustomerAuth\Controllers\CustomerProfileController::class, 'rejectedFields']);
         Route::post('profile/update-rejected-fields', [\App\Modules\CustomerAuth\Controllers\CustomerProfileController::class, 'updateRejectedFields']);
+        Route::post('profile/verification/email/send', [\App\Modules\CustomerAuth\Controllers\CustomerProfileController::class, 'sendEmailVerification']);
+        Route::post('profile/verification/email/confirm', [\App\Modules\CustomerAuth\Controllers\CustomerProfileController::class, 'confirmEmailVerification']);
         Route::post('profile/complete', [\App\Modules\CustomerAuth\Controllers\CustomerAuthController::class, 'completeProfile']);
         Route::post('profile/update', [\App\Modules\CustomerAuth\Controllers\CustomerAuthController::class, 'updateProfile']);
-        Route::post('verification/email/send', [\App\Modules\CustomerAuth\Controllers\CustomerEmailVerificationController::class, 'send']);
-        Route::post('verification/email/confirm', [\App\Modules\CustomerAuth\Controllers\CustomerEmailVerificationController::class, 'confirm']);
-        Route::post('password/change', [\App\Modules\CustomerAuth\Controllers\CustomerAuthController::class, 'changePassword']);
+        Route::post('password/change/request', [\App\Modules\CustomerAuth\Controllers\CustomerAuthController::class, 'requestPasswordChange']);
+        Route::post('password/change/confirm', [\App\Modules\CustomerAuth\Controllers\CustomerAuthController::class, 'confirmPasswordChange']);
+        Route::get('activity', [\App\Modules\CustomerAuth\Controllers\CustomerActivityController::class, 'index']);
         Route::post('auth/logout', [\App\Modules\CustomerAuth\Controllers\CustomerAuthController::class, 'logout']);
+        Route::post('biometric/enroll', [\App\Modules\CustomerAuth\Controllers\CustomerBiometricController::class, 'enroll']);
+        Route::get('biometric/devices', [\App\Modules\CustomerAuth\Controllers\CustomerBiometricController::class, 'devices']);
+        Route::delete('biometric/devices/{id}', [\App\Modules\CustomerAuth\Controllers\CustomerBiometricController::class, 'revoke']);
+        Route::post('biometric/disable', [\App\Modules\CustomerAuth\Controllers\CustomerBiometricController::class, 'disable']);
         Route::delete('account', [\App\Modules\CustomerAuth\Controllers\CustomerAuthController::class, 'deleteAccount']);
         Route::get('wallet/dashboard', [\App\Modules\CustomerAuth\Controllers\CustomerWalletController::class, 'dashboard']);
         Route::get('wallet/transactions', [\App\Modules\CustomerAuth\Controllers\CustomerWalletController::class, 'transactions'])

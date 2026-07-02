@@ -48,4 +48,12 @@ class CustomerEventMessageBuilderTest extends TestCase
             CustomerEventMessageBuilder::passwordChanged('Ahmed'),
         );
     }
+
+    public function test_password_reset_requested_message(): void
+    {
+        $this->assertSame(
+            'Password reset requested.',
+            CustomerEventMessageBuilder::passwordResetRequested(),
+        );
+    }
 }

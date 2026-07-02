@@ -2,6 +2,7 @@
 
 namespace App\Modules\CustomerAuth\Services;
 
+use App\Mail\CustomerEmailVerificationMail;
 use App\Mail\VerificationCode;
 use App\Models\Customer;
 use App\Modules\CustomerAuth\Repositories\CustomerOtpRepository;
@@ -11,6 +12,8 @@ use Illuminate\Support\Facades\Mail;
 
 class CustomerOtpService
 {
+    private const EMAIL_LINK_EXPIRY_HOURS = 48;
+
     public function __construct(
         private readonly CustomerOtpRepository $otpRepository,
     ) {}
@@ -116,5 +119,73 @@ class CustomerOtpService
         $this->consumeOtpById($otp->id);
 
         return $customer->fresh(['country', 'city', 'wallet', 'attachments']);
+    }
+
+    public function sendEmailVerificationLink(Customer $customer): array
+    {
+        if ($customer->hasVerifiedEmail()) {
+            throw new \Symfony\Component\HttpKernel\Exception\UnprocessableEntityHttpException(
+                'Customer email is already verified'
+            );
+        }
+
+        $email = trim((string) $customer->email);
+
+        if ($email === '') {
+            throw new \Symfony\Component\HttpKernel\Exception\UnprocessableEntityHttpException(
+                'Customer has no email address on file'
+            );
+        }
+
+        $otp = $this->otpRepository->storeEmailVerificationLink($email);
+        $verifyUrl = $this->buildEmailVerificationUrl($otp->token);
+
+        Mail::to($email)->send(
+            new CustomerEmailVerificationMail($customer, $verifyUrl, self::EMAIL_LINK_EXPIRY_HOURS)
+        );
+
+        return ['sent' => true];
+    }
+
+    public function verifyEmailByLink(string $token): Customer
+    {
+        $otp = $this->otpRepository->findValidEmailVerificationLink($token);
+
+        if (! $otp) {
+            throw new \Symfony\Component\HttpKernel\Exception\BadRequestHttpException(
+                'Invalid or expired verification link'
+            );
+        }
+
+        $customer = Customer::query()->where('email', $otp->identifier)->first();
+
+        if (! $customer) {
+            throw new \Symfony\Component\HttpKernel\Exception\BadRequestHttpException(
+                'Customer account not found for this verification link'
+            );
+        }
+
+        if ($customer->hasVerifiedEmail()) {
+            $this->consumeOtpById($otp->id);
+
+            return $customer->fresh(['country', 'city', 'wallet', 'attachments']);
+        }
+
+        $otp->is_verified = true;
+        $otp->save();
+
+        $customer->email_verified_at = now();
+        $customer->save();
+
+        $this->consumeOtpById($otp->id);
+
+        return $customer->fresh(['country', 'city', 'wallet', 'attachments']);
+    }
+
+    private function buildEmailVerificationUrl(string $plainToken): string
+    {
+        $base = rtrim((string) config('app.frontend_url', config('app.url')), '/');
+
+        return $base.'/customer/verify-email/'.urlencode($plainToken);
     }
 }

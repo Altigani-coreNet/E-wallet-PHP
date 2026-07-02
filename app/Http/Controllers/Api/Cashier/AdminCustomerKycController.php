@@ -77,13 +77,14 @@ class AdminCustomerKycController extends Controller
     public function changeHistory(Request $request): JsonResponse
     {
         try {
-            $scopedCustomerIds = Customer::query()->withCountry()->select('id');
             $perPage = max(1, min((int) $request->input('per_page', 15), 100));
             $search = trim((string) $request->input('search', ''));
 
             $query = ChangeHistory::query()
                 ->where('changeable_type', Customer::class)
-                ->whereIn('changeable_id', $scopedCustomerIds)
+                ->whereHasMorph('changeable', [Customer::class], function ($customerQuery) {
+                    $customerQuery->withCountry();
+                })
                 ->with(['changeable', 'actor', 'changeRequest'])
                 ->latest();
 
@@ -91,9 +92,12 @@ class AdminCustomerKycController extends Controller
                 $query->where(function ($builder) use ($search) {
                     $builder->where('payload', 'like', '%'.$search.'%')
                         ->orWhereHasMorph('changeable', [Customer::class], function ($customerQuery) use ($search) {
-                            $customerQuery->where('name', 'like', '%'.$search.'%')
-                                ->orWhere('email', 'like', '%'.$search.'%')
-                                ->orWhere('phone', 'like', '%'.$search.'%');
+                            $customerQuery->withCountry()
+                                ->where(function ($scopedSearch) use ($search) {
+                                    $scopedSearch->where('name', 'like', '%'.$search.'%')
+                                        ->orWhere('email', 'like', '%'.$search.'%')
+                                        ->orWhere('phone', 'like', '%'.$search.'%');
+                                });
                         });
                 });
             }
@@ -124,11 +128,11 @@ class AdminCustomerKycController extends Controller
     public function changeHistoryShow(string $historyId): JsonResponse
     {
         try {
-            $scopedCustomerIds = Customer::query()->withCountry()->pluck('id');
-
             $history = ChangeHistory::query()
                 ->where('changeable_type', Customer::class)
-                ->whereIn('changeable_id', $scopedCustomerIds)
+                ->whereHasMorph('changeable', [Customer::class], function ($customerQuery) {
+                    $customerQuery->withCountry();
+                })
                 ->with(['changeable', 'actor', 'changeRequest'])
                 ->whereKey($historyId)
                 ->firstOrFail();

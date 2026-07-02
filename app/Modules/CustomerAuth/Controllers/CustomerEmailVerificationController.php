@@ -2,12 +2,10 @@
 
 namespace App\Modules\CustomerAuth\Controllers;
 
-use App\Models\Customer;
-use App\Modules\CustomerAuth\Requests\ConfirmEmailVerificationRequest;
 use App\Modules\CustomerAuth\Resources\CustomerAuthResource;
 use App\Modules\CustomerAuth\Services\CustomerOtpService;
 use App\Support\SuccessResponse;
-use Illuminate\Support\Facades\Auth;
+use Illuminate\Http\Request;
 
 class CustomerEmailVerificationController
 {
@@ -15,27 +13,16 @@ class CustomerEmailVerificationController
         private readonly CustomerOtpService $otpService,
     ) {}
 
-    public function send()
+    /**
+     * Public endpoint — verify email when customer clicks the link from admin-triggered email.
+     */
+    public function verifyLink(Request $request)
     {
-        /** @var Customer $customer */
-        $customer = Auth::guard('customer')->user();
+        $validated = $request->validate([
+            'token' => ['required', 'string'],
+        ]);
 
-        $data = $this->otpService->sendEmailVerificationOtp($customer);
-
-        return SuccessResponse::make($data, 'OTP sent to email', 201);
-    }
-
-    public function confirm(ConfirmEmailVerificationRequest $request)
-    {
-        /** @var Customer $customer */
-        $customer = Auth::guard('customer')->user();
-        $validated = $request->validated();
-
-        $customer = $this->otpService->confirmEmailVerification(
-            $customer,
-            $validated['token'],
-            (int) $validated['code'],
-        );
+        $customer = $this->otpService->verifyEmailByLink($validated['token']);
 
         return SuccessResponse::make([
             'email_verified' => true,

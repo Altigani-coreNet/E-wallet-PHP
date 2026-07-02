@@ -384,7 +384,7 @@ class Customer extends Model implements AuthenticatableContract
 
     public function  scopeWithCountry($query)
     {
-        $user = Auth::user();
+        $user = Auth::user() ?? auth('admin-api')->user();
 
         if (!$user) {
             return $query;
@@ -413,9 +413,19 @@ class Customer extends Model implements AuthenticatableContract
         }
 
         // Fallback to single country_id on the user if present
-        $userCountryId = (int) data_get($user, 'country_id');
-        if ($userCountryId) {
-            return $query->where($query->getModel()->getTable() . '.merchant_country_id', $userCountryId);
+        $userCountryId = data_get($user, 'country_id');
+        if ($userCountryId !== null && $userCountryId !== '') {
+            $table = $query->getModel()->getTable();
+
+            return $query->where(function ($scopedQuery) use ($table, $userCountryId) {
+                $scopedQuery
+                    ->where("{$table}.merchant_country_id", $userCountryId)
+                    ->orWhere(function ($fallbackQuery) use ($table, $userCountryId) {
+                        $fallbackQuery
+                            ->whereNull("{$table}.merchant_country_id")
+                            ->where("{$table}.country_id", $userCountryId);
+                    });
+            });
         }
 
         return $query;

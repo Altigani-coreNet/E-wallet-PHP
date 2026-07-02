@@ -232,6 +232,17 @@ return [
     'customer_set_password_footer_help' => 'فريق الدعم متاح عند الحاجة.',
     'customer_set_password_automated' => 'هذه رسالة آلية. يرجى عدم الرد.',
 
+    'customer_email_verification_subject' => 'تأكيد بريدك الإلكتروني',
+    'customer_email_verification_title' => 'تأكيد البريد الإلكتروني',
+    'customer_email_verification_greeting' => 'مرحباً :name،',
+    'customer_email_verification_body' => 'يرجى تأكيد أن هذا البريد الإلكتروني يخصك. انقر على الزر أدناه للتحقق من بريد حسابك.',
+    'customer_email_verification_section' => 'التحقق من البريد الإلكتروني',
+    'customer_email_verification_btn' => 'تأكيد البريد',
+    'customer_email_verification_expiry' => 'هذا الرابط صالح لمدة :hours ساعة. إذا انتهت صلاحيته، اطلب من المسؤول إرسال رسالة تحقق جديدة.',
+    'customer_email_verification_copy_url' => 'إذا واجهت مشكلة في النقر على الزر، انسخ الرابط التالي والصقه في المتصفح:',
+    'customer_email_verification_footer_help' => 'إذا لم تطلب ذلك، يمكنك تجاهل هذه الرسالة بأمان.',
+    'customer_email_verification_automated' => 'هذه رسالة آلية. يرجى عدم الرد.',
+
     'password_reset_success_subject' => 'تم إعادة تعيين كلمة المرور بنجاح',
     'password_reset_success_greeting' => 'مرحباً :name،',
     'password_reset_success_body' => 'تم إعادة تعيين كلمة المرور بنجاح. إذا لم تقم بذلك، تواصل مع الدعم فوراً.',

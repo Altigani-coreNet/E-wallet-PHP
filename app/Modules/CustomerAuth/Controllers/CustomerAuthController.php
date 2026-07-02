@@ -4,7 +4,8 @@ namespace App\Modules\CustomerAuth\Controllers;
 
 use App\Models\Customer;
 use App\Modules\CustomerAuth\Requests\CompleteProfileRequest;
-use App\Modules\CustomerAuth\Requests\CustomerChangePasswordRequest;
+use App\Modules\CustomerAuth\Requests\CustomerChangePasswordConfirmRequest;
+use App\Modules\CustomerAuth\Requests\CustomerChangePasswordRequestRequest;
 use App\Modules\CustomerAuth\Requests\CustomerDeleteAccountRequest;
 use App\Modules\CustomerAuth\Requests\CustomerForgotPasswordRequest;
 use App\Modules\CustomerAuth\Requests\CustomerLoginRequest;
@@ -18,6 +19,8 @@ use Firebase\JWT\ExpiredException;
 use Firebase\JWT\SignatureInvalidException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use InvalidArgumentException;
+use Symfony\Component\HttpKernel\Exception\BadRequestHttpException;
 
 class CustomerAuthController
 {
@@ -87,13 +90,34 @@ class CustomerAuthController
         return SuccessResponse::make($data, 'Token refreshed successfully');
     }
 
-    public function changePassword(CustomerChangePasswordRequest $request)
+    public function requestPasswordChange(CustomerChangePasswordRequestRequest $request)
     {
         /** @var Customer $customer */
         $customer = Auth::guard('customer')->user();
-        $data = $this->authService->changePassword($customer, $request->validated());
 
-        return SuccessResponse::make($data, 'Password changed successfully');
+        try {
+            $data = $this->authService->requestPasswordChange($customer, $request->validated());
+
+            return SuccessResponse::make($data, 'Password change OTP sent successfully', 201);
+        } catch (BadRequestHttpException $exception) {
+            return SuccessResponse::error($exception->getMessage(), 400);
+        }
+    }
+
+    public function confirmPasswordChange(CustomerChangePasswordConfirmRequest $request)
+    {
+        /** @var Customer $customer */
+        $customer = Auth::guard('customer')->user();
+
+        try {
+            $data = $this->authService->confirmPasswordChange($customer, $request->validated());
+
+            return SuccessResponse::make($data, 'Password changed successfully');
+        } catch (BadRequestHttpException $exception) {
+            return SuccessResponse::error($exception->getMessage(), 400);
+        } catch (InvalidArgumentException $exception) {
+            return SuccessResponse::error($exception->getMessage(), 422);
+        }
     }
 
     public function profile()

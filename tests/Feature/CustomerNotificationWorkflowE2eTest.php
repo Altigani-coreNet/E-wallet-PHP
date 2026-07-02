@@ -106,13 +106,20 @@ class CustomerNotificationWorkflowE2eTest extends CustomerAuthTestCase
             ->assertOk()
             ->assertJsonPath('data', 1);
 
-        // 4. Change password -> security notification
-        $changePasswordResponse = $this->withHeaders(['Authorization' => 'Bearer '.$authToken])
-            ->postJson('/api/v1/customer/password/change', [
-                'current_password' => self::VALID_PASSWORD,
-                'password' => self::NEW_PASSWORD,
-                'password_confirmation' => self::NEW_PASSWORD,
-            ]);
+        // 4. Change password -> security notification (two-step OTP)
+        ['otp_token' => $passwordChangeOtpToken] = $this->requestCustomerPasswordChange(
+            $authToken,
+            self::VALID_PASSWORD,
+            self::NEW_PASSWORD,
+        );
+
+        $changePasswordResponse = $this->confirmCustomerPasswordChange(
+            $authToken,
+            $passwordChangeOtpToken,
+            111111,
+            self::VALID_PASSWORD,
+            self::NEW_PASSWORD,
+        );
 
         $changePasswordResponse->assertOk()
             ->assertJsonPath('success', true);

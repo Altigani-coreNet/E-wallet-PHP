@@ -11,6 +11,7 @@ use App\Http\Resources\AdminWalletResource;
 use App\Http\Resources\AdminWalletTransactionResource;
 use App\Models\ChangeRequest;
 use App\Models\Customer;
+use App\Modules\CustomerAuth\Services\CustomerOtpService;
 use App\Modules\CustomerAuth\Services\CustomerPasswordSetupService;
 use App\Services\Admin\AdminWalletService;
 use App\Services\ChangeRequestFormatter;
@@ -31,6 +32,7 @@ class AdminCustomerApiController extends Controller
     public function __construct(
         private readonly CustomerService $customerService,
         private readonly CustomerPasswordSetupService $passwordSetupService,
+        private readonly CustomerOtpService $customerOtpService,
         private readonly AdminWalletService $walletService,
         private readonly ChangeRequestService $changeRequestService,
         private readonly ChangeRequestFormatter $changeRequestFormatter,
@@ -410,6 +412,30 @@ class AdminCustomerApiController extends Controller
             Log::error('AdminCustomerApiController@resendPasswordInvite error: '.$exception->getMessage());
 
             return $this->jsonError('Failed to send password setup invite', 500);
+        }
+    }
+
+    public function sendVerificationEmail(string $id): JsonResponse
+    {
+        try {
+            $customer = $this->findCustomer($id);
+
+            $this->customerOtpService->sendEmailVerificationLink($customer);
+
+            return $this->jsonSuccess(null, 'Verification email sent successfully');
+        } catch (ValidationException $exception) {
+            return response()->json([
+                'success' => false,
+                'status' => false,
+                'message' => $exception->getMessage(),
+                'errors' => $exception->errors(),
+            ], 422);
+        } catch (\Symfony\Component\HttpKernel\Exception\HttpExceptionInterface $exception) {
+            return $this->jsonError($exception->getMessage(), $exception->getStatusCode());
+        } catch (\Throwable $exception) {
+            Log::error('AdminCustomerApiController@sendVerificationEmail error: '.$exception->getMessage());
+
+            return $this->jsonError('Failed to send verification email', 500);
         }
     }
 

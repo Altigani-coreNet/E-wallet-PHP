@@ -35,7 +35,7 @@ class CustomerEmailVerificationTest extends CustomerAuthTestCase
 
     public function test_email_verification_send_requires_authentication(): void
     {
-        $response = $this->postJson('/api/v1/customer/verification/email/send');
+        $response = $this->postJson('/api/v1/customer/profile/verification/email/send');
 
         $response->assertUnauthorized();
     }
@@ -48,7 +48,7 @@ class CustomerEmailVerificationTest extends CustomerAuthTestCase
         ]);
 
         $response = $this->withHeaders($this->customerAuthHeaders($customer))
-            ->postJson('/api/v1/customer/verification/email/send');
+            ->postJson('/api/v1/customer/profile/verification/email/send');
 
         $response->assertStatus(422);
     }
@@ -63,7 +63,7 @@ class CustomerEmailVerificationTest extends CustomerAuthTestCase
         ]);
 
         $response = $this->withHeaders($this->customerAuthHeaders($customer))
-            ->postJson('/api/v1/customer/verification/email/send');
+            ->postJson('/api/v1/customer/profile/verification/email/send');
 
         $response->assertCreated()
             ->assertJsonPath('success', true)
@@ -86,12 +86,12 @@ class CustomerEmailVerificationTest extends CustomerAuthTestCase
         ]);
 
         $sendResponse = $this->withHeaders($this->customerAuthHeaders($customer))
-            ->postJson('/api/v1/customer/verification/email/send');
+            ->postJson('/api/v1/customer/profile/verification/email/send');
 
         $rawToken = $sendResponse->json('data.token');
 
         $response = $this->withHeaders($this->customerAuthHeaders($customer))
-            ->postJson('/api/v1/customer/verification/email/confirm', [
+            ->postJson('/api/v1/customer/profile/verification/email/confirm', [
                 'token' => $rawToken,
                 'code' => 111111,
             ]);
@@ -115,10 +115,10 @@ class CustomerEmailVerificationTest extends CustomerAuthTestCase
         ]);
 
         $sendResponse = $this->withHeaders($this->customerAuthHeaders($customer))
-            ->postJson('/api/v1/customer/verification/email/send');
+            ->postJson('/api/v1/customer/profile/verification/email/send');
 
         $response = $this->withHeaders($this->customerAuthHeaders($customer))
-            ->postJson('/api/v1/customer/verification/email/confirm', [
+            ->postJson('/api/v1/customer/profile/verification/email/confirm', [
                 'token' => $sendResponse->json('data.token'),
                 'code' => 999999,
             ]);
@@ -150,7 +150,7 @@ class CustomerEmailVerificationTest extends CustomerAuthTestCase
         $verifyResponse->assertCreated();
 
         $response = $this->withHeaders($this->customerAuthHeaders($customer))
-            ->postJson('/api/v1/customer/verification/email/confirm', [
+            ->postJson('/api/v1/customer/profile/verification/email/confirm', [
                 'token' => $otherEmailResponse->json('data.token'),
                 'code' => 111111,
             ]);
@@ -172,7 +172,7 @@ class CustomerEmailVerificationTest extends CustomerAuthTestCase
         ]);
 
         $response = $this->withHeaders($this->customerAuthHeaders($customer))
-            ->postJson('/api/v1/customer/verification/email/confirm', [
+            ->postJson('/api/v1/customer/profile/verification/email/confirm', [
                 'token' => 'unused-token',
                 'code' => 111111,
             ]);
