@@ -53,13 +53,14 @@ class UpdateRejectedFieldsRequest extends FormRequest
         }
 
         foreach ($missingAttachments as $attachment) {
-            if ($attachment === CustomerAttachmentService::URL_TYPE_PROFILE_IMAGE) {
+            $apiKey = CustomerAttachmentService::normalizeMissingAttachmentKey($attachment);
+
+            if ($apiKey === CustomerAttachmentService::MISSING_ATTACHMENT_PICTURE) {
                 $validationRules['picture'] = 'required|file|image|max:2048';
-                $validationRules['profile_image'] = 'nullable|file|image|max:2048';
             }
 
-            if ($attachment === CustomerAttachmentService::URL_TYPE_PASSPORT_DOCUMENT) {
-                $validationRules['passport'] = 'required|file|mimes:jpeg,jpg,png,pdf|max:5120';
+            if ($apiKey === CustomerAttachmentService::MISSING_ATTACHMENT_PASSPORT) {
+                $validationRules['passport'] = 'required|file|mimes:jpeg,jpg,png,pdf|max:2048';
             }
         }
 

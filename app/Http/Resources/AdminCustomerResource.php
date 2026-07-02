@@ -104,7 +104,9 @@ class AdminCustomerResource extends JsonResource
             'id' => $rejection->id,
             'rejection_reason' => $rejection->rejection_reason,
             'invalid_fields' => $rejection->invalid_fields ?? [],
-            'missing_attachments' => $rejection->missing_attachments ?? [],
+            'missing_attachments' => CustomerAttachmentService::normalizeMissingAttachmentsList(
+                $rejection->missing_attachments ?? [],
+            ),
             'rejected_by' => $rejection->rejected_by,
             'created_at' => $rejection->created_at?->toIso8601String(),
         ];

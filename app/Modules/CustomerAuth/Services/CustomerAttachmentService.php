@@ -16,11 +16,71 @@ class CustomerAttachmentService
 
     public const URL_TYPE_PASSPORT_DOCUMENT = 'passport_document';
 
+    public const MISSING_ATTACHMENT_PICTURE = 'picture';
+
+    public const MISSING_ATTACHMENT_PASSPORT = 'passport';
+
     /** @var list<string> */
     public const ALLOWED_MISSING_ATTACHMENTS = [
-        self::URL_TYPE_PROFILE_IMAGE,
-        self::URL_TYPE_PASSPORT_DOCUMENT,
+        self::MISSING_ATTACHMENT_PICTURE,
+        self::MISSING_ATTACHMENT_PASSPORT,
     ];
+
+    /** @var array<string, string> */
+    private const LEGACY_MISSING_ATTACHMENT_TO_API_KEY = [
+        self::URL_TYPE_PROFILE_IMAGE => self::MISSING_ATTACHMENT_PICTURE,
+        self::URL_TYPE_PASSPORT_DOCUMENT => self::MISSING_ATTACHMENT_PASSPORT,
+    ];
+
+    /** @var array<string, string> */
+    private const MISSING_ATTACHMENT_API_KEY_TO_URL_TYPE = [
+        self::MISSING_ATTACHMENT_PICTURE => self::URL_TYPE_PROFILE_IMAGE,
+        self::MISSING_ATTACHMENT_PASSPORT => self::URL_TYPE_PASSPORT_DOCUMENT,
+    ];
+
+    /**
+     * @param  list<string>  $keys
+     * @return list<string>
+     */
+    public static function normalizeMissingAttachmentsList(array $keys): array
+    {
+        return array_values(array_unique(array_map(
+            fn (string $key) => self::normalizeMissingAttachmentKey($key),
+            $keys,
+        )));
+    }
+
+    public static function normalizeMissingAttachmentKey(string $key): string
+    {
+        if (isset(self::LEGACY_MISSING_ATTACHMENT_TO_API_KEY[$key])) {
+            return self::LEGACY_MISSING_ATTACHMENT_TO_API_KEY[$key];
+        }
+
+        if (in_array($key, self::ALLOWED_MISSING_ATTACHMENTS, true)) {
+            return $key;
+        }
+
+        throw new \InvalidArgumentException('Invalid attachment key: '.$key);
+    }
+
+    public static function missingAttachmentKeyToUrlType(string $key): string
+    {
+        $apiKey = self::normalizeMissingAttachmentKey($key);
+
+        return self::MISSING_ATTACHMENT_API_KEY_TO_URL_TYPE[$apiKey];
+    }
+
+    /**
+     * @param  list<string>  $keys
+     * @return list<string>
+     */
+    public static function missingAttachmentsToUrlTypes(array $keys): array
+    {
+        return array_map(
+            fn (string $key) => self::missingAttachmentKeyToUrlType($key),
+            self::normalizeMissingAttachmentsList($keys),
+        );
+    }
 
     private const PROFILE_IMAGE_DIR = 'customer_profile_images';
 

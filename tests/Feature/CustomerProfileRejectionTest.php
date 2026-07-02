@@ -175,7 +175,7 @@ class CustomerProfileRejectionTest extends CustomerAuthTestCase
 
     public function test_reject_with_passport_document_requires_passport_on_resubmit(): void
     {
-        $customer = $this->createRejectedCustomer([], ['passport_document']);
+        $customer = $this->createRejectedCustomer([], ['passport']);
 
         $this->postJson(
             '/api/v1/customer/profile/update-rejected-fields',
@@ -200,7 +200,7 @@ class CustomerProfileRejectionTest extends CustomerAuthTestCase
 
     public function test_get_rejected_fields_returns_attachment_urls(): void
     {
-        $customer = $this->createRejectedCustomer(['national_id'], ['profile_image']);
+        $customer = $this->createRejectedCustomer(['national_id'], ['picture']);
 
         app(CustomerAttachmentService::class)->uploadProfileImage(
             $customer,
@@ -222,7 +222,20 @@ class CustomerProfileRejectionTest extends CustomerAuthTestCase
                     'attachments' => ['profile_image', 'passport'],
                 ],
             ])
-            ->assertJsonPath('data.rejection.missing_attachments.0', 'profile_image');
+            ->assertJsonPath('data.rejection.missing_attachments.0', 'picture');
+    }
+
+    public function test_get_rejected_fields_maps_legacy_missing_attachment_keys(): void
+    {
+        $customer = $this->createRejectedCustomer(['national_id'], ['profile_image', 'passport_document']);
+
+        $response = $this->getJson(
+            '/api/v1/customer/profile/rejected-fields',
+            $this->customerAuthHeaders($customer)
+        );
+
+        $response->assertOk()
+            ->assertJsonPath('data.rejection.missing_attachments', ['picture', 'passport']);
     }
 
     public function test_active_customer_profile_update_creates_change_request(): void

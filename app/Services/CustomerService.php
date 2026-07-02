@@ -220,12 +220,16 @@ class CustomerService
         }
 
         foreach ($missingAttachments as $attachment) {
-            if (! in_array($attachment, CustomerAttachmentService::ALLOWED_MISSING_ATTACHMENTS, true)) {
+            try {
+                CustomerAttachmentService::normalizeMissingAttachmentKey($attachment);
+            } catch (\InvalidArgumentException) {
                 throw ValidationException::withMessages([
                     'missing_attachments' => 'Invalid attachment key: '.$attachment,
                 ]);
             }
         }
+
+        $missingAttachments = CustomerAttachmentService::normalizeMissingAttachmentsList($missingAttachments);
 
         return DB::transaction(function () use ($customer, $rejectionReason, $invalidFields, $missingAttachments) {
             $customer->status = Customer::STATUS_REJECTED;

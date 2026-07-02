@@ -51,7 +51,7 @@ class AdminCustomerRejectionTest extends CustomerAuthTestCase
             [
                 'rejection_reason' => 'National ID document is unclear and must be resubmitted.',
                 'invalid_fields' => ['national_id'],
-                'missing_attachments' => ['profile_image'],
+                'missing_attachments' => ['picture'],
             ]
         );
 
@@ -216,7 +216,7 @@ class AdminCustomerRejectionTest extends CustomerAuthTestCase
             "/api/v2/admin/customers/{$customer->id}/reject",
             [
                 'rejection_reason' => 'Profile photo and passport must be resubmitted for verification.',
-                'missing_attachments' => ['profile_image', 'passport_document'],
+                'missing_attachments' => ['picture', 'passport'],
             ]
         )->assertOk();
 
@@ -225,7 +225,7 @@ class AdminCustomerRejectionTest extends CustomerAuthTestCase
         ]);
 
         $rejection = CustomerRejection::query()->where('customer_id', $customer->id)->first();
-        $this->assertSame(['profile_image', 'passport_document'], $rejection->missing_attachments);
+        $this->assertSame(['picture', 'passport'], $rejection->missing_attachments);
     }
 
     public function test_show_includes_attachments_payload(): void

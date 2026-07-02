@@ -611,6 +611,78 @@ class CustomerAuthApiTest extends CustomerAuthTestCase
         Mail::assertNothingSent();
     }
 
+    public function test_complete_profile_rejects_oversized_picture(): void
+    {
+        Mail::fake();
+
+        [, $city] = $this->createCountryAndCity();
+
+        $customer = Customer::factory()->create([
+            'phone' => self::TEST_PHONE,
+            'profile_completed' => false,
+        ]);
+
+        $response = $this->withCustomerToken($customer)
+            ->post('/api/v1/customer/profile/complete', [
+                'firstName' => 'Ahmed',
+                'nationalId' => 'NID-OVERSIZED-PIC-001',
+                'email' => 'oversized-pic@example.com',
+                'birthDate' => '1990-05-15',
+                'gender' => 'male',
+                'cityId' => $city->id,
+                'country_code' => '249',
+                'picture' => UploadedFile::fake()->image('avatar.jpg')->size(3000),
+                'passport' => UploadedFile::fake()->create('passport.pdf', 100, 'application/pdf'),
+            ], [
+                'Accept' => 'application/json',
+            ]);
+
+        $response->assertStatus(422)
+            ->assertJsonValidationErrors(['picture'])
+            ->assertJson([
+                'success' => false,
+                'message' => 'The profile picture must not be larger than 2 MB.',
+            ]);
+
+        Mail::assertNothingSent();
+    }
+
+    public function test_complete_profile_rejects_oversized_passport(): void
+    {
+        Mail::fake();
+
+        [, $city] = $this->createCountryAndCity();
+
+        $customer = Customer::factory()->create([
+            'phone' => self::TEST_PHONE,
+            'profile_completed' => false,
+        ]);
+
+        $response = $this->withCustomerToken($customer)
+            ->post('/api/v1/customer/profile/complete', [
+                'firstName' => 'Ahmed',
+                'nationalId' => 'NID-OVERSIZED-PASS-001',
+                'email' => 'oversized-pass@example.com',
+                'birthDate' => '1990-05-15',
+                'gender' => 'male',
+                'cityId' => $city->id,
+                'country_code' => '249',
+                'picture' => UploadedFile::fake()->image('avatar.jpg'),
+                'passport' => UploadedFile::fake()->create('passport.pdf', 3000, 'application/pdf'),
+            ], [
+                'Accept' => 'application/json',
+            ]);
+
+        $response->assertStatus(422)
+            ->assertJsonValidationErrors(['passport'])
+            ->assertJson([
+                'success' => false,
+                'message' => 'The passport document must not be larger than 2 MB.',
+            ]);
+
+        Mail::assertNothingSent();
+    }
+
     public function test_can_update_profile_without_changing_email_or_phone(): void
     {
         Mail::fake();

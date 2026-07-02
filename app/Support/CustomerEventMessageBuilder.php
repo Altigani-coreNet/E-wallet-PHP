@@ -29,6 +29,8 @@ class CustomerEventMessageBuilder
 
     /** @var array<string, string> */
     private const ATTACHMENT_LABELS = [
+        'picture' => 'Profile Photo',
+        'passport' => 'Passport Document',
         'profile_image' => 'Profile Photo',
         'passport_document' => 'Passport Document',
     ];

@@ -470,7 +470,7 @@ class AdminCustomerApiController extends Controller
                 'rejection_reason' => 'required|string|min:10',
                 'invalid_fields' => 'nullable|array',
                 'missing_attachments' => 'nullable|array',
-                'missing_attachments.*' => 'in:profile_image,passport_document',
+                'missing_attachments.*' => 'in:picture,passport,profile_image,passport_document',
             ]);
 
             $customer = $this->findCustomer($id);

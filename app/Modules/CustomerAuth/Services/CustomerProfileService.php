@@ -122,7 +122,9 @@ class CustomerProfileService
 
                 'invalid_fields' => $rejection->invalid_fields ?? [],
 
-                'missing_attachments' => $rejection->missing_attachments ?? [],
+                'missing_attachments' => CustomerAttachmentService::normalizeMissingAttachmentsList(
+                    $rejection->missing_attachments ?? [],
+                ),
 
                 'created_at' => $rejection->created_at?->toIso8601String(),
 
@@ -160,7 +162,9 @@ class CustomerProfileService
 
             $payload = $this->buildRejectedFieldPayload($rejection, $data);
 
-            $missingAttachments = $rejection->missing_attachments ?? [];
+            $missingAttachments = CustomerAttachmentService::normalizeMissingAttachmentsList(
+                $rejection->missing_attachments ?? [],
+            );
 
             $beforeValues = $customer->only(array_keys($payload));
 
@@ -192,7 +196,7 @@ class CustomerProfileService
 
                 $customer,
 
-                $missingAttachments,
+                CustomerAttachmentService::missingAttachmentsToUrlTypes($missingAttachments),
 
                 $request,
 
