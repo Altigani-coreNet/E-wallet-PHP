@@ -216,12 +216,6 @@ class ChangeRequestFormatter
     protected function mapPayloadFieldsWithComparison(array $payload, ?Model $model): array
     {
         $mappedPayload = [];
-        $attachmentsByType = [];
-
-        if ($model && method_exists($model, 'attachments')) {
-            $model->loadMissing('attachments');
-            $attachmentsByType = $model->attachments->keyBy('url_type');
-        }
 
         foreach ($payload as $key => $requestedValue) {
             if (Str::startsWith($key, '__')) {
@@ -229,17 +223,8 @@ class ChangeRequestFormatter
             }
 
             $mappedKey = $this->mapFieldName($key);
-
+            $currentRaw = $this->resolveCurrentFieldRaw($model, $key);
             $currentValue = $model ? $model->getAttribute($key) : null;
-            $currentRaw = $currentValue;
-
-            if ($this->isAttachmentField($key)) {
-                if ($attachmentsByType && $attachmentsByType->has($key)) {
-                    $currentRaw = $attachmentsByType->get($key)->url;
-                } elseif ($model && $key === 'company_logo') {
-                    $currentRaw = $model->getAttribute('logo');
-                }
-            }
 
             $currentMappedValue = $this->mapFieldValue($key, $currentRaw ?? $currentValue);
             $requestedMappedValue = $this->mapFieldValue($key, $requestedValue);
@@ -248,7 +233,11 @@ class ChangeRequestFormatter
                 continue;
             }
 
-            if ($currentMappedValue !== $requestedMappedValue) {
+            $hasDifference = $this->isAttachmentField($key)
+                ? (string) ($currentRaw ?? '') !== (string) ($requestedValue ?? '')
+                : $currentMappedValue !== $requestedMappedValue;
+
+            if ($hasDifference) {
                 $isAttachment = $this->isAttachmentField($key);
                 $mappedPayload[$mappedKey] = [
                     'current' => $currentMappedValue,
@@ -297,6 +286,7 @@ class ChangeRequestFormatter
             'birth_date' => 'Date of Birth',
             'gender' => 'Gender',
             'profile_image' => 'Profile Photo',
+            'passport_document' => 'Passport Document',
         ];
 
         return $fieldMappings[$fieldName] ?? ucfirst(str_replace('_', ' ', $fieldName));
@@ -349,7 +339,7 @@ class ChangeRequestFormatter
     {
         if (isset($payload['company_logo']) || isset($payload['tax_certification']) ||
             isset($payload['trade_license']) || isset($payload['user_id_document']) ||
-            isset($payload['profile_image'])) {
+            isset($payload['profile_image']) || isset($payload['passport_document'])) {
             return 'Attachments';
         }
 
@@ -421,12 +411,46 @@ class ChangeRequestFormatter
             'trade_license',
             'user_id_document',
             'profile_image',
+            'passport_document',
         ], true);
+    }
+
+    protected function resolveCurrentFieldRaw(?Model $model, string $key): mixed
+    {
+        if (! $model) {
+            return null;
+        }
+
+        if ($this->isAttachmentField($key)) {
+            $attachmentPath = null;
+
+            if (method_exists($model, 'attachments')) {
+                $model->loadMissing('attachments');
+                $attachment = $model->attachments->firstWhere('url_type', $key);
+                $attachmentPath = $attachment?->url;
+            }
+
+            if ($key === 'profile_image') {
+                return $model->getAttribute('profile_image') ?: $attachmentPath;
+            }
+
+            if ($key === 'company_logo') {
+                return $model->getAttribute('logo') ?: $attachmentPath;
+            }
+
+            return $attachmentPath;
+        }
+
+        return $model->getAttribute($key);
     }
 
     protected function resolveAttachmentUrl($value): ?string
     {
-        if (!$value) {
+        if (function_exists('customer_attachment_public_url')) {
+            return customer_attachment_public_url(is_string($value) ? $value : null);
+        }
+
+        if (! $value) {
             return null;
         }
 
@@ -452,20 +476,22 @@ class ChangeRequestFormatter
         $fields = [];
 
         foreach ($this->applicablePayload($payload) as $key => $requestedValue) {
-            $currentValue = $model ? $model->getAttribute($key) : null;
+            $currentRaw = $this->resolveCurrentFieldRaw($model, $key);
 
-            if ($this->valuesAreEquivalent($key, $currentValue, $requestedValue)) {
+            if ($this->valuesAreEquivalent($key, $currentRaw, $requestedValue)) {
                 continue;
             }
 
-            $currentMappedValue = $this->mapFieldValue($key, $currentValue);
+            $currentMappedValue = $this->mapFieldValue($key, $currentRaw);
             $requestedMappedValue = $this->mapFieldValue($key, $requestedValue);
 
-            if ($currentMappedValue === $requestedMappedValue) {
-                continue;
-            }
+            $hasDifference = $this->isAttachmentField($key)
+                ? (string) ($currentRaw ?? '') !== (string) ($requestedValue ?? '')
+                : $currentMappedValue !== $requestedMappedValue;
 
-            $fields[] = $this->mapFieldName($key);
+            if ($hasDifference) {
+                $fields[] = $this->mapFieldName($key);
+            }
         }
 
         return $fields;

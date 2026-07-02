@@ -434,6 +434,31 @@ class CustomerAuthService
             $updateData['profile_image'] = $this->storeProfilePicture($request, $customer);
         }
 
+        if ($request->hasFile('passport') && $customer->status === Customer::STATUS_ACTIVE) {
+            $updateData['passport_document'] = $this->customerAttachmentService->storePassportForChangeRequest(
+                $customer,
+                $request->file('passport'),
+            );
+        }
+
+        if (array_key_exists('phone', $data)) {
+            $requestedPhone = trim((string) $data['phone']);
+            $currentPhone = trim((string) ($customer->phone ?? ''));
+
+            if ($requestedPhone !== '' && $requestedPhone !== $currentPhone) {
+                if (Customer::query()
+                    ->where('phone', $requestedPhone)
+                    ->where('id', '!=', $customer->id)
+                    ->exists()) {
+                    throw new \Symfony\Component\HttpKernel\Exception\ConflictHttpException(
+                        'Phone is already in use'
+                    );
+                }
+
+                $updateData['phone'] = $requestedPhone;
+            }
+        }
+
         if ($customer->status === Customer::STATUS_REJECTED) {
             $beforeValues = $customer->only(array_keys($updateData));
 
@@ -480,7 +505,7 @@ class CustomerAuthService
                     'payload' => $payload,
                     'reason' => null,
                     'status' => 'pending',
-                    'has_file' => isset($updateData['profile_image']),
+                    'has_file' => isset($updateData['profile_image']) || isset($updateData['passport_document']),
                 ]);
 
                 $customer->update(['status' => Customer::STATUS_REQUESTING_UPDATED]);

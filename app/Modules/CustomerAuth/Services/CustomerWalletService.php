@@ -36,6 +36,20 @@ class CustomerWalletService
     {
         $this->assertCustomerCanUseWallet($customer);
 
+        return $this->buildDashboard($customer);
+    }
+
+    /**
+     * Dashboard data without customer status / wallet-access checks.
+     * Temporary for testing inactive or restricted accounts.
+     */
+    public function dashboardWithoutAccessCheck(Customer $customer): array
+    {
+        return $this->buildDashboard($customer);
+    }
+
+    private function buildDashboard(Customer $customer): array
+    {
         $wallet = $this->resolveActiveWalletForCustomer($customer);
 
         $recentTransactions = WalletTransaction::query()

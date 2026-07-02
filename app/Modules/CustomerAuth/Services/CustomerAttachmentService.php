@@ -98,6 +98,45 @@ class CustomerAttachmentService
         return $this->upsertAttachment($customer, self::URL_TYPE_PASSPORT_DOCUMENT, $path, $file);
     }
 
+    public function storePassportForChangeRequest(Customer $customer, UploadedFile $file): string
+    {
+        return $file->store(self::DOCUMENTS_DIR.'/'.$customer->id.'/pending', 'public');
+    }
+
+    public function syncAttachmentFromPath(Customer $customer, string $urlType, string $path): void
+    {
+        if ($urlType === self::URL_TYPE_PROFILE_IMAGE) {
+            if ($customer->profile_image && $customer->profile_image !== $path) {
+                $oldImagePath = public_path($customer->profile_image);
+                if (file_exists($oldImagePath)) {
+                    unlink($oldImagePath);
+                }
+            }
+
+            $customer->update(['profile_image' => $path]);
+        }
+
+        $attachment = $customer->attachments()
+            ->where('url_type', $urlType)
+            ->latest()
+            ->first();
+
+        if ($attachment) {
+            $attachment->update([
+                'url' => $path,
+                'type' => $this->checkFileType($path),
+            ]);
+
+            return;
+        }
+
+        $customer->attachments()->create([
+            'url' => $path,
+            'url_type' => $urlType,
+            'type' => $this->checkFileType($path),
+        ]);
+    }
+
     /**
      * @return array{profile_image: ?string, passport: ?string}
      */

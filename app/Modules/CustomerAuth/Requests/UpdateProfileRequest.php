@@ -19,6 +19,8 @@ class UpdateProfileRequest extends CustomerAuthFormRequest
             'cityId' => ['required', 'uuid'],
             'country_code' => ['nullable', 'string'],
             'picture' => ['nullable', 'image', 'mimes:jpeg,jpg,png,gif,webp', 'max:2048'],
+            'phone' => ['sometimes', 'string', 'max:32'],
+            'passport' => ['nullable', 'file', 'mimes:jpeg,jpg,png,pdf', 'max:5120'],
         ];
     }
 }

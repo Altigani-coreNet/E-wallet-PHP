@@ -31,7 +31,7 @@ class CustomerWalletController
         $customer = Auth::guard('customer')->user();
 
         try {
-            $data = $this->walletService->dashboard($customer);
+            $data = $this->walletService->dashboardWithoutAccessCheck($customer);
 
             return SuccessResponse::make($data);
         } catch (InvalidArgumentException $exception) {

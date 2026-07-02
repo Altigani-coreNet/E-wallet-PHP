@@ -32,6 +32,10 @@ class AdminCustomerKycController extends Controller
                 ->withCountry()
                 ->where('status', Customer::STATUS_PENDING);
 
+            if ($customerId = $request->input('customer_id')) {
+                $query->whereKey($customerId);
+            }
+
             if ($request->filled('date_from') && $request->filled('date_to')) {
                 $query->whereBetween('created_at', [
                     $request->date('date_from')->startOfDay(),
@@ -87,6 +91,18 @@ class AdminCustomerKycController extends Controller
                 })
                 ->with(['changeable', 'actor', 'changeRequest'])
                 ->latest();
+
+            if ($customerId = $request->input('customer_id') ?? $request->input('changeable_id')) {
+                $query->where('changeable_id', $customerId);
+            }
+
+            if ($request->filled('from_date')) {
+                $query->whereDate('created_at', '>=', $request->date('from_date'));
+            }
+
+            if ($request->filled('to_date')) {
+                $query->whereDate('created_at', '<=', $request->date('to_date'));
+            }
 
             if ($search !== '') {
                 $query->where(function ($builder) use ($search) {

@@ -7,6 +7,7 @@ use App\Models\ChangeRequest;
 use App\Models\Customer;
 use App\Models\Merchant;
 use App\Modules\CustomerAuth\Notifications\CustomerNotificationType;
+use App\Modules\CustomerAuth\Services\CustomerAttachmentService;
 use App\Modules\CustomerAuth\Services\CustomerSystemNotificationService;
 use App\Support\CustomerEventMessageBuilder;
 use App\Modules\AdminKyc\Services\AdminKycQueueService;
@@ -21,6 +22,7 @@ class ChangeRequestService
         private readonly CustomerSystemNotificationService $customerSystemNotificationService,
         private readonly CustomerService $customerService,
         private readonly AdminKycQueueService $adminKycQueueService,
+        private readonly CustomerAttachmentService $customerAttachmentService,
     ) {}
 
     /**
@@ -74,9 +76,21 @@ class ChangeRequestService
             $payload = $this->applicablePayload($request->payload ?? []);
 
             $targetKeys = array_keys($payload);
-            $beforeSnapshot = Arr::only($changeable->getAttributes(), $targetKeys);
+            $beforeSnapshot = $this->buildCustomerSnapshot($changeable, $targetKeys);
 
             foreach ($payload as $field => $value) {
+                if ($changeable instanceof Customer && in_array($field, [
+                    CustomerAttachmentService::URL_TYPE_PROFILE_IMAGE,
+                    CustomerAttachmentService::URL_TYPE_PASSPORT_DOCUMENT,
+                ], true)) {
+                    $this->customerAttachmentService->syncAttachmentFromPath(
+                        $changeable,
+                        $field,
+                        (string) $value,
+                    );
+                    continue;
+                }
+
                 if ($field === 'tax_certified_number') {
                     $changeable->setAttribute('tax_number', $value);
                     continue;
@@ -84,11 +98,14 @@ class ChangeRequestService
                 if ($changeable instanceof Customer && $field === 'email' && $value !== $changeable->email) {
                     $changeable->setAttribute('email_verified_at', null);
                 }
+                if ($changeable instanceof Customer && $field === 'phone' && $value !== $changeable->phone) {
+                    $changeable->setAttribute('phone_verified_at', null);
+                }
                 $changeable->setAttribute($field, $value);
             }
             $changeable->save();
 
-            $afterSnapshot = Arr::only($changeable->fresh()->getAttributes(), $targetKeys);
+            $afterSnapshot = $this->buildCustomerSnapshot($changeable->fresh(), $targetKeys);
 
             $history = new ChangeHistory([
                 'before' => $beforeSnapshot,
@@ -210,6 +227,38 @@ class ChangeRequestService
     private function applicablePayload(array $payload): array
     {
         return Arr::except($payload, ['__meta']);
+    }
+
+    /**
+     * @param  list<string>  $targetKeys
+     * @return array<string, mixed>
+     */
+    private function buildCustomerSnapshot(Model $changeable, array $targetKeys): array
+    {
+        if (! $changeable instanceof Customer) {
+            return Arr::only($changeable->getAttributes(), $targetKeys);
+        }
+
+        $changeable->loadMissing('attachments');
+        $snapshot = [];
+
+        foreach ($targetKeys as $key) {
+            if (in_array($key, [
+                CustomerAttachmentService::URL_TYPE_PROFILE_IMAGE,
+                CustomerAttachmentService::URL_TYPE_PASSPORT_DOCUMENT,
+            ], true)) {
+                $snapshot[$key] = $changeable->attachments
+                    ->firstWhere('url_type', $key)
+                    ?->url ?? ($key === CustomerAttachmentService::URL_TYPE_PROFILE_IMAGE
+                        ? $changeable->profile_image
+                        : null);
+                continue;
+            }
+
+            $snapshot[$key] = $changeable->getAttribute($key);
+        }
+
+        return $snapshot;
     }
 
     private function resolvePostApprovalStatus(Model $changeable, array $payload): string
